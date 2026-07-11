@@ -95,6 +95,8 @@ code { font-family: var(--mono); background: var(--panel-2); padding: 1px 5px; b
 .card-head .cn { color: var(--ink-2); }
 .card-head .pin { margin-left: auto; font-size: 12px; color: var(--amber); }
 .card-meta { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0 4px; font-size: 11px; }
+.spark-row { display: flex; align-items: center; gap: 8px; margin-top: 6px; }
+.spark-row .spark { flex: none; opacity: .9; }
 .card-meta .badge { font-size: 11px; }
 
 .senti-row { display: flex; align-items: center; gap: 14px; margin: 6px 0; }

@@ -118,6 +118,32 @@ def compute_trends(conn) -> dict[str, dict]:
     return trends
 
 
+def score_history(conn, tickers: list[str], limit_cycles: int = 30) -> dict[str, list[dict]]:
+    """Per-ticker score series over the last N snapshot cycles, oldest first.
+    Cycles where a ticker had no mentions are zero-filled so sparklines show
+    the ticker going quiet instead of skipping the gap."""
+    cycles = [
+        r[0] for r in conn.execute(
+            "SELECT DISTINCT snapped_at_ms FROM score_snapshots ORDER BY snapped_at_ms DESC LIMIT ?",
+            (limit_cycles,),
+        )
+    ]
+    if not cycles or not tickers:
+        return {t: [] for t in tickers}
+    cycles.reverse()
+    by_ticker: dict[str, dict[int, float]] = {t: {} for t in tickers}
+    for r in conn.execute(
+        "SELECT ticker, snapped_at_ms, score FROM score_snapshots WHERE snapped_at_ms >= ?",
+        (cycles[0],),
+    ):
+        if r["ticker"] in by_ticker:
+            by_ticker[r["ticker"]][r["snapped_at_ms"]] = r["score"]
+    return {
+        t: [{"ts": ts, "score": by_ticker[t].get(ts, 0.0)} for ts in cycles]
+        for t in tickers
+    }
+
+
 def ranking_and_radar(stats: dict[str, dict], min_mentions: int) -> tuple[list[dict], list[dict]]:
     ranking = sorted(
         (e for e in stats.values() if e["mentions"] >= min_mentions),

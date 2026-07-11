@@ -76,6 +76,23 @@ function trendBadge(tr) {
   return `<span class="badge ${cls}" title="${title}">${label}</span>`;
 }
 
+function sparklineSvg(hist) {
+  if (!hist || hist.length < 3) return "";
+  const w = 130, h = 26, pad = 3;
+  const max = Math.max(...hist.map((p) => p.score), 1);
+  const pts = hist.map((p, i) => {
+    const x = pad + (i * (w - 2 * pad)) / (hist.length - 1);
+    const y = h - pad - (p.score / max) * (h - 2 * pad);
+    return [x.toFixed(1), y.toFixed(1)];
+  });
+  const [lx, ly] = pts[pts.length - 1];
+  const scores = hist.map((p) => p.score);
+  const title = `热度走势（近${hist.length}个抓取周期）min ${Math.min(...scores)} → max ${Math.max(...scores)}`;
+  return `<svg class="spark" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" role="img" aria-label="${esc(title)}"><title>${esc(title)}</title>
+    <polyline points="${pts.map((p) => p.join(",")).join(" ")}" fill="none" stroke="#4f8cd9" stroke-width="1.5" stroke-linejoin="round"/>
+    <circle cx="${lx}" cy="${ly}" r="2.2" fill="#4f8cd9"/></svg>`;
+}
+
 /* ---------- ranking chart ---------- */
 function netColor(e) {
   const sc = e.sentiment_counts;
@@ -193,12 +210,14 @@ function cardHtml(e, d) {
       }).join("") + `</details>`;
   }
 
+  const spark = sparklineSvg(e.history);
   return `<article class="card" id="card-${e.ticker}">
     <div class="card-head">
       <span class="tk">${e.ticker}</span>
       <span class="cn">${esc(e.name_cn)}</span>
       ${e.tracked ? '<span class="pin" title="tracked">📌 tracked</span>' : ""}
     </div>
+    ${spark ? `<div class="spark-row">${spark}<span class="muted small">热度走势</span></div>` : ""}
     <div class="card-meta">${meta.join("")}</div>
     ${body}
   </article>`;

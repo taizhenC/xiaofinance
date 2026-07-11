@@ -154,6 +154,7 @@ def api_ranking():
                 ranking.append(e)
                 shown.add(t)
 
+        history = scoring.score_history(conn, [e["ticker"] for e in ranking])
         out = []
         for e in ranking:
             t = e["ticker"]
@@ -173,6 +174,7 @@ def api_ranking():
                 "analysis_age_ms": (now - a["generated_at_ms"]) if a else None,
                 "latest_item_age_ms": (now - e["latest_item_ms"]) if e.get("latest_item_ms") else None,
                 "trend": trends.get(t),
+                "history": history.get(t, []),
             })
         radar_out = [
             {

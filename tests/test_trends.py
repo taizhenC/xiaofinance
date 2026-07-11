@@ -1,4 +1,4 @@
-from app.scoring import compute_trends, snapshot_scores
+from app.scoring import compute_trends, score_history, snapshot_scores
 
 
 def _stats(**scores):
@@ -29,6 +29,24 @@ def test_small_absolute_change_damped_to_flat(conn):
     snapshot_scores(conn, _stats(XYZ=1.0), 1, now=1_000)
     snapshot_scores(conn, _stats(XYZ=2.0), 2, now=2_000)
     assert compute_trends(conn)["XYZ"]["dir"] == "flat"
+
+
+def test_score_history_zero_fills_gaps(conn):
+    snapshot_scores(conn, _stats(NVDA=10.0, TSLA=5.0), 1, now=1_000)
+    snapshot_scores(conn, _stats(NVDA=12.0), 2, now=2_000)
+    snapshot_scores(conn, _stats(NVDA=8.0, TSLA=7.0), 3, now=3_000)
+    hist = score_history(conn, ["NVDA", "TSLA", "PLTR"])
+    assert [p["score"] for p in hist["NVDA"]] == [10.0, 12.0, 8.0]
+    assert [p["ts"] for p in hist["NVDA"]] == [1_000, 2_000, 3_000]
+    assert [p["score"] for p in hist["TSLA"]] == [5.0, 0.0, 7.0]
+    assert [p["score"] for p in hist["PLTR"]] == [0.0, 0.0, 0.0]
+
+
+def test_score_history_respects_cycle_limit(conn):
+    for i in range(1, 6):
+        snapshot_scores(conn, _stats(NVDA=float(i)), i, now=i * 1_000)
+    hist = score_history(conn, ["NVDA"], limit_cycles=3)
+    assert [p["score"] for p in hist["NVDA"]] == [3.0, 4.0, 5.0]
 
 
 def test_only_latest_two_cycles_compared(conn):
