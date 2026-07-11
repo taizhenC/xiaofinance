@@ -24,11 +24,13 @@ if (-not (Test-Path (Join-Path $MC_DIR ".git"))) {
     git clone $MC_REPO $MC_DIR
 }
 Set-Location $MC_DIR
-git fetch --depth 200 origin 2>$null
-git checkout $MC_PIN 2>$null
+# No stderr redirects on git here: under PS 5.1 with ErrorActionPreference=Stop,
+# 2>$null turns git's normal stderr chatter into a terminating error.
+git fetch --quiet --depth 200 origin
+git -c advice.detachedHead=false checkout --quiet $MC_PIN
 if ($LASTEXITCODE -ne 0) {
-    git fetch --unshallow origin 2>$null
-    git checkout $MC_PIN
+    git fetch --quiet --unshallow origin
+    git -c advice.detachedHead=false checkout --quiet $MC_PIN
 }
 Write-Host "MediaCrawler pinned at $(git rev-parse --short HEAD)"
 

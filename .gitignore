@@ -2,6 +2,7 @@
 /data/
 /vendor/
 static/vendor/
+static/node_modules/
 __pycache__/
 *.pyc
 .venv/
