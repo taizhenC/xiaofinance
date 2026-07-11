@@ -8,7 +8,7 @@ A local personal tool that answers "which US stocks are hot on Xiaohongshu right
 
 **Confirmed decisions:** MediaCrawler (not paid API) · US stocks only (incl. major US-listed Chinese ADRs like BABA/PDD/NIO and retail-favorite ETFs like QQQ/TQQQ/SOXL) · Hybrid analysis (dictionary detection + DeepSeek `deepseek-chat` summarization, keyless fallback = quotes only) · FastAPI + ECharts dashboard.
 
-Directory `D:\code_save\infinance` is empty (greenfield). Machine: Windows 11, currently no `uv` on PATH (setup script installs it).
+Project root: `C:\Coding\Test\xiaofinance` (this repo — greenfield apart from PLAN.md). Machine: Windows 11; setup script installs `uv` if missing.
 
 ## Verified MediaCrawler facts (drive the integration)
 
@@ -23,7 +23,7 @@ Directory `D:\code_save\infinance` is empty (greenfield). Machine: Windows 11, c
 ## Directory structure
 
 ```
-D:\code_save\infinance\
+C:\Coding\Test\xiaofinance\
 ├── pyproject.toml            # py>=3.11: fastapi, uvicorn[standard], apscheduler, openai, pydantic-settings
 ├── .env / .env.example       # DEEPSEEK_API_KEY etc.; .gitignore: data/, vendor/, .env
 ├── README.md
@@ -34,15 +34,18 @@ D:\code_save\infinance\
 │   ├── util.py               # now_ms(), normalize_ts (10-digit s → ms), parse_cn_count("1.2万"→12000)
 │   ├── crawler_runner.py     # config patch + subprocess + timeout/kill-tree + per-run log
 │   ├── ingest.py             # run-dir JSONL → notes/comments (freshness gate #1)
+│   ├── dedup.py              # simhash near-dup clustering (notes) + normalized exact-dup (comments)
 │   ├── mentions.py           # dictionary matching + ambiguity context gate
-│   ├── scoring.py            # popularity score
+│   ├── scoring.py            # popularity score (dup clusters count once)
 │   ├── analyze.py            # DeepSeek per-stock summarization + keyless fallback
-│   ├── pipeline.py           # run_cycle(mode): crawl→ingest→mentions→score→analyze→cleanup; also CLI
+│   ├── slang_scan.py         # every N cycles: LLM mines unmatched finance-context notes for new slang/谐音 aliases → suggestions
+│   ├── pipeline.py           # run_cycle(mode): crawl→ingest→dedup→mentions→score→analyze→cleanup; also CLI
 │   └── data\stock_dict.json  # ~150 tickers + aliases + context guard words
 ├── static\                   # index.html, app.js, style.css, vendor\echarts.min.js (downloaded, no runtime CDN)
 ├── scripts\setup.ps1         # install uv if missing, clone+pin MediaCrawler, uv sync both, playwright install, download echarts
 ├── scripts\login_xhs.ps1     # tiny visible crawl to (re)do QR login
 ├── data\infinance.db         # OUR SQLite (separate from MediaCrawler's)
+├── data\stock_dict_local.json # user-approved alias additions (overlay merged over stock_dict.json)
 ├── data\raw\run_000042\      # per-run MediaCrawler JSONL output
 └── vendor\MediaCrawler\      # git clone, pinned commit, own uv venv
 ```
@@ -56,7 +59,7 @@ Two independent uv venvs (our app vs MediaCrawler) — no dependency mixing.
 ```
 uv run main.py --platform xhs --lt qrcode --type search
   --keywords "美股,纳斯达克,纳指,标普500,美股投资"
-  --save_data_option jsonl --save_data_path "D:\code_save\infinance\data\raw\run_000042"
+  --save_data_option jsonl --save_data_path "C:\Coding\Test\xiaofinance\data\raw\run_000042"
   --get_comment yes --get_sub_comment no
   --crawler_max_notes_count 20 --max_comments_count_singlenotes 20
   --start 1 --headless no --max_concurrency_num 1
@@ -75,10 +78,14 @@ fetch_runs(id PK, mode CHECK('discovery','tracked'), keywords, status CHECK('run
            started_at_ms, finished_at_ms, notes_fetched, notes_fresh, comments_fresh, raw_dir, error)
 notes(note_id PK, title, note_desc, note_type, publish_time_ms NOT NULL,      -- ← freshness anchor
       liked_count INT, collected_count INT, comment_count INT, share_count INT,  -- parsed from "1.2万"
-      note_url, tag_list, source_keyword, nickname, first_seen_run_id, last_seen_run_id, fetched_at_ms)
+      note_url, tag_list, source_keyword, nickname,
+      simhash, dup_group_id,               -- dup_group_id = canonical note_id of its repost cluster (NULL = unique/canonical)
+      first_seen_run_id, last_seen_run_id, fetched_at_ms)
       + INDEX(publish_time_ms)
 comments(comment_id PK, note_id FK, parent_comment_id, content, create_time_ms NOT NULL,  -- ← freshness anchor
-      like_count INT, sub_comment_count INT, nickname, first_seen_run_id, fetched_at_ms)
+      like_count INT, sub_comment_count INT, nickname,
+      content_norm_hash, dup_group_id,     -- exact-dup cluster on normalized content (NULL = unique/canonical)
+      first_seen_run_id, fetched_at_ms)
       + INDEX(note_id), INDEX(create_time_ms)
 stock_mentions(id PK, ticker, source_type CHECK('note','comment'), source_id, note_id, matched_alias,
       match_basis CHECK('safe_alias','alias+context','ticker_symbol','targeted_search'),
@@ -90,6 +97,8 @@ stock_analyses(id PK, ticker, run_id, generated_at_ms, window_start_ms, window_e
       model, input_tokens, output_tokens, cost_usd,
       status CHECK('ok','no_api_key','error','skipped_unchanged'), error)
 tracked_stocks(ticker PK CHECK ^[A-Z]{1,5}$, added_at_ms, custom_keywords JSON)
+alias_suggestions(id PK, term, guessed_ticker, evidence_quote, evidence_note_id, suggested_at_ms,
+      status CHECK('pending','accepted','rejected'), UNIQUE(term, guessed_ticker))
 ```
 
 **Freshness enforced twice:**
@@ -97,6 +106,14 @@ tracked_stocks(ticker PK CHECK ^[A-Z]{1,5}$, added_at_ms, custom_keywords JSON)
 2. **Every query**: `WHERE content_time_ms >= now-24h` computed per request — items age out of the dashboard continuously between fetches. Analyses show `generated_at_ms` age badge; ticker drops off ranking when all mentions age out.
 
 Retention: cleanup step deletes notes/comments/mentions > 7 days and their `run_*` dirs; runs/analyses kept 30 days.
+
+## Dedup & repost collapsing (app/dedup.py)
+
+XHS reposts/copypasta inflate both the popularity score and the LLM's perceived consensus (10 copies of one take would otherwise look like 10 independent bull signals), so near-duplicates are collapsed before anything downstream sees them:
+
+- **Notes**: 64-bit simhash over normalized title+desc (full→half width, lowercase latin, strip punctuation/emoji/whitespace); within the fresh window, Hamming distance ≤ 6 → same cluster; canonical = highest `liked_count`, others get `dup_group_id = canonical note_id`. O(n²) pairwise scan is fine at ≤ a few hundred fresh notes.
+- **Comments**: exact match on normalized content (`content_norm_hash`) within the window — catches copy-pasted comment spam without false-collapsing short comments the way fuzzy matching would.
+- **Downstream effects**: mentions are still extracted from *all* items (dedup changes weighting, not detection); scoring counts each cluster **once** using the canonical's likes; analyze receives only canonicals, annotated `[×N相似]` so the model sees repetition volume without burning tokens on copies; dashboard counts are distinct clusters (raw counts in tooltip).
 
 ## Stock dictionary (app/data/stock_dict.json)
 
@@ -111,15 +128,19 @@ Retention: cleanup step deletes notes/comments/mentions > 7 days and their `run_
 
 Tracked tickers without dictionary entry: search the ticker symbol itself + optional user-supplied Chinese keywords. Ambiguous tracked keywords are finance-qualified in the actual XHS query (`苹果 美股`).
 
+**Overlay dict**: `data\stock_dict_local.json` (same shape as the base dict) is merged over `stock_dict.json` at load — user-approved additions live there, so base-dict updates never clobber them.
+
+**Slang/谐音 discovery (app/slang_scan.py)** — a static dictionary is inherently reactive against censorship-dodging nicknames (谐音/黑话/emoji codes change precisely because the old term gets flagged), so the pipeline mines for new ones: every `SLANG_SCAN_EVERY_N_CYCLES` cycles (default 20; 0 disables), sample ≤50 fresh notes that matched **zero** tickers but contain ≥1 `context_word` → one DeepSeek call: "identify likely stock nicknames/homophones and the ticker each refers to, with the evidence phrase" → rows into `alias_suggestions` (UNIQUE-deduped) → surfaced in a UI review panel. **Accept** merges the alias into the overlay dict (flagged ambiguous by default, so the context gate still applies); **reject** hides it permanently. Never auto-added — human-in-the-loop keeps hallucinated aliases out of the dictionary.
+
 ## Pipeline, scoring, LLM analysis (DeepSeek)
 
-`pipeline.run_cycle(mode)`: crawl(discovery) → ingest → crawl(tracked) → ingest → extract_mentions → score → analyze → cleanup. Also runnable as CLI: `python -m app.pipeline --mode both`.
+`pipeline.run_cycle(mode)`: crawl(discovery) → ingest → crawl(tracked) → ingest → dedup → extract_mentions → score → analyze → cleanup; every `SLANG_SCAN_EVERY_N_CYCLES`-th cycle appends a slang_scan pass. Also runnable as CLI: `python -m app.pipeline --mode both`.
 
-**Popularity score** (per ticker, trailing 24h, recomputed live):
+**Popularity score** (per ticker, trailing 24h, recomputed live, **over dup clusters** — a repost cluster counts once, with the canonical's likes):
 `score = 3·N_notes + 1·N_comments + 2·Σ_notes log10(1+likes) + 0.5·Σ_comments log10(1+likes)`
-Discovery ranking shows tickers with ≥ MIN_MENTIONS_FOR_ANALYSIS (2); tracked tickers always render (even as "no fresh data").
+Discovery ranking shows tickers with ≥ MIN_MENTIONS_FOR_ANALYSIS (2); tracked tickers always render (even as "no fresh data"). Sub-floor tickers (1 ≤ mentions < MIN) aren't invisible: they feed an **on-the-radar** strip (ticker, mention count, top quote, one-click track), so quiet-but-present names stay discoverable without LLM spend.
 
-**DeepSeek (analyze.py)**: `openai` Python SDK pointed at DeepSeek — `OpenAI(api_key=settings.DEEPSEEK_API_KEY, base_url="https://api.deepseek.com")`, model `deepseek-chat` (config `LLM_MODEL`; `LLM_BASE_URL` also configurable, so any OpenAI-compatible provider can be swapped in later), `max_tokens=2000`, `temperature≈0.3`. DeepSeek is natively strong at Chinese — well suited to XHS comment analysis. Analyze top 15 by score + all tracked with ≥1 mention. Skip API call when `input_hash` (sha256 of sorted mention source_ids) unchanged → `skipped_unchanged`. Input: ≤60 items per stock (notes truncated 300 chars, comments 150, sorted by likes), each line `[note|comment] [N小时前] [赞:123] text`. Prompt (zh system): analyst persona; step 1 discard items not about the stock as an investment (苹果 the fruit/iPhone reviews) and report `irrelevant_item_count`; step 2 stance per item (bullish/bearish/neutral); step 3 summary starting `"{ticker}: "`, ≤4 bull points, ≤4 bear points, ≤3 verbatim quotes. Summary language: **English** default (`SUMMARY_LANG=en`, quotes stay in original Chinese; switchable to zh). Structured response via DeepSeek JSON mode (`response_format={"type": "json_object"}`, JSON schema spelled out in the prompt as DeepSeek requires) → validate with a Pydantic model → one retry on parse/validation failure. Sequential calls, 0.5s spacing, per-ticker error isolation (`status='error'`, previous analysis stays visible). **No API key** → `status='no_api_key'`, quotes = top-3 liked mentioning comments, dashboard says "set DEEPSEEK_API_KEY for summaries". Cost is negligible: deepseek-chat ≈ $0.27/M input, $1.10/M output → ~15 stocks × 5K in/0.7K out ≈ **$0.03/cycle** (~$0.15/day at 5 cycles; cheaper still with cache hits / off-peak discount).
+**DeepSeek (analyze.py)**: `openai` Python SDK pointed at DeepSeek — `OpenAI(api_key=settings.DEEPSEEK_API_KEY, base_url="https://api.deepseek.com")`, model `deepseek-chat` (config `LLM_MODEL`; `LLM_BASE_URL` also configurable, so any OpenAI-compatible provider can be swapped in later), `max_tokens=2000`, `temperature≈0.3`. DeepSeek is natively strong at Chinese — well suited to XHS comment analysis. Analyze top 15 by score + all tracked with ≥1 mention. Skip API call when `input_hash` (sha256 of sorted mention source_ids) unchanged → `skipped_unchanged`. Input: ≤60 **canonical** items per stock (dup clusters pre-collapsed; notes truncated 300 chars, comments 150, sorted by likes), each line `[note|comment] [N小时前] [赞:123] [×N相似]? text`. Prompt (zh system): analyst persona; step 1 discard items not about the stock as an investment (苹果 the fruit/iPhone reviews) and report `irrelevant_item_count`; step 2 stance per item (bullish/bearish/neutral), treating `[×N相似]` clusters and same-argument items as **one viewpoint** — weight by distinct arguments, not repetition; step 3 summary starting `"{ticker}: "`, ≤4 bull points, ≤4 bear points, ≤3 verbatim quotes. Summary language: **English** default (`SUMMARY_LANG=en`, quotes stay in original Chinese; switchable to zh). Structured response via DeepSeek JSON mode (`response_format={"type": "json_object"}`, JSON schema spelled out in the prompt as DeepSeek requires) → validate with a Pydantic model → one retry on parse/validation failure. Sequential calls, 0.5s spacing, per-ticker error isolation (`status='error'`, previous analysis stays visible). **No API key** → `status='no_api_key'`, quotes = top-3 liked mentioning comments, dashboard says "set DEEPSEEK_API_KEY for summaries". Cost is negligible: deepseek-chat ≈ $0.27/M input, $1.10/M output → ~15 stocks × 5K in/0.7K out ≈ **$0.03/cycle** (~$0.15/day at 5 cycles; cheaper still with cache hits / off-peak discount).
 
 ## FastAPI (app/main.py)
 
@@ -128,14 +149,15 @@ Discovery ranking shows tickers with ≥ MIN_MENTIONS_FOR_ANALYSIS (2); tracked 
 | `GET /` + `/static/*` | dashboard + assets |
 | `GET /api/status` | `{last_run, running, login_required, scheduler:{enabled, interval_hours, next_run_at_ms}, now_ms, window_hours}` |
 | `POST /api/fetch` `{mode}` | non-blocking lock acquire; cycle in background thread; `202 {run_ids}` / `409` if running |
-| `GET /api/ranking` | 24h window: `[{ticker, name_cn, score, note_count, comment_count, sentiment_counts, tracked, analysis_age_ms, latest_item_age_ms}]` |
+| `GET /api/ranking` | 24h window: `{ranking: [{ticker, name_cn, score, note_count, comment_count, sentiment_counts, tracked, analysis_age_ms, latest_item_age_ms}], radar: [{ticker, mentions, top_quote}]}` — radar = sub-floor tickers (1 ≤ mentions < MIN) |
 | `GET /api/stocks/{ticker}` | latest analysis (full) + ≤30 fresh source items with ages, likes, note_url |
 | `GET/POST /api/tracked`, `DELETE /api/tracked/{t}` | watchlist CRUD; validate `^[A-Z]{1,5}$` |
+| `GET /api/alias_suggestions`, `POST /api/alias_suggestions/{id}` | pending slang-scan candidates; body `{action: "accept"\|"reject"}` — accept merges alias into overlay dict (ambiguous by default) |
 | `GET /api/runs?limit=20` | recent runs for status panel |
 
 - APScheduler `BackgroundScheduler` in lifespan; IntervalTrigger every `FETCH_INTERVAL_HOURS` (default 5, 0 disables) → same `run_cycle("both")`.
 - Single-crawl guarantee: module-level `threading.Lock`, non-blocking acquire in both endpoint and job; cycle runs in worker thread (blocking subprocess). On startup, stale `running` rows → `failed`.
-- `.env` config: `DEEPSEEK_API_KEY`, `LLM_MODEL=deepseek-chat`, `LLM_BASE_URL=https://api.deepseek.com`, `SUMMARY_LANG=en`, `DISCOVERY_KEYWORDS=美股,纳斯达克,纳指,标普500,美股投资`, `MAX_NOTES_PER_KEYWORD=20`, `MAX_COMMENTS_PER_NOTE=20`, `FETCH_INTERVAL_HOURS=5`, `FRESH_WINDOW_HOURS=24`, `MIN_MENTIONS_FOR_ANALYSIS=2`, `MAX_ANALYZED_STOCKS=15`, `CRAWL_TIMEOUT_MIN=30`, `MEDIACRAWLER_DIR`, `UV_EXE`, `HOST=127.0.0.1`, `PORT=8000`.
+- `.env` config: `DEEPSEEK_API_KEY`, `LLM_MODEL=deepseek-chat`, `LLM_BASE_URL=https://api.deepseek.com`, `SUMMARY_LANG=en`, `DISCOVERY_KEYWORDS=美股,纳斯达克,纳指,标普500,美股投资`, `MAX_NOTES_PER_KEYWORD=20`, `MAX_COMMENTS_PER_NOTE=20`, `FETCH_INTERVAL_HOURS=5`, `FRESH_WINDOW_HOURS=24`, `MIN_MENTIONS_FOR_ANALYSIS=2`, `MAX_ANALYZED_STOCKS=15`, `SLANG_SCAN_EVERY_N_CYCLES=20`, `CRAWL_TIMEOUT_MIN=30`, `MEDIACRAWLER_DIR`, `UV_EXE`, `HOST=127.0.0.1`, `PORT=8000`.
 - Run: `uv run uvicorn app.main:app --host 127.0.0.1 --port 8000` (localhost only, no auth).
 
 ## Frontend (static/, no build step, no runtime CDN)
@@ -143,8 +165,10 @@ Discovery ranking shows tickers with ≥ MIN_MENTIONS_FOR_ANALYSIS (2); tracked 
 `index.html` + vanilla `app.js` + `style.css` + `vendor/echarts.min.js` (setup downloads from npmmirror, jsdelivr fallback).
 - **Header**: last fetch time (local tz), "window: last 24h" badge, Fetch-now button (spinner while running; poll /api/status 3s during run, 30s idle), next scheduled run, red `login_required` banner with re-login instruction.
 - **Ranking**: ECharts horizontal bar (score), bar color by net sentiment (green/red/gray); click → scroll to card.
-- **Stock cards**: ticker + 中文名, tracked pin, N notes/M comments, sentiment donut (ECharts pie), LLM summary ("AAPL: ..."), bull/bear bullets, quotes with relative age + likes + note link, data-age badges (newest item age; "analysis Xh ago", amber when stale).
+- **Stock cards**: ticker + 中文名, tracked pin, N notes/M comments, sentiment donut (ECharts pie), LLM summary ("AAPL: ..."), bull/bear bullets, quotes with relative age + likes + note link, data-age badges (newest item age; "analysis Xh ago", amber when stale), noise indicator ("model discarded N/M items as off-topic" from `irrelevant_item_count`).
 - **Tracked management**: add form (ticker + optional Chinese keywords), remove ✕.
+- **On the radar**: compact strip of sub-floor tickers (fresh mentions but below MIN) with mention count + top quote + one-click track.
+- **Alias suggestions** (collapsed): pending slang-scan candidates with evidence quote; accept/reject buttons.
 - **Runs panel** (collapsed): mode, keywords, status, fresh counts, duration, error.
 - One `relTime(ms)` / `localTime(ms)` formatter; epoch ms everywhere in JSON.
 
@@ -156,10 +180,10 @@ Discovery ranking shows tickers with ≥ MIN_MENTIONS_FOR_ANALYSIS (2); tracked 
 | 1 | MediaCrawler clone+pin+sync+playwright; login_xhs.ps1 | Manual smoke crawl `--keywords 美股 --crawler_max_notes_count 5`: QR appears → scan → JSONL lines with 13-digit `time` + `source_keyword`; re-run needs **no QR** |
 | 2 | db.py schema + util.py + ingest.py | Ingest phase-1 output: notes count > 0; hand-inserted 3-day-old line excluded (`notes_fresh < notes_fetched`); `parse_cn_count("1.2万")==12000` unit test |
 | 3 | crawler_runner.py + pipeline skeleton | `python -m app.pipeline --mode discovery`: fetch_runs row `success`, crawler.log exists, notes ingested; xhs_config.py now has `SORT_TYPE = "time_descending"` |
-| 4 | stock_dict.json + mentions.py + scoring.py + pytest | "苹果好吃"→none; "苹果股价新高"→AAPL alias+context; "英伟达yyds"→NVDA safe; "买了点LI"→none w/o context. Then full run → sane `GROUP BY ticker` counts |
-| 5 | analyze.py | With DEEPSEEK_API_KEY set: `python -m app.analyze NVDA` → row `ok`, summary starts "NVDA: ", valid JSON fields. Without key → `no_api_key`, quotes populated |
-| 6 | main.py endpoints + scheduler + lock | `curl /api/ranking` JSON; double `POST /api/fetch` → 409; tracked CRUD round-trip; kill mid-crawl + restart → run marked failed |
-| 7 | Frontend | Open 127.0.0.1:8000: chart + cards render with zero external requests (DevTools); ages in local tz; Fetch-now disables then refreshes |
+| 4 | stock_dict.json + dedup.py + mentions.py + scoring.py + pytest | "苹果好吃"→none; "苹果股价新高"→AAPL alias+context; "英伟达yyds"→NVDA safe; "买了点LI"→none w/o context; two near-identical notes → one cluster, scored once. Then full run → sane `GROUP BY ticker` counts |
+| 5 | analyze.py + slang_scan.py | With DEEPSEEK_API_KEY set: `python -m app.analyze NVDA` → row `ok`, summary starts "NVDA: ", valid JSON fields, input lines carry `[×N相似]`. Without key → `no_api_key`, quotes populated. slang_scan on synthetic unmatched notes → `alias_suggestions` rows |
+| 6 | main.py endpoints + scheduler + lock | `curl /api/ranking` JSON; double `POST /api/fetch` → 409; tracked CRUD round-trip; kill mid-crawl + restart → run marked failed; alias accept → overlay dict updated |
+| 7 | Frontend | Open 127.0.0.1:8000: chart + cards render with zero external requests (DevTools); ages in local tz; Fetch-now disables then refreshes; radar strip + suggestions panel render |
 | 8 | Hardening + README | Delete browser profile → fetch → login banner appears; >7-day rows purged; README covers setup/login/upgrade procedure |
 
 **End-to-end verification**: run `scripts\setup.ps1` → `scripts\login_xhs.ps1` (scan QR) → start server → click Fetch now → within ~10-15 min dashboard shows ranked tickers with summaries; every visible item timestamp within 24h; add tracked ticker (e.g. `COST`) → next fetch shows its card.
@@ -171,6 +195,15 @@ Discovery ranking shows tickers with ≥ MIN_MENTIONS_FOR_ANALYSIS (2); tracked 
 - **Login expiry**: heuristic detection → banner + `login_xhs.ps1`.
 - **Thin results with time-sort**: multiple keywords; MIN_MENTIONS floor; tracked cards say "no fresh data in last 24h" rather than showing stale data.
 - **Timestamps**: XHS provides numeric epoch ms (no relative-time parsing); defensive s→ms normalization; counts like "1.2万"/"10+" parsed with unit tests.
-- **Ambiguity false positives** (苹果/阿里/LI): context-word gate + finance-qualified targeted queries + LLM discard step reporting `irrelevant_item_count`.
+- **Ambiguity false positives** (苹果/阿里/LI): context-word gate + finance-qualified targeted queries + LLM discard step reporting `irrelevant_item_count` (surfaced on the card as a noise indicator).
+- **Novel slang / 谐音黑话 evading the dictionary**: dictionary detection is inherently reactive — slang_scan periodically mines unmatched finance-context notes for candidate nicknames; accepted aliases close the gap over time. Brand-new nicknames are still missed until scanned: accepted as a structural limit.
+- **Repost inflation / duplicate ideas**: simhash clustering collapses copypasta before scoring and analysis; the prompt treats repetition as one viewpoint — consensus reflects distinct arguments, not the loudest copy-paste.
+- **Single-LLM judgment**: all semantic filtering rides on one deepseek-chat call per stock. Mitigations: dedup-cleaned capped input, `irrelevant_item_count` noise indicator on the card, verbatim quotes for spot-checking, per-ticker error isolation with the previous analysis kept visible.
 - **LLM output quality/format drift** (DeepSeek JSON mode has no strict schema enforcement): Pydantic validation + one retry; on repeated failure `status='error'`, card falls back to quotes.
 - **Windows**: utf-8 subprocess encoding, `taskkill /T /F` process-tree kill, pathlib, absolute UV_EXE for scheduler, 127.0.0.1 bind.
+
+## Deliberately deferred (v2 candidates)
+
+- **Cross-cycle memory / trend deltas**: every analysis is a stateless read of the current 24h window — yesterday's discussion isn't folded into today's summary, and "sentiment flipped vs yesterday" needs history/versioning design. Revisit once v1 proves daily-use value.
+- **Organic hidden-gem discovery**: discovery ranks what's loud by design; the tracked list + radar strip are the levers for quiet names. No embedding/cluster mining in v1.
+- **Auto-accepting slang suggestions**: stays human-in-the-loop until the suggestion stream's precision is observed.
