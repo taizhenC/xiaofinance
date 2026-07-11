@@ -15,6 +15,10 @@ log = logging.getLogger(__name__)
 MAX_ITEMS = 60
 NOTE_TRUNC = 300
 COMMENT_TRUNC = 150
+# previous-cycle summary is offered as compare-only context; older than this it's
+# no longer "上一周期" and gets dropped rather than mislead
+PREV_SUMMARY_MAX_AGE_MS = 48 * 3_600_000
+PREV_SUMMARY_TRUNC = 300
 # deepseek-chat list price, USD per 1M tokens
 COST_IN_PER_M = 0.27
 COST_OUT_PER_M = 1.10
@@ -79,7 +83,8 @@ def input_hash(items: list[dict]) -> str:
     return sha256_hex("|".join(sorted(f"{i['type']}:{i['id']}" for i in items)))
 
 
-def build_prompt(ticker: str, name_cn: str, items: list[dict], lang: str, now: int) -> tuple[str, str]:
+def build_prompt(ticker: str, name_cn: str, items: list[dict], lang: str, now: int,
+                 prev_summary: str | None = None) -> tuple[str, str]:
     lines = []
     for i in items:
         age_h = max(0, (now - i["ts"]) // 3_600_000)
@@ -87,16 +92,24 @@ def build_prompt(ticker: str, name_cn: str, items: list[dict], lang: str, now: i
         lines.append(f"[{i['type']}] [{age_h}小时前] [赞:{i['likes']}]{dup} {i['text']}")
     lang_name = "英文(English)" if lang == "en" else "中文"
     name = f"{ticker}（{name_cn}）" if name_cn else ticker
+    prev_block = ""
+    change_hint = ""
+    if prev_summary:
+        prev_block = (
+            "\n【背景参考】上一周期的分析结论——仅用于对比舆论变化，不是本次判断的依据；"
+            f"如与本次列出的内容矛盾，一律以本次内容为准：\n{prev_summary}\n"
+        )
+        change_hint = "如舆论方向或核心论点相比上一周期有明显变化，在 summary 末尾用一句话点明变化；无明显变化则不提。"
     system = "你是一位资深美股分析师，负责从小红书帖子和评论中提炼散户对某只股票的真实看法。"
     user = f"""以下是过去24小时内小红书上提及 {name} 的帖子和评论，每行格式：[类型] [发布时间] [点赞数] 内容。
 标注 [×N相似] 表示有N条相似的转发/复制内容已合并为一条——重复转发不代表更多独立观点。
 
 {chr(10).join(lines)}
-
+{prev_block}
 请完成三步：
 1. 剔除与 {ticker} 股票投资无关的条目（如水果苹果、单纯晒产品等），数量记为 irrelevant_item_count。
 2. 对剩余条目逐条判断立场（bullish/bearish/neutral），汇总为 sentiment_counts。注意：内容相似或论点相同的条目只算一个观点，按不同论点的数量与质量权衡，不按重复次数。
-3. 用{lang_name}写总结：summary 必须以 "{ticker}: " 开头（不超过120词），bull_points 最多4条看多要点，bear_points 最多4条看空要点（均用{lang_name}），notable_quotes 最多3条最有代表性的原文引用（保留中文原文）。
+3. 用{lang_name}写总结：summary 必须以 "{ticker}: " 开头（不超过120词），bull_points 最多4条看多要点，bear_points 最多4条看空要点（均用{lang_name}），notable_quotes 最多3条最有代表性的原文引用（保留中文原文）。{change_hint}
 
 只输出一个JSON对象，格式：
 {{"summary": "...", "sentiment_counts": {{"bullish": 0, "bearish": 0, "neutral": 0}}, "bull_points": ["..."], "bear_points": ["..."], "notable_quotes": ["..."], "irrelevant_item_count": 0}}"""
@@ -157,7 +170,14 @@ def analyze_ticker(conn, ticker: str, settings=None, name_cn: str = "", score: f
         insert("no_api_key", notable_quotes=json.dumps(quotes, ensure_ascii=False))
         return "no_api_key"
 
-    system, user = build_prompt(ticker, name_cn, items, settings.SUMMARY_LANG, now)
+    prev_row = conn.execute(
+        """SELECT summary FROM stock_analyses WHERE ticker=? AND status='ok' AND summary IS NOT NULL
+           AND generated_at_ms >= ? ORDER BY generated_at_ms DESC LIMIT 1""",
+        (ticker, now - PREV_SUMMARY_MAX_AGE_MS),
+    ).fetchone()
+    prev_summary = prev_row["summary"].strip()[:PREV_SUMMARY_TRUNC] if prev_row else None
+
+    system, user = build_prompt(ticker, name_cn, items, settings.SUMMARY_LANG, now, prev_summary)
     last_err = None
     for attempt in range(2):
         try:

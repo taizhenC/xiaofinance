@@ -36,7 +36,7 @@ CLI equivalent: `uv run python -m app.pipeline --mode both` (`--skip-crawl` re-a
 | Dedup | `app/dedup.py` | Simhash clustering of reposted notes + exact-dup comments; clusters count once in scoring and reach the LLM as one item tagged `[×N相似]` |
 | Mentions | `app/mentions.py` | Dictionary matching: safe aliases (特斯拉), ambiguous aliases need a finance context word (苹果 + 股价), collision tickers (LI/MS/KO…) need context too |
 | Score | `app/scoring.py` | `3·notes + 1·comments + 2·Σlog₁₀(1+note likes) + 0.5·Σlog₁₀(1+comment likes)` over clusters |
-| Analyze | `app/analyze.py` | DeepSeek JSON-mode per stock: discards off-topic items, weighs distinct arguments (not repetition), outputs summary/bull/bear/quotes; skips when inputs unchanged |
+| Analyze | `app/analyze.py` | DeepSeek JSON-mode per stock: discards off-topic items, weighs distinct arguments (not repetition), outputs summary/bull/bear/quotes; sees the previous cycle's summary as compare-only background (≤48h, never overrides current data) so it can call out sentiment shifts; skips when inputs unchanged |
 | Slang scan | `app/slang_scan.py` | Every N cycles: mines unmatched finance posts for new 谐音/黑话 nicknames → review panel, accept merges into `data/stock_dict_local.json` |
 
 Freshness gate #2: every API query re-filters to the trailing 24h window, so items age out continuously between fetches.
