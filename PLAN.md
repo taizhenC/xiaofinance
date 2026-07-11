@@ -202,8 +202,16 @@ Discovery ranking shows tickers with ≥ MIN_MENTIONS_FOR_ANALYSIS (2); tracked 
 - **LLM output quality/format drift** (DeepSeek JSON mode has no strict schema enforcement): Pydantic validation + one retry; on repeated failure `status='error'`, card falls back to quotes.
 - **Windows**: utf-8 subprocess encoding, `taskkill /T /F` process-tree kill, pathlib, absolute UV_EXE for scheduler, 127.0.0.1 bind.
 
+## v1.1 additions (implemented)
+
+- **Cross-cycle memory / trend deltas** (promoted from deferred): per-cycle `score_snapshots` power heat-trend badges (🔥 新上榜 / ↑ 升温 / ↓ 降温, cycle-over-cycle) and per-card sparklines; each analysis also sees the previous cycle's summary (≤48h) as guarded compare-only context so it can call out sentiment shifts without being biased by them.
+- **Price reality check**: daily closes from Yahoo's free chart API (`app/prices.py`, `ENABLE_PRICE_QUOTES` toggle) → price-change badge per card and a 🔀 divergence flag when crowd lean and price move conflict.
+- **Crowd hit-rate scoreboard** (`app/scoreboard.py`): clear daily leans (|bullish−bearish| ≥ 2) scored against 1d/7d realized moves.
+- **Reply threads**: `ENABLE_SUB_COMMENTS` opt-in (off by default for account safety); replies reach the LLM prefixed with their parent snippet.
+
 ## Deliberately deferred (v2 candidates)
 
-- **Cross-cycle memory / trend deltas**: every analysis is a stateless read of the current 24h window — yesterday's discussion isn't folded into today's summary, and "sentiment flipped vs yesterday" needs history/versioning design. Revisit once v1 proves daily-use value.
 - **Organic hidden-gem discovery**: discovery ranks what's loud by design; the tracked list + radar strip are the levers for quiet names. No embedding/cluster mining in v1.
 - **Auto-accepting slang suggestions**: stays human-in-the-loop until the suggestion stream's precision is observed.
+- **Author credibility weighting**: discount serial reposters / up-weight consistently early accounts — needs weeks of accumulated author history first.
+- **Second platform (Weibo/Bilibili)**: doubles the crawl/login surface; revisit if XHS-only proves insufficient.
