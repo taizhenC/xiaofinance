@@ -20,6 +20,7 @@ class Settings(BaseSettings):
     MAX_COMMENTS_PER_NOTE: int = 20
     FETCH_INTERVAL_HOURS: float = 5
     CRAWL_TIMEOUT_MIN: int = 30
+    ENABLE_SUB_COMMENTS: bool = False
 
     FRESH_WINDOW_HOURS: int = 24
     MIN_MENTIONS_FOR_ANALYSIS: int = 2

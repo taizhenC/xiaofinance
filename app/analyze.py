@@ -55,13 +55,20 @@ def gather_items(conn, ticker: str, fresh_window_ms: int, now: int | None = None
                       "ts": r["ts"], "url": r["note_url"],
                       "cluster_size": note_sizes.get(r["id"], 1)})
     for r in conn.execute(
-        """SELECT c.comment_id AS id, c.content, c.like_count AS likes, c.create_time_ms AS ts
+        """SELECT c.comment_id AS id, c.content, c.like_count AS likes, c.create_time_ms AS ts,
+                  p.content AS parent_content
            FROM stock_mentions m JOIN comments c ON c.comment_id = m.source_id
+           LEFT JOIN comments p ON p.comment_id = c.parent_comment_id
            WHERE m.ticker=? AND m.source_type='comment' AND m.content_time_ms>=?
              AND c.dup_group_id IS NULL""",
         (ticker, cutoff),
     ):
-        items.append({"type": "comment", "id": r["id"], "text": (r["content"] or "").strip()[:COMMENT_TRUNC],
+        text = (r["content"] or "").strip()
+        if r["parent_content"]:
+            # a bare reply ("同意楼上") is meaningless without its thread
+            parent = " ".join((r["parent_content"] or "").split())[:30]
+            text = f"回复「{parent}」: {text}"
+        items.append({"type": "comment", "id": r["id"], "text": text[:COMMENT_TRUNC],
                       "likes": r["likes"], "ts": r["ts"], "url": None,
                       "cluster_size": comment_sizes.get(r["id"], 1)})
     items.sort(key=lambda i: i["likes"], reverse=True)

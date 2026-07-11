@@ -48,6 +48,7 @@ Freshness gate #2: every API query re-filters to the trailing 24h window, so ite
 - **Price reality check**: daily closes from Yahoo Finance's public chart API (free, no key, delayed). The 🔀 badge flags sentiment/price divergence (e.g. crowd bullish while the stock fell ≥2%). This is the app's only non-XHS external request; set `ENABLE_PRICE_QUOTES=false` to stay fully offline.
 - **Tracked tickers** always render (targeted search: ticker symbol + finance-qualified keywords). Sub-floor tickers appear in the "On the radar" strip.
 - **Account safety**: low volume (~100–200 notes/cycle), concurrency 1, 3s sleeps, visible browser, ≥4–6h cadence. Consider a secondary XHS account. MediaCrawler is non-commercial/learning-licensed — keep it personal.
+- **Reply threads**: `ENABLE_SUB_COMMENTS=true` crawls comment reply chains (replies reach the LLM as `回复「父评论…」: …` so thread context isn't lost). Off by default — it multiplies requests per note, so weigh it against account risk.
 - **Upgrade MediaCrawler**: bump `$MC_PIN` in `scripts/setup.ps1`, re-run it, then do a small smoke crawl. The integration surface is only the CLI args, JSONL field names, and 3 patched config lines (`crawler_runner.PATCHES`) — the patcher hard-fails with a clear message if upstream renames one.
 - **Retention**: raw content 7 days, runs/analyses 30 days, cleaned each cycle.
 - **Tests**: `uv run pytest`
