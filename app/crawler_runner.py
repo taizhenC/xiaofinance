@@ -13,6 +13,20 @@ PATCHES = [
     ("config/base_config.py", "CRAWLER_MAX_SLEEP_SEC", "3"),
 ]
 
+# Line patches for things that aren't config variables. Same contract as PATCHES:
+# hard-fail if the anchor line disappears upstream, no-op if already applied.
+CODE_PATCHES = [
+    # Playwright's default 30s page timeout kills the QR login flow on slow
+    # connections before the code can even render — give it 120s instead.
+    (
+        "media_platform/xhs/core.py",
+        "self.context_page = await self.browser_context.new_page()",
+        "self.context_page = await self.browser_context.new_page()\n"
+        "            self.context_page.set_default_timeout(120_000)\n"
+        "            self.context_page.set_default_navigation_timeout(120_000)",
+    ),
+]
+
 LOGIN_HINTS = ["扫码", "二维码", "请扫码", "未登录", "登录已过期", "login expired", "login failed"]
 
 
@@ -32,6 +46,20 @@ def patch_config(mc_dir: Path) -> None:
         if new_text != text:
             path.write_text(new_text, encoding="utf-8")
             log.info("patched %s: %s = %s", rel, var, value)
+    for rel, anchor, replacement in CODE_PATCHES:
+        path = mc_dir / rel
+        if not path.exists():
+            raise RuntimeError(f"MediaCrawler file missing: {path} — run scripts\\setup.ps1")
+        text = path.read_text(encoding="utf-8")
+        if replacement in text:
+            continue
+        if anchor not in text:
+            raise RuntimeError(
+                f"MediaCrawler anchor line not found in {rel} — upstream layout changed; "
+                f"update CODE_PATCHES in crawler_runner.py or re-pin the vendor commit"
+            )
+        path.write_text(text.replace(anchor, replacement, 1), encoding="utf-8")
+        log.info("patched %s: extended page timeouts to 120s", rel)
 
 
 def run_crawl(keywords: list[str], run_dir: Path, settings) -> dict:
