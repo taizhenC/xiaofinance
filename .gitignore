@@ -1,6 +1,6 @@
 .env
-data/
-vendor/
+/data/
+/vendor/
 static/vendor/
 __pycache__/
 *.pyc
