@@ -321,6 +321,31 @@ async function loadSuggestions() {
          </div>`).join("")
     : '<p class="muted small">暂无待审核的别名建议（黑话扫描每N个周期运行一次）。</p>';
 }
+async function loadScoreboard() {
+  const { data } = await api("/api/scoreboard");
+  const o = data.overall;
+  const fmt = (rate, correct, n) => (rate == null ? "—" : `${rate}% (${correct}/${n})`);
+  $("#sbSummary").textContent = o.hit_rate_1d != null ? `次日 ${o.hit_rate_1d}%` : "";
+  if (!data.calls.length) {
+    $("#scoreboardBody").innerHTML =
+      '<p class="muted small">暂无可评估的判断 — 需要积累几天的分析与价格数据（舆论明显偏向后对照次日/7日股价）。</p>';
+    return;
+  }
+  const head = `<p class="small muted">近${data.window_days}天，舆论明显偏向（|▲−▼|≥2）后股价是否同向。` +
+    `次日命中 <b>${fmt(o.hit_rate_1d, o.correct_1d, o.evaluated_1d)}</b> · 7日命中 <b>${fmt(o.hit_rate_7d, o.correct_7d, o.evaluated_7d)}</b></p>`;
+  const cell = (mv, ok) =>
+    mv == null ? '<td class="muted">待定</td>' : `<td>${mv > 0 ? "+" : ""}${mv}% ${ok ? "✓" : "✗"}</td>`;
+  const rows = data.calls.map((c) => {
+    const lean = c.dir === "up"
+      ? `<span style="color:${BULL}">▲ 看多</span>`
+      : `<span style="color:${BEAR}">▼ 看空</span>`;
+    return `<tr><td>${c.date}</td><td class="tk">${c.ticker}</td><td>${lean} (${c.net > 0 ? "+" : ""}${c.net})</td>` +
+      `${cell(c.move_1d_pct, c.correct_1d)}${cell(c.move_7d_pct, c.correct_7d)}</tr>`;
+  }).join("");
+  $("#scoreboardBody").innerHTML = head +
+    `<div class="table-wrap"><table><thead><tr><th>日期</th><th>ticker</th><th>舆论</th><th>次日</th><th>7日</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+}
+
 async function loadRuns() {
   const { data } = await api("/api/runs?limit=20");
   $("#runsTable tbody").innerHTML = data.map((r) => {
@@ -369,7 +394,7 @@ async function refreshData() {
   renderRanking(data.ranking);
   renderRadar(data.radar);
   await buildCards(data.ranking);
-  loadTracked(); loadSuggestions(); loadRuns();
+  loadTracked(); loadSuggestions(); loadRuns(); loadScoreboard();
 }
 window.addEventListener("resize", () => rankingChart?.resize());
 loadStatus().then(refreshData).catch(console.error);

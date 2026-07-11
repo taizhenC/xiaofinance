@@ -10,7 +10,7 @@ from fastapi import Body, FastAPI, HTTPException
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from . import analyze, mentions, pipeline, prices, scoring
+from . import analyze, mentions, pipeline, prices, scoreboard, scoring
 from .config import BASE_DIR, settings
 from .db import connect
 from .util import now_ms
@@ -310,6 +310,15 @@ def api_tracked_delete(ticker: str):
         if cur.rowcount == 0:
             raise HTTPException(404, "not tracked")
         return {"deleted": ticker}
+    finally:
+        conn.close()
+
+
+@app.get("/api/scoreboard")
+def api_scoreboard():
+    conn = connect()
+    try:
+        return scoreboard.compute_scoreboard(conn)
     finally:
         conn.close()
 

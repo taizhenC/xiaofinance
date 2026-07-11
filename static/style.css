@@ -143,6 +143,7 @@ details.items-toggle summary { cursor: pointer; color: var(--ink-3); }
 table { border-collapse: collapse; width: 100%; font-size: 12px; }
 th, td { text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--border); white-space: nowrap; }
 th { color: var(--ink-3); font-weight: 500; }
+td.tk { font-family: var(--mono); font-weight: 600; }
 td.err { color: var(--bear); max-width: 260px; overflow: hidden; text-overflow: ellipsis; }
 .st-success { color: var(--bull); } .st-failed { color: var(--bear); }
 .st-partial { color: var(--amber); } .st-running { color: var(--accent); }
