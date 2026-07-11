@@ -139,6 +139,7 @@ def api_ranking():
         names = {s["ticker"]: s.get("name_cn", "") for s in dict_data["stocks"]}
         stats = scoring.compute_stats(conn, settings.fresh_window_ms, now)
         tracked = _tracked_map(conn)
+        trends = scoring.compute_trends(conn)
         ranking, radar = scoring.ranking_and_radar(stats, settings.MIN_MENTIONS_FOR_ANALYSIS)
 
         shown = {e["ticker"] for e in ranking}
@@ -171,6 +172,7 @@ def api_ranking():
                 "analysis_status": a["status"] if a else None,
                 "analysis_age_ms": (now - a["generated_at_ms"]) if a else None,
                 "latest_item_age_ms": (now - e["latest_item_ms"]) if e.get("latest_item_ms") else None,
+                "trend": trends.get(t),
             })
         radar_out = [
             {
@@ -178,6 +180,7 @@ def api_ranking():
                 "name_cn": names.get(e["ticker"], ""),
                 "mentions": e["mentions"],
                 "top_quote": e["top_quote"],
+                "trend": trends.get(e["ticker"]),
             }
             for e in radar if e["ticker"] not in tracked
         ]

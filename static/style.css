@@ -42,6 +42,8 @@ code { font-family: var(--mono); background: var(--panel-2); padding: 1px 5px; b
 }
 .badge-window { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 40%, transparent); }
 .badge-amber { color: var(--amber); border-color: color-mix(in srgb, var(--amber) 45%, transparent); }
+.badge-heat { color: var(--amber); border-color: color-mix(in srgb, var(--amber) 45%, transparent); }
+.badge-cool { color: var(--ink-2); }
 
 .banner { padding: 10px 20px; font-size: 13px; }
 .banner-error { background: #3a1d1d; color: #f0b6b6; border-bottom: 1px solid #5c2b2b; }

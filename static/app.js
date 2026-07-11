@@ -59,6 +59,23 @@ function schedulePoll(ms) {
   pollTimer = setTimeout(() => loadStatus().catch(console.error), ms);
 }
 
+/* ---------- heat trend (popularity vs previous fetch cycle; amber/gray so
+   green/red stay reserved for sentiment) ---------- */
+function trendLabel(tr) {
+  if (!tr) return "";
+  if (tr.dir === "new") return "🔥 新上榜";
+  if (tr.dir === "up") return `↑ 升温 +${tr.delta_pct}%`;
+  if (tr.dir === "down") return `↓ 降温 ${tr.delta_pct}%`;
+  return "";
+}
+function trendBadge(tr) {
+  const label = trendLabel(tr);
+  if (!label) return "";
+  const cls = tr.dir === "down" ? "badge-cool" : "badge-heat";
+  const title = tr.dir === "new" ? "上一抓取周期未出现" : "热度较上一抓取周期的变化";
+  return `<span class="badge ${cls}" title="${title}">${label}</span>`;
+}
+
 /* ---------- ranking chart ---------- */
 function netColor(e) {
   const sc = e.sentiment_counts;
@@ -106,7 +123,8 @@ function renderRanking(entries) {
         const senti = sc ? `▲${sc.bullish} ▼${sc.bearish} —${sc.neutral}` : "无分析";
         const raw = e.note_count_raw > e.note_count || e.comment_count_raw > e.comment_count
           ? `（含转发 ${e.note_count_raw}帖/${e.comment_count_raw}评）` : "";
-        return `<b style="font-family:${MONO}">${e.ticker}</b> ${esc(e.name_cn)}<br>` +
+        const trend = trendLabel(e.trend);
+        return `<b style="font-family:${MONO}">${e.ticker}</b> ${esc(e.name_cn)}${trend ? ` · ${trend}` : ""}<br>` +
           `score ${e.score} · ${e.note_count}帖 ${e.comment_count}评 ${raw}<br>${senti}`;
       },
     },
@@ -129,6 +147,8 @@ function sentiLegend(sc) {
 function cardHtml(e, d) {
   const a = d.analysis;
   const meta = [];
+  const tb = trendBadge(e.trend);
+  if (tb) meta.push(tb);
   meta.push(`<span class="badge">${e.note_count}帖 · ${e.comment_count}评` +
     (e.note_count_raw > e.note_count ? ` <span title="含转发重复">(raw ${e.note_count_raw}/${e.comment_count_raw})</span>` : "") + `</span>`);
   if (e.latest_item_age_ms != null)
@@ -232,7 +252,7 @@ function renderRadar(radar) {
   $("#radarPanel").hidden = radar.length === 0;
   $("#radarStrip").innerHTML = radar.map((r) =>
     `<span class="chip" title="${esc(r.top_quote || "")}">
-       <span class="tk">${r.ticker}</span> ${esc(r.name_cn)} ·${r.mentions}
+       ${r.trend?.dir === "new" ? "🔥 " : ""}<span class="tk">${r.ticker}</span> ${esc(r.name_cn)} ·${r.mentions}
        <button data-track="${r.ticker}" title="加入跟踪">＋跟踪</button>
      </span>`).join("");
 }

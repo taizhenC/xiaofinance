@@ -115,6 +115,19 @@ CREATE TABLE IF NOT EXISTS alias_suggestions(
   UNIQUE(term, guessed_ticker)
 );
 
+CREATE TABLE IF NOT EXISTS score_snapshots(
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  ticker TEXT NOT NULL,
+  run_id INTEGER,
+  snapped_at_ms INTEGER NOT NULL,
+  score REAL NOT NULL,
+  mentions INTEGER NOT NULL,
+  note_count INTEGER NOT NULL DEFAULT 0,
+  comment_count INTEGER NOT NULL DEFAULT 0,
+  UNIQUE(ticker, snapped_at_ms)
+);
+CREATE INDEX IF NOT EXISTS idx_snapshots_time ON score_snapshots(snapped_at_ms);
+
 CREATE TABLE IF NOT EXISTS meta(
   key TEXT PRIMARY KEY,
   value TEXT

@@ -40,6 +40,26 @@ def test_tracked_crud(client):
     assert any(e["ticker"] == "NVDA" and e["tracked"] for e in r["ranking"])
 
 
+def test_ranking_includes_trend(client):
+    from app.db import connect
+    from app.scoring import snapshot_scores
+
+    def stats(score):
+        return {"NVDA": {"ticker": "NVDA", "score": score, "mentions": 2,
+                         "note_count": 1, "comment_count": 1}}
+
+    conn = connect(settings.DB_PATH)
+    snapshot_scores(conn, stats(10.0), 1, now=1_000)
+    snapshot_scores(conn, stats(20.0), 2, now=2_000)
+    conn.close()
+
+    client.post("/api/tracked", json={"ticker": "NVDA"})
+    r = client.get("/api/ranking").json()
+    e = next(x for x in r["ranking"] if x["ticker"] == "NVDA")
+    assert e["trend"]["dir"] == "up"
+    assert e["trend"]["delta_pct"] == 100
+
+
 def test_double_fetch_409(client, monkeypatch):
     release = threading.Event()
 

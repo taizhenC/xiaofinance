@@ -64,6 +64,60 @@ def compute_stats(conn, fresh_window_ms: int, now: int | None = None) -> dict[st
     return stats
 
 
+TREND_PCT = 25
+TREND_MIN_ABS_DELTA = 2.0
+
+
+def snapshot_scores(conn, stats: dict[str, dict], run_id: int | None, now: int | None = None) -> int:
+    """One row per ticker per fetch cycle; all rows of a cycle share snapped_at_ms
+    so consecutive cycles can be compared apples-to-apples."""
+    now = now or now_ms()
+    rows = [
+        (e["ticker"], run_id, now, e["score"], e["mentions"], e["note_count"], e["comment_count"])
+        for e in stats.values()
+    ]
+    conn.executemany(
+        """INSERT INTO score_snapshots(ticker, run_id, snapped_at_ms, score, mentions, note_count, comment_count)
+           VALUES(?,?,?,?,?,?,?) ON CONFLICT(ticker, snapped_at_ms) DO NOTHING""",
+        rows,
+    )
+    conn.commit()
+    return len(rows)
+
+
+def compute_trends(conn) -> dict[str, dict]:
+    """Heat trend per ticker: latest snapshot cycle vs the one before it.
+    Empty until two cycles of history exist. Small absolute moves are damped
+    to 'flat' so low-score tickers don't flap on percentage noise."""
+    cycles = conn.execute(
+        "SELECT DISTINCT snapped_at_ms FROM score_snapshots ORDER BY snapped_at_ms DESC LIMIT 2"
+    ).fetchall()
+    if len(cycles) < 2:
+        return {}
+    latest_ts, prev_ts = cycles[0][0], cycles[1][0]
+    prev = {
+        r["ticker"]: r["score"]
+        for r in conn.execute("SELECT ticker, score FROM score_snapshots WHERE snapped_at_ms=?", (prev_ts,))
+    }
+    trends: dict[str, dict] = {}
+    for r in conn.execute("SELECT ticker, score FROM score_snapshots WHERE snapped_at_ms=?", (latest_ts,)):
+        ticker, score = r["ticker"], r["score"]
+        p = prev.get(ticker)
+        if p is None:
+            trends[ticker] = {"dir": "new", "delta_pct": None, "prev_score": 0.0}
+            continue
+        delta = score - p
+        pct = round(delta / p * 100) if p > 0 else None
+        if pct is not None and pct >= TREND_PCT and delta >= TREND_MIN_ABS_DELTA:
+            d = "up"
+        elif pct is not None and pct <= -TREND_PCT and -delta >= TREND_MIN_ABS_DELTA:
+            d = "down"
+        else:
+            d = "flat"
+        trends[ticker] = {"dir": d, "delta_pct": pct, "prev_score": p}
+    return trends
+
+
 def ranking_and_radar(stats: dict[str, dict], min_mentions: int) -> tuple[list[dict], list[dict]]:
     ranking = sorted(
         (e for e in stats.values() if e["mentions"] >= min_mentions),

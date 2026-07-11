@@ -84,6 +84,7 @@ def cleanup(conn, settings, now: int | None = None) -> None:
     conn.execute("DELETE FROM comments WHERE create_time_ms < ?", (content_cutoff,))
     conn.execute("DELETE FROM notes WHERE publish_time_ms < ?", (content_cutoff,))
     conn.execute("DELETE FROM stock_analyses WHERE generated_at_ms < ?", (runs_cutoff,))
+    conn.execute("DELETE FROM score_snapshots WHERE snapped_at_ms < ?", (runs_cutoff,))
     conn.execute("DELETE FROM fetch_runs WHERE started_at_ms < ?", (runs_cutoff,))
     conn.commit()
 
@@ -105,6 +106,8 @@ def run_cycle(mode: str = "both", skip_crawl: bool = False, settings=None) -> di
         dedup.recompute_dedup(conn, settings.fresh_window_ms)
         mentions.extract_mentions(conn, dict_data, _tracked_rows(conn), settings.fresh_window_ms, last_run_id)
         stats = scoring.compute_stats(conn, settings.fresh_window_ms)
+        if not skip_crawl:
+            scoring.snapshot_scores(conn, stats, last_run_id)
         tracked = {r["ticker"] for r in _tracked_rows(conn)}
         analysis = analyze.analyze_all(
             conn, settings, dict_data, stats, tracked,
