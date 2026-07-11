@@ -10,7 +10,7 @@ from fastapi import Body, FastAPI, HTTPException
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from . import analyze, mentions, pipeline, scoring
+from . import analyze, mentions, pipeline, prices, scoring
 from .config import BASE_DIR, settings
 from .db import connect
 from .util import now_ms
@@ -20,7 +20,29 @@ log = logging.getLogger(__name__)
 TICKER_RE = re.compile(r"^[A-Z]{1,5}$")
 
 fetch_lock = threading.Lock()
+quotes_lock = threading.Lock()
 scheduler: BackgroundScheduler | None = None
+
+
+def _refresh_quotes_bg(tickers: list[str]) -> None:
+    """Non-blocking: kick a daemon thread so ranking requests never wait on
+    stooq.com; the UI picks up fresh quotes on its next poll."""
+    if not quotes_lock.acquire(blocking=False):
+        return
+
+    def worker():
+        try:
+            conn = connect()
+            try:
+                prices.refresh_quotes(conn, tickers)
+            finally:
+                conn.close()
+        except Exception:
+            log.exception("background quote refresh failed")
+        finally:
+            quotes_lock.release()
+
+    threading.Thread(target=worker, daemon=True).start()
 
 
 def _run_cycle_locked(mode: str) -> bool:
@@ -155,10 +177,23 @@ def api_ranking():
                 shown.add(t)
 
         history = scoring.score_history(conn, [e["ticker"] for e in ranking])
+        quotes = {}
+        if settings.ENABLE_PRICE_QUOTES:
+            shown_list = [e["ticker"] for e in ranking]
+            quotes = prices.get_quotes(conn, shown_list)
+            if prices.quotes_need_refresh(conn, shown_list, settings.QUOTE_REFRESH_MIN * 60_000, now):
+                _refresh_quotes_bg(shown_list)
+
         out = []
         for e in ranking:
             t = e["ticker"]
             a = _latest_analysis(conn, t)
+            sc = json.loads(a["sentiment_counts"]) if a and a["sentiment_counts"] else None
+            q = quotes.get(t)
+            divergence = False
+            if q and q.get("change_pct") is not None and sc:
+                net = sc.get("bullish", 0) - sc.get("bearish", 0)
+                divergence = (net >= 2 and q["change_pct"] <= -2) or (net <= -2 and q["change_pct"] >= 2)
             out.append({
                 "ticker": t,
                 "name_cn": names.get(t, ""),
@@ -169,7 +204,12 @@ def api_ranking():
                 "comment_count_raw": e["comment_count_raw"],
                 "mentions": e.get("mentions", 0),
                 "tracked": t in tracked,
-                "sentiment_counts": json.loads(a["sentiment_counts"]) if a and a["sentiment_counts"] else None,
+                "sentiment_counts": sc,
+                "quote": {
+                    "price": q["price"], "change_pct": q["change_pct"],
+                    "market_date": q["market_date"], "quoted_at_ms": q["quoted_at_ms"],
+                } if q else None,
+                "divergence": divergence,
                 "analysis_status": a["status"] if a else None,
                 "analysis_age_ms": (now - a["generated_at_ms"]) if a else None,
                 "latest_item_age_ms": (now - e["latest_item_ms"]) if e.get("latest_item_ms") else None,

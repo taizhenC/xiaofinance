@@ -4,7 +4,7 @@ import logging
 import shutil
 from pathlib import Path
 
-from . import analyze, crawler_runner, dedup, ingest, mentions, scoring, slang_scan
+from . import analyze, crawler_runner, dedup, ingest, mentions, prices, scoring, slang_scan
 from .config import settings as default_settings
 from .db import connect, meta_get, meta_set
 from .util import now_ms
@@ -113,6 +113,9 @@ def run_cycle(mode: str = "both", skip_crawl: bool = False, settings=None) -> di
             conn, settings, dict_data, stats, tracked,
             settings.MIN_MENTIONS_FOR_ANALYSIS, settings.MAX_ANALYZED_STOCKS, last_run_id,
         )
+        if settings.ENABLE_PRICE_QUOTES:
+            ranked = sorted(stats, key=lambda t: -stats[t]["score"])[: settings.MAX_ANALYZED_STOCKS]
+            prices.refresh_quotes(conn, ranked + sorted(t for t in tracked if t not in ranked))
         cleanup(conn, settings)
 
         cycle = int(meta_get(conn, "cycle_count", "0") or 0) + 1

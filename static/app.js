@@ -76,6 +76,24 @@ function trendBadge(tr) {
   return `<span class="badge ${cls}" title="${title}">${label}</span>`;
 }
 
+/* ---------- price reality check (Stooq daily closes) ---------- */
+function quoteText(q) {
+  if (!q || q.change_pct == null) return "";
+  const sign = q.change_pct > 0 ? "+" : "";
+  return `$${q.price} (${sign}${q.change_pct}%)`;
+}
+function quoteBadge(e) {
+  const q = e.quote;
+  if (!q || q.change_pct == null) return "";
+  const col = q.change_pct > 0 ? BULL : q.change_pct < 0 ? BEAR : NEUT;
+  const sign = q.change_pct > 0 ? "+" : "";
+  return `<span class="badge" title="最近交易日收盘 vs 前一交易日（${esc(q.market_date)}，Yahoo 免费数据，非实时）">股价 $${q.price} <b style="color:${col}">${sign}${q.change_pct}%</b></span>`;
+}
+function divergenceBadge(e) {
+  if (!e.divergence) return "";
+  return `<span class="badge badge-amber" title="小红书舆论倾向与最近股价方向相反 — 可能已被定价，或情绪滞后/领先">🔀 舆论与股价背离</span>`;
+}
+
 function sparklineSvg(hist) {
   if (!hist || hist.length < 3) return "";
   const w = 130, h = 26, pad = 3;
@@ -141,8 +159,9 @@ function renderRanking(entries) {
         const raw = e.note_count_raw > e.note_count || e.comment_count_raw > e.comment_count
           ? `（含转发 ${e.note_count_raw}帖/${e.comment_count_raw}评）` : "";
         const trend = trendLabel(e.trend);
-        return `<b style="font-family:${MONO}">${e.ticker}</b> ${esc(e.name_cn)}${trend ? ` · ${trend}` : ""}<br>` +
-          `score ${e.score} · ${e.note_count}帖 ${e.comment_count}评 ${raw}<br>${senti}`;
+        const px = quoteText(e.quote);
+        return `<b style="font-family:${MONO}">${e.ticker}</b> ${esc(e.name_cn)}${trend ? ` · ${trend}` : ""}${px ? ` · ${px}` : ""}<br>` +
+          `score ${e.score} · ${e.note_count}帖 ${e.comment_count}评 ${raw}<br>${senti}${e.divergence ? "<br>🔀 舆论与股价背离" : ""}`;
       },
     },
   }, true);
@@ -166,6 +185,10 @@ function cardHtml(e, d) {
   const meta = [];
   const tb = trendBadge(e.trend);
   if (tb) meta.push(tb);
+  const qb = quoteBadge(e);
+  if (qb) meta.push(qb);
+  const db = divergenceBadge(e);
+  if (db) meta.push(db);
   meta.push(`<span class="badge">${e.note_count}帖 · ${e.comment_count}评` +
     (e.note_count_raw > e.note_count ? ` <span title="含转发重复">(raw ${e.note_count_raw}/${e.comment_count_raw})</span>` : "") + `</span>`);
   if (e.latest_item_age_ms != null)

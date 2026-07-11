@@ -115,6 +115,22 @@ CREATE TABLE IF NOT EXISTS alias_suggestions(
   UNIQUE(term, guessed_ticker)
 );
 
+CREATE TABLE IF NOT EXISTS price_history(
+  ticker TEXT NOT NULL,
+  date TEXT NOT NULL,
+  close REAL NOT NULL,
+  PRIMARY KEY(ticker, date)
+);
+
+CREATE TABLE IF NOT EXISTS quotes(
+  ticker TEXT PRIMARY KEY,
+  price REAL,
+  prev_close REAL,
+  change_pct REAL,
+  market_date TEXT,
+  quoted_at_ms INTEGER NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS score_snapshots(
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   ticker TEXT NOT NULL,

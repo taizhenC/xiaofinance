@@ -26,6 +26,9 @@ class Settings(BaseSettings):
     MAX_ANALYZED_STOCKS: int = 15
     SLANG_SCAN_EVERY_N_CYCLES: int = 20
 
+    ENABLE_PRICE_QUOTES: bool = True
+    QUOTE_REFRESH_MIN: int = 30
+
     MEDIACRAWLER_DIR: Path = BASE_DIR / "vendor" / "MediaCrawler"
     UV_EXE: str = "uv"
     DB_PATH: Path = BASE_DIR / "data" / "infinance.db"
