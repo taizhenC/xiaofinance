@@ -3,6 +3,7 @@ import logging
 import re
 import threading
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.interval import IntervalTrigger
@@ -10,7 +11,7 @@ from fastapi import Body, FastAPI, HTTPException
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from . import analyze, mentions, pipeline, prices, scoreboard, scoring
+from . import analyze, crawler_runner, mentions, pipeline, prices, scoreboard, scoring
 from .config import BASE_DIR, settings
 from .db import connect
 from .util import now_ms
@@ -93,6 +94,16 @@ def _latest_analysis(conn, ticker: str):
     return rows[0] if rows else None
 
 
+def _with_progress(row) -> dict:
+    """A running crawl gets its live counts attached; a finished one already has them."""
+    r = dict(row)
+    if r.get("status") == "running" and r.get("raw_dir"):
+        r["progress"] = crawler_runner.crawl_progress(
+            Path(r["raw_dir"]), [k for k in (r.get("keywords") or "").split(",") if k]
+        )
+    return r
+
+
 def _tracked_map(conn) -> dict[str, list[str]]:
     return {
         r["ticker"]: json.loads(r["custom_keywords"] or "[]")
@@ -116,7 +127,7 @@ def api_status():
             if job and job.next_run_time:
                 next_run_ms = int(job.next_run_time.timestamp() * 1000)
         return {
-            "last_run": dict(last) if last else None,
+            "last_run": _with_progress(last) if last else None,
             "running": fetch_lock.locked(),
             "login_required": bool(last and last["error"] == "login_required"),
             "scheduler": {
@@ -351,7 +362,7 @@ def api_runs(limit: int = 20):
     conn = connect()
     try:
         return [
-            dict(r)
+            _with_progress(r)
             for r in conn.execute(
                 "SELECT * FROM fetch_runs ORDER BY id DESC LIMIT ?", (min(limit, 100),)
             )

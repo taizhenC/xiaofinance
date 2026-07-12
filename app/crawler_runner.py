@@ -150,6 +150,74 @@ def run_crawl(keywords: list[str], run_dir: Path, settings, get_comments: bool =
     return {"exit_code": proc.returncode, "timed_out": timed_out, "log_path": log_path}
 
 
+CAPTCHA_MARKER = "CAPTCHA appeared"
+NETWORK_MARKERS = ["ConnectError", "ConnectTimeout", "ReadTimeout", "ProxyError", "SSLError"]
+KEYWORD_RE = re.compile(r"Current search keyword: (.+)")
+
+
+def _log_text(log_path: Path, tail_bytes: int | None = None) -> str:
+    """Reads the tail by default: a risk-controlled run writes an error line per retry and
+    a full note dump per result, so these logs run to megabytes."""
+    path = Path(log_path)
+    if not path.exists():
+        return ""
+    try:
+        with open(path, "rb") as f:
+            if tail_bytes:
+                f.seek(0, 2)
+                f.seek(max(0, f.tell() - tail_bytes))
+            return f.read().decode("utf-8", errors="replace")
+    except OSError:
+        return ""
+
+
+def failure_reason(log_path: Path, exit_code: int) -> str:
+    """MediaCrawler exits 1 for every unhandled error alike, so the exit code on its own
+    tells you nothing about whether to retry, re-login, or back off. Name the cause."""
+    text = _log_text(log_path)
+    captchas = text.count(CAPTCHA_MARKER)
+    if captchas:
+        return (
+            f"XHS risk control: {captchas} requests answered with a CAPTCHA (461) — "
+            "the account is being rate-limited, not logged out"
+        )
+    for m in NETWORK_MARKERS:
+        if m in text:
+            return f"network error ({m}) — crawler exit code {exit_code}"
+    if "RetryError" in text:
+        return f"XHS API kept failing until retries ran out — crawler exit code {exit_code}"
+    return f"crawler exit code {exit_code}"
+
+
+def _count_lines(paths) -> int:
+    total = 0
+    for p in paths:
+        try:
+            with open(p, "rb") as f:
+                total += sum(1 for _ in f)
+        except OSError:
+            pass
+    return total
+
+
+def crawl_progress(run_dir: Path, keywords: list[str]) -> dict:
+    """Where a running crawl has got to. MediaCrawler reports nothing to us until it
+    exits, but it writes JSONL rows and a per-keyword log line as it goes — so read those
+    rather than leave a 30-minute crawl looking identical to a hung one."""
+    jsonl = Path(run_dir) / "xhs" / "jsonl"
+    text = _log_text(Path(run_dir) / "crawler.log", tail_bytes=1_000_000)
+    seen = KEYWORD_RE.findall(text)
+    current = seen[-1].strip() if seen else None
+    return {
+        "notes": _count_lines(jsonl.glob("search_contents_*.jsonl")),
+        "comments": _count_lines(jsonl.glob("search_comments_*.jsonl")),
+        "keyword": current,
+        "keyword_index": keywords.index(current) + 1 if current in keywords else None,
+        "keyword_total": len(keywords),
+        "captchas": text.count(CAPTCHA_MARKER),
+    }
+
+
 def login_looks_required(log_path: Path, notes_fresh: int) -> bool:
     """True if the log says the session expired, or the crawl got nothing and mentions login."""
     if not Path(log_path).exists():

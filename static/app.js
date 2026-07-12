@@ -36,9 +36,18 @@ async function api(path, opts) {
 async function loadStatus() {
   const { data: s } = await api("/api/status");
   $("#windowBadge").textContent = `window: last ${s.window_hours}h`;
-  $("#lastFetch").textContent = s.last_run
-    ? `last fetch: ${localTime(s.last_run.finished_at_ms || s.last_run.started_at_ms)} (${s.last_run.status})`
-    : "last fetch: never";
+  const p = s.running && s.last_run ? s.last_run.progress : null;
+  if (p) {
+    // A discovery cycle takes ~5 min per keyword; without this the whole half hour looks
+    // the same as a hang.
+    const kw = p.keyword ? ` · 关键词 ${p.keyword_index || "?"}/${p.keyword_total}「${p.keyword}」` : "";
+    const risk = p.captchas ? ` · ⚠ 风控验证码 ×${p.captchas}` : "";
+    $("#lastFetch").textContent = `抓取中: ${p.notes}帖/${p.comments}评${kw}${risk}`;
+  } else {
+    $("#lastFetch").textContent = s.last_run
+      ? `last fetch: ${localTime(s.last_run.finished_at_ms || s.last_run.started_at_ms)} (${s.last_run.status})`
+      : "last fetch: never";
+  }
   $("#nextRun").textContent =
     s.scheduler.enabled && s.scheduler.next_run_at_ms
       ? `next auto-run: ${localTime(s.scheduler.next_run_at_ms)}`
@@ -49,6 +58,7 @@ async function loadStatus() {
   $("#fetchSpinner").hidden = !s.running;
   $("#fetchBtnLabel").textContent = s.running ? "抓取中…" : "Fetch now";
 
+  if (s.running) loadRuns().catch(console.error);
   if (wasRunning && !s.running) refreshData(); // cycle just finished
   wasRunning = s.running;
   schedulePoll(s.running ? 3000 : 30000);
@@ -391,16 +401,29 @@ async function loadScoreboard() {
     `<div class="table-wrap"><table><thead><tr><th>日期</th><th>ticker</th><th>舆论</th><th>次日</th><th>7日</th></tr></thead><tbody>${rows}</tbody></table></div>`;
 }
 
+function progressNote(p) {
+  const bits = [];
+  if (p.keyword) bits.push(`关键词 ${p.keyword_index || "?"}/${p.keyword_total}「${esc(p.keyword)}」`);
+  // A crawl that is being CAPTCHA'd still returns rows, just slower and slower — say so
+  // while it happens instead of only in the post-mortem error column.
+  if (p.captchas) bits.push(`<b class="warn">⚠ 风控验证码 ×${p.captchas}</b>`);
+  return bits.join(" · ");
+}
+
 async function loadRuns() {
   const { data } = await api("/api/runs?limit=20");
   $("#runsTable tbody").innerHTML = data.map((r) => {
-    const dur = r.finished_at_ms ? `${Math.round((r.finished_at_ms - r.started_at_ms) / 60000)}min` : "—";
+    const p = r.progress;
+    const mins = Math.round(((r.finished_at_ms || Date.now()) - r.started_at_ms) / 60000);
+    const dur = r.finished_at_ms || r.status === "running" ? `${mins}min` : "—";
+    const fresh = p ? `${p.notes}帖/${p.comments}评` : `${r.notes_fresh}帖/${r.comments_fresh}评`;
+    const last = p ? progressNote(p) : esc(r.error || "");
     return `<tr>
       <td>${r.id}</td><td>${r.mode}</td>
       <td class="st-${r.status}">${r.status}</td>
-      <td>${r.notes_fresh}帖/${r.comments_fresh}评</td>
+      <td>${fresh}</td>
       <td>${dur}</td><td>${localTime(r.started_at_ms)}</td>
-      <td class="err" title="${esc(r.error || "")}">${esc(r.error || "")}</td>
+      <td class="err${p ? " live" : ""}" title="${esc(r.error || "")}">${last}</td>
     </tr>`;
   }).join("");
 }
