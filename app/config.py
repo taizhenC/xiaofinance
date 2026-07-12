@@ -26,11 +26,17 @@ class Settings(BaseSettings):
     # index terms return 定投/ETF posts and bare sector terms return A-share posts, both of
     # which name no US stock and quietly burn a tenth of the crawl.
     DISCOVERY_POOL: str = ""
-    KEYWORDS_PER_CYCLE: int = 10
-    MAX_NOTES_PER_KEYWORD: int = 12
+    # A keyword costs ~5 min (20 notes + their comments), so 6 is what fits inside
+    # CRAWL_TIMEOUT_MIN. Overshoot and the crawler is killed mid-list, silently dropping
+    # the cycle's tail keywords.
+    KEYWORDS_PER_CYCLE: int = 6
+    # XHS search pages hold 20 notes and MediaCrawler rounds anything smaller up to a full
+    # page (core.py: `if CRAWLER_MAX_NOTES_COUNT < xhs_limit_count`), so values below 20
+    # buy nothing — the old 12 always fetched 20.
+    MAX_NOTES_PER_KEYWORD: int = 20
     MAX_COMMENTS_PER_NOTE: int = 20
     FETCH_INTERVAL_HOURS: float = 5
-    CRAWL_TIMEOUT_MIN: int = 30
+    CRAWL_TIMEOUT_MIN: int = 35
     ENABLE_SUB_COMMENTS: bool = False
     # Accounts registered on rednote.com (the international app) are not valid against
     # mainland xiaohongshu.com: the API host and cookie domain differ, and the search API
