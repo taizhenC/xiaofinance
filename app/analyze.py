@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field, ValidationError
 from .config import settings as default_settings
 from .db import connect
 from .dedup import comment_cluster_sizes, note_cluster_sizes
+from .mentions import alias_hits
 from .scoring import is_rankable, source_fanout
 from .util import (
     MIN_COMMENT_SUBSTANCE,
@@ -26,6 +27,17 @@ log = logging.getLogger(__name__)
 MAX_ITEMS = 60
 NOTE_TRUNC = 300
 COMMENT_TRUNC = 150
+# The opening of a post is its topic sentence — keep it even when the ticker turns up much
+# later, or a windowed excerpt reads as if it came from nowhere.
+HEAD_KEEP = 60
+# A mention this close to the end of the window would arrive with no context after it.
+MENTION_TAIL = 40
+# Named once in a thousand characters, the ticker is a passing reference — an example in a
+# tutorial, a line in a portfolio table, a company someone interviewed at. Measured on the
+# corpus: half of all note-mentions are this, and they read nothing like the posts that are
+# actually arguing about the stock (SK海力士 11×, BIDU 9×, 高盛研报 8×).
+ASIDE_MAX_HITS = 1
+ASIDE_MIN_LEN = 300
 # thread comments are only pulled from notes focused enough that "a comment
 # here" plausibly reacts to this ticker, not one of a dozen listed names
 THREAD_FANOUT_MAX = 2
@@ -51,8 +63,24 @@ class AnalysisResult(BaseModel):
     sentiment_counts: SentimentCounts = Field(default_factory=SentimentCounts)
     bull_points: list[str] = Field(default_factory=list)
     bear_points: list[str] = Field(default_factory=list)
-    notable_quotes: list[str] = Field(default_factory=list)
+    # Item numbers, not text: the model picking a quote cannot then misquote it, and it
+    # stops paying output tokens to copy Chinese it was already shown.
+    notable_quote_ids: list[int] = Field(default_factory=list)
     irrelevant_item_count: int = 0
+
+
+def excerpt(text: str, pos: int, width: int) -> str:
+    """Window a long post around where the ticker is actually named.
+
+    Truncating from the start assumes the mention is up front, and in 23% of note-mentions
+    it is not — the 高盛 one sits at character 1176 of 1243. Those posts reached the model
+    as text that never names the ticker it was being asked to judge, and reached the keyless
+    card as a quote that does not mention the stock it is filed under."""
+    if pos < 0 or pos + MENTION_TAIL <= width:
+        return text[:width]
+    start = max(HEAD_KEEP, pos - width // 4)
+    body = text[start : start + width - HEAD_KEEP]
+    return f"{text[:HEAD_KEEP].rstrip()}…{body}".rstrip() + ("…" if start + width - HEAD_KEEP < len(text) else "")
 
 
 def gather_items(conn, ticker: str, fresh_window_ms: int, now: int | None = None) -> list[dict]:
@@ -74,18 +102,21 @@ def gather_items(conn, ticker: str, fresh_window_ms: int, now: int | None = None
     items = []
     for r in conn.execute(
         """SELECT n.note_id AS id, n.title, n.note_desc, n.liked_count AS likes,
-                  n.publish_time_ms AS ts, n.note_url
+                  n.publish_time_ms AS ts, n.note_url, m.matched_alias
            FROM stock_mentions m JOIN notes n ON n.note_id = m.source_id
            WHERE m.ticker=? AND m.source_type='note' AND m.content_time_ms>=?
              AND n.dup_group_id IS NULL""",
         (ticker, cutoff),
     ):
-        text = clean_tags(note_text(r["title"], r["note_desc"]))[:NOTE_TRUNC]
+        full = clean_tags(note_text(r["title"], r["note_desc"]))
+        pos, hits = alias_hits(full, r["matched_alias"] or "")
+        text = excerpt(full, pos, NOTE_TRUNC)
         subs = substance(text)
         if subs < MIN_NOTE_SUBSTANCE:
             continue
         items.append({"type": "note", "id": r["id"], "text": text, "likes": r["likes"],
                       "ts": r["ts"], "url": r["note_url"], "substance": subs,
+                      "aside": hits <= ASIDE_MAX_HITS and len(full) >= ASIDE_MIN_LEN,
                       "cluster_size": note_sizes.get(r["id"], 1),
                       "fanout": note_fanout.get(r["id"], 1)})
     mention_cids = set()
@@ -154,8 +185,12 @@ def pick_quotes(items: list[dict], k: int = 3) -> list[str]:
 
     Substance is judged on the item's own words, not on the "主帖「…」下的评论:" framing
     gather_items wraps them in, which would otherwise let a four-word reaction over the bar.
+
+    Asides sink to the bottom rather than being dropped: a post that names the ticker once
+    in a thousand characters is a poor quote for it, but for a ticker that is only ever
+    named in passing it is all there is, and an empty card would be the bigger lie.
     """
-    ranked = sorted(items, key=lambda i: (i.get("fanout", 1), -i["likes"]))
+    ranked = sorted(items, key=lambda i: (i.get("aside", False), i.get("fanout", 1), -i["likes"]))
     strong = [i for i in ranked if i.get("substance", 0) >= QUOTE_MIN_SUBSTANCE]
     return [i["text"] for i in (strong or ranked)[:k]]
 
@@ -165,13 +200,14 @@ def input_hash(items: list[dict]) -> str:
 
 
 def build_prompt(ticker: str, name_cn: str, items: list[dict], lang: str, now: int,
-                 prev_summary: str | None = None) -> tuple[str, str]:
+                 prev_summary: str | None = None, window_hours: int = 24) -> tuple[str, str]:
     lines = []
-    for i in items:
+    for n, i in enumerate(items, 1):
         age_h = max(0, (now - i["ts"]) // 3_600_000)
         dup = f" [×{i['cluster_size']}相似]" if i["cluster_size"] > 1 else ""
         roundup = f" [盘点·提及{i['fanout']}股]" if i.get("fanout", 1) >= FANOUT_ROUNDUP else ""
-        lines.append(f"[{i['type']}] [{age_h}小时前] [赞:{i['likes']}]{dup}{roundup} {i['text']}")
+        aside = " [顺带提及]" if i.get("aside") else ""
+        lines.append(f"[{n}] [{i['type']}] [{age_h}小时前] [赞:{i['likes']}]{dup}{roundup}{aside} {i['text']}")
     lang_name = "英文(English)" if lang == "en" else "中文"
     name = f"{ticker}（{name_cn}）" if name_cn else ticker
     prev_block = ""
@@ -182,21 +218,39 @@ def build_prompt(ticker: str, name_cn: str, items: list[dict], lang: str, now: i
             f"如与本次列出的内容矛盾，一律以本次内容为准：\n{prev_summary}\n"
         )
         change_hint = "如舆论方向或核心论点相比上一周期有明显变化，在 summary 末尾用一句话点明变化；无明显变化则不提。"
-    system = "你是一位资深美股分析师，负责从小红书帖子和评论中提炼散户对某只股票的真实看法。"
-    user = f"""以下是过去24小时内小红书上提及 {name} 的帖子和评论，每行格式：[类型] [发布时间] [点赞数] 内容。
-标注 [×N相似] 表示有N条相似的转发/复制内容已合并为一条——重复转发不代表更多独立观点。
-标注 [盘点·提及N股] 表示该帖同时罗列了N只股票（如财报日历、涨幅盘点）——只把其中与 {ticker} 直接相关的信息作为依据，被罗列本身不构成观点。
+    system = (
+        "你是一位资深美股分析师，从小红书的帖子和评论里提炼散户对某只股票的真实看法。"
+        "小红书上大量内容是教学、引流和生活分享，只是顺带提到了股票——把这些剔除干净，"
+        "比硬凑出一个观点更重要。没有观点时，如实说没有。"
+    )
+    user = f"""以下是过去{window_hours}小时内小红书上提及 {name} 的帖子和评论，每行格式：[编号] [类型] [发布时间] [点赞数] 内容。
+
+标注含义：
+- [×N相似]：N条重复转发已合并为一条。重复转发不代表更多独立观点。
+- [盘点·提及N股]：该帖同时罗列了N只股票（财报日历、涨幅盘点等）。被罗列本身不构成观点。
+- [顺带提及]：全文只出现一次 {ticker}，帖子主题多半不是它——期权教学拿它举例、持仓表里的一行、求职或开户经历里的公司名。
+- 正文过长时，只截取到提及 {ticker} 的那一段，省略处用 … 标出。
 
 {chr(10).join(lines)}
 {prev_block}
 请完成三步：
-1. 剔除与 {ticker} 股票投资无关的条目（如水果苹果、单纯晒产品等），数量记为 irrelevant_item_count。
-2. 对剩余条目逐条判断立场（bullish/bearish/neutral），汇总为 sentiment_counts。注意：内容相似或论点相同的条目只算一个观点，按不同论点的数量与质量权衡，不按重复次数。
-3. 用{lang_name}写总结：summary 必须以 "{ticker}: " 开头（不超过120词），bull_points 最多4条看多要点，bear_points 最多4条看空要点（均用{lang_name}），notable_quotes 最多3条最有代表性的原文引用（保留中文原文）。{change_hint}
+1. 剔除没有表达 {ticker} 投资观点的条目，数量记为 irrelevant_item_count。判断标准是「这条内容有没有对 {ticker} 表达看法」，不是「有没有出现 {ticker}」。常见应剔除的：同名歧义（水果苹果）、教学/科普里把 {ticker} 当例子、晒单晒产品、引流广告、把公司名当背景板的生活分享。
+2. 对剩下的条目逐条判断立场（bullish/bearish/neutral），汇总为 sentiment_counts。论点相同的只算一个观点，按论点的数量与质量权衡，不按重复次数。若剩下0条，三个计数都填0，并在 summary 里直接说明本周期没有实质讨论——不要从被剔除的内容里推测立场。
+3. 用{lang_name}写总结：summary 以 "{ticker}: " 开头，不超过120词；bull_points 最多4条看多要点，bear_points 最多4条看空要点（均用{lang_name}）；notable_quote_ids 最多3个编号，从**未被剔除**的条目里选最有代表性的，只给编号，不要重写原文。{change_hint}
 
 只输出一个JSON对象，格式：
-{{"summary": "...", "sentiment_counts": {{"bullish": 0, "bearish": 0, "neutral": 0}}, "bull_points": ["..."], "bear_points": ["..."], "notable_quotes": ["..."], "irrelevant_item_count": 0}}"""
+{{"summary": "...", "sentiment_counts": {{"bullish": 0, "bearish": 0, "neutral": 0}}, "bull_points": ["..."], "bear_points": ["..."], "notable_quote_ids": [1, 2], "irrelevant_item_count": 0}}"""
     return system, user
+
+
+def quotes_from_ids(items: list[dict], ids: list[int], k: int = 3) -> list[str]:
+    """Map the model's chosen item numbers back to their text, ignoring anything it made up."""
+    seen, out = set(), []
+    for n in ids:
+        if 1 <= n <= len(items) and n not in seen:
+            seen.add(n)
+            out.append(items[n - 1]["text"])
+    return out[:k]
 
 
 def _call_llm(settings, system: str, user: str):
@@ -260,7 +314,8 @@ def analyze_ticker(conn, ticker: str, settings=None, name_cn: str = "", score: f
     ).fetchone()
     prev_summary = prev_row["summary"].strip()[:PREV_SUMMARY_TRUNC] if prev_row else None
 
-    system, user = build_prompt(ticker, name_cn, items, settings.SUMMARY_LANG, now, prev_summary)
+    system, user = build_prompt(ticker, name_cn, items, settings.SUMMARY_LANG, now, prev_summary,
+                                settings.FRESH_WINDOW_HOURS)
     last_err = None
     for attempt in range(2):
         try:
@@ -269,6 +324,7 @@ def analyze_ticker(conn, ticker: str, settings=None, name_cn: str = "", score: f
             summary = result.summary.strip()
             if not summary.upper().startswith(f"{ticker}:"):
                 summary = f"{ticker}: {summary}"
+            quotes = quotes_from_ids(items, result.notable_quote_ids)
             usage = resp.usage
             cost = (usage.prompt_tokens * COST_IN_PER_M + usage.completion_tokens * COST_OUT_PER_M) / 1e6
             insert(
@@ -277,7 +333,7 @@ def analyze_ticker(conn, ticker: str, settings=None, name_cn: str = "", score: f
                 summary=summary,
                 bull_points=json.dumps(result.bull_points[:4], ensure_ascii=False),
                 bear_points=json.dumps(result.bear_points[:4], ensure_ascii=False),
-                notable_quotes=json.dumps(result.notable_quotes[:3], ensure_ascii=False),
+                notable_quotes=json.dumps(quotes, ensure_ascii=False),
                 irrelevant_item_count=result.irrelevant_item_count,
                 input_tokens=usage.prompt_tokens, output_tokens=usage.completion_tokens,
                 cost_usd=round(cost, 6),

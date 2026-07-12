@@ -83,6 +83,23 @@ def _compile_alias(alias: str):
     return lambda lower: a in lower
 
 
+def alias_hits(text: str, alias: str) -> tuple[int, int]:
+    """(position of the first mention, how many times it is named) — by the same boundary
+    rules the matcher used, so callers agree with it about what counts as a mention.
+
+    Both halves answer "is this post about the ticker, or does it just contain it": where
+    the name first shows up, and whether it comes back."""
+    if not alias:
+        return -1, 0
+    a = alias.lower()
+    lower = norm_text(text or "").lower()
+    if _ASCII_ALIAS_RE.match(a):
+        rx = re.compile(r"(?<![0-9a-z])" + re.escape(a) + r"(?![0-9a-z])")
+        found = list(rx.finditer(lower))
+        return (found[0].start(), len(found)) if found else (-1, 0)
+    return lower.find(a), lower.count(a)
+
+
 class Matcher:
     def __init__(self, dict_data: dict, tracked: dict[str, list[str]] | None = None):
         tracked = tracked or {}
