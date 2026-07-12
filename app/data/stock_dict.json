@@ -2662,6 +2662,52 @@
       ],
       "ambiguous": [],
       "sector": "半导体"
+    },
+    {
+      "ticker": "TEM",
+      "name_cn": "Tempus AI",
+      "aliases": [
+        "tempus"
+      ],
+      "ambiguous": [],
+      "sector": "医药"
+    },
+    {
+      "ticker": "VEEV",
+      "name_cn": "Veeva",
+      "aliases": [
+        "veeva"
+      ],
+      "ambiguous": [],
+      "sector": "医药"
+    },
+    {
+      "ticker": "CVS",
+      "name_cn": "CVS健康",
+      "aliases": [
+        "cvs健康"
+      ],
+      "ambiguous": [],
+      "sector": "医药"
+    },
+    {
+      "ticker": "CRNX",
+      "name_cn": "Crinetics",
+      "aliases": [
+        "crinetics"
+      ],
+      "ambiguous": [],
+      "sector": "医药"
+    },
+    {
+      "ticker": "XBI",
+      "name_cn": "生物科技ETF",
+      "aliases": [
+        "xbi",
+        "生物科技etf"
+      ],
+      "ambiguous": [],
+      "sector": "ETF指数"
     }
   ]
 }
