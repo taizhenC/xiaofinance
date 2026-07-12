@@ -1,6 +1,6 @@
 from app.analyze import excerpt, gather_items, pick_quotes, quotes_from_ids
 from app.dedup import recompute_dedup
-from app.mentions import alias_hits, extract_mentions, load_stock_dict
+from app.mentions import alias_hits, extract_mentions, is_aside, load_stock_dict
 from app.util import now_ms, simhash64, to_signed64
 
 H = 3_600_000

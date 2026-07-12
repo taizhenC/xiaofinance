@@ -83,6 +83,23 @@ def _compile_alias(alias: str):
     return lambda lower: a in lower
 
 
+# Named once in a post this long, the ticker is a passing reference: an example in an
+# options tutorial, a row in a portfolio table, the company someone interviewed at. The
+# posts genuinely arguing about a stock come back to its name (SK海力士 11×, BIDU 9×,
+# the 高盛 research note 8×), and half of all note-mentions do not.
+ASIDE_MAX_HITS = 1
+ASIDE_MIN_LEN = 300
+
+
+def is_aside(text: str, hits: int) -> bool:
+    """Does this post merely contain the ticker, rather than being about it?
+
+    Complements fan-out, which only catches posts that name *many* tickers. A 1200-character
+    story about a Goldman Sachs job interview names exactly one, so fan-out gives it full
+    credit as GS discussion."""
+    return hits <= ASIDE_MAX_HITS and len(text or "") >= ASIDE_MIN_LEN
+
+
 def alias_hits(text: str, alias: str) -> tuple[int, int]:
     """(position of the first mention, how many times it is named) — by the same boundary
     rules the matcher used, so callers agree with it about what counts as a mention.

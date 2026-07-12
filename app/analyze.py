@@ -8,7 +8,7 @@ from pydantic import BaseModel, Field, ValidationError
 from .config import settings as default_settings
 from .db import connect
 from .dedup import comment_cluster_sizes, note_cluster_sizes
-from .mentions import alias_hits
+from .mentions import alias_hits, is_aside
 from .scoring import is_rankable, source_fanout
 from .util import (
     MIN_COMMENT_SUBSTANCE,
@@ -32,12 +32,6 @@ COMMENT_TRUNC = 150
 HEAD_KEEP = 60
 # A mention this close to the end of the window would arrive with no context after it.
 MENTION_TAIL = 40
-# Named once in a thousand characters, the ticker is a passing reference — an example in a
-# tutorial, a line in a portfolio table, a company someone interviewed at. Measured on the
-# corpus: half of all note-mentions are this, and they read nothing like the posts that are
-# actually arguing about the stock (SK海力士 11×, BIDU 9×, 高盛研报 8×).
-ASIDE_MAX_HITS = 1
-ASIDE_MIN_LEN = 300
 # thread comments are only pulled from notes focused enough that "a comment
 # here" plausibly reacts to this ticker, not one of a dozen listed names
 THREAD_FANOUT_MAX = 2
@@ -116,7 +110,7 @@ def gather_items(conn, ticker: str, fresh_window_ms: int, now: int | None = None
             continue
         items.append({"type": "note", "id": r["id"], "text": text, "likes": r["likes"],
                       "ts": r["ts"], "url": r["note_url"], "substance": subs,
-                      "aside": hits <= ASIDE_MAX_HITS and len(full) >= ASIDE_MIN_LEN,
+                      "aside": is_aside(full, hits),
                       "cluster_size": note_sizes.get(r["id"], 1),
                       "fanout": note_fanout.get(r["id"], 1)})
     mention_cids = set()

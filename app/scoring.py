@@ -1,6 +1,6 @@
 import math
 
-from .mentions import _compile_alias
+from .mentions import _compile_alias, alias_hits, is_aside
 from .util import (
     QUOTE_MIN_SUBSTANCE,
     clean_tags,
@@ -13,6 +13,12 @@ from .util import (
 
 # a source naming more tickers than this is a roundup (财报日历/涨幅盘点), not discussion
 FOCUS_MAX_FANOUT = 3
+# What a passing mention is worth. Fan-out already discounts a post that lists a dozen
+# tickers; this discounts the other kind — a long post that names one ticker once and is
+# about something else entirely. It still counts for something, because being name-dropped
+# is weak evidence of relevance, and it still counts as a mention, so nothing disappears
+# from the radar or from the model's input.
+ASIDE_WEIGHT = 0.3
 
 
 def _entry(stats: dict, ticker: str) -> dict:
@@ -24,14 +30,20 @@ def _entry(stats: dict, ticker: str) -> dict:
         "_note_w": 0.0, "_comment_w": 0.0,
         "_note_like_sum": 0.0, "_comment_like_sum": 0.0,
         "latest_item_ms": 0,
-        "top_quote": None, "_top_quote_key": (-1, -1, -1),
+        "top_quote": None, "_top_quote_key": (-1, -1, -1, -1),
     })
 
 
-def _quote_key(text: str, focused: bool, likes: int) -> tuple[int, int, int]:
-    """Readable before focused before popular: the most-liked source for a ticker is often
-    an image post whose desc is a tag block, and showing its bare title says nothing."""
-    return (1 if substance(text) >= QUOTE_MIN_SUBSTANCE else 0, 1 if focused else 0, likes)
+def _quote_key(text: str, focused: bool, likes: int, aside: bool = False) -> tuple[int, ...]:
+    """Readable, then about-the-ticker, then focused, then popular. The most-liked source for
+    a ticker is often an image post whose desc is a tag block, or a long post that names it
+    once — neither says anything when quoted back."""
+    return (
+        1 if substance(text) >= QUOTE_MIN_SUBSTANCE else 0,
+        0 if aside else 1,
+        1 if focused else 0,
+        likes,
+    )
 
 
 def source_fanout(conn, source_type: str, cutoff: int) -> dict[str, int]:
@@ -81,16 +93,21 @@ def compute_stats(conn, fresh_window_ms: int, now: int | None = None) -> dict[st
         e["note_count_raw"] += 1
         e["latest_item_ms"] = max(e["latest_item_ms"], r["content_time_ms"])
         if r["dup_group_id"] is None:
+            text = clean_tags(note_text(r["title"], r["note_desc"]))
+            _, hits = alias_hits(text, r["matched_alias"] or "")
+            aside = is_aside(text, hits)
             k = note_fanout.get(r["source_id"], 1)
-            w = 1.0 / k
+            w = 1.0 / k * (ASIDE_WEIGHT if aside else 1.0)
+            # Being name-dropped still qualifies a ticker for the board — it is just worth
+            # less. Dropping it there would hide a name nobody argued about but everybody
+            # listed, and that absence is itself worth seeing.
             focused = k <= FOCUS_MAX_FANOUT and in_prose(r["matched_alias"], r["title"], r["note_desc"])
             e["note_count"] += 1
             e["_note_w"] += w
             e["_note_like_sum"] += w * math.log10(1 + max(0, r["likes"]))
             if focused:
                 e["focused_mentions"] += 1
-            text = clean_tags(note_text(r["title"], r["note_desc"]))
-            key = _quote_key(text, focused, r["likes"])
+            key = _quote_key(text, focused, r["likes"], aside)
             if key > e["_top_quote_key"]:
                 e["_top_quote_key"] = key
                 e["top_quote"] = text[:100]
