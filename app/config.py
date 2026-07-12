@@ -15,9 +15,18 @@ class Settings(BaseSettings):
     LLM_BASE_URL: str = "https://api.deepseek.com"
     SUMMARY_LANG: str = "en"
 
+    # Used only when DISCOVERY_POOL is empty (a static, non-rotating keyword list).
     DISCOVERY_KEYWORDS: str = (
         "美股,纳斯达克,纳指,标普500,美股投资,美股分析,美股日记,美股小白,中概股,美股财报"
     )
+    # Crawled every cycle: the broad terms that carry general US-stock discussion.
+    DISCOVERY_CORE: str = "美股,美股财报"
+    # Rotated across cycles, KEYWORDS_PER_CYCLE at a time, so a day's cycles cover sectors
+    # a single cycle can't afford. Probe a candidate (python -m app.probe) before adding it:
+    # index terms return 定投/ETF posts and bare sector terms return A-share posts, both of
+    # which name no US stock and quietly burn a tenth of the crawl.
+    DISCOVERY_POOL: str = ""
+    KEYWORDS_PER_CYCLE: int = 10
     MAX_NOTES_PER_KEYWORD: int = 12
     MAX_COMMENTS_PER_NOTE: int = 20
     FETCH_INTERVAL_HOURS: float = 5
@@ -59,9 +68,26 @@ class Settings(BaseSettings):
     def fresh_window_ms(self) -> int:
         return self.FRESH_WINDOW_HOURS * 3600 * 1000
 
+    @staticmethod
+    def _split(raw: str) -> list[str]:
+        seen, out = set(), []
+        for k in (k.strip() for k in raw.split(",")):
+            if k and k not in seen:
+                seen.add(k)
+                out.append(k)
+        return out
+
     @property
     def discovery_keywords_list(self) -> list[str]:
-        return [k.strip() for k in self.DISCOVERY_KEYWORDS.split(",") if k.strip()]
+        return self._split(self.DISCOVERY_KEYWORDS)
+
+    @property
+    def discovery_core_list(self) -> list[str]:
+        return self._split(self.DISCOVERY_CORE)
+
+    @property
+    def discovery_pool_list(self) -> list[str]:
+        return self._split(self.DISCOVERY_POOL)
 
 
 settings = Settings()

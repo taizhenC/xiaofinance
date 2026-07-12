@@ -5,6 +5,7 @@ import shutil
 from pathlib import Path
 
 from . import analyze, crawler_runner, dedup, ingest, mentions, prices, scoring, slang_scan
+from . import keywords as keywords_mod
 from .config import settings as default_settings
 from .db import connect, meta_get, meta_set
 from .util import now_ms
@@ -20,8 +21,9 @@ def _tracked_rows(conn):
 
 
 def run_fetch(conn, mode: str, dict_data: dict, settings) -> int | None:
+    cursor_next = None
     if mode == "discovery":
-        keywords = settings.discovery_keywords_list
+        keywords, cursor_next = keywords_mod.select_keywords(conn, settings)
     else:
         keywords, _ = mentions.build_tracked_keywords(dict_data, _tracked_rows(conn))
         if not keywords:
@@ -64,6 +66,10 @@ def run_fetch(conn, mode: str, dict_data: dict, settings) -> int | None:
         (status, now_ms(), stats["notes_fetched"], stats["notes_fresh"],
          stats["comments_fresh"], str(run_dir), error, run_id),
     )
+    # A login failure must not consume a rotation slot: those sectors would go unsampled
+    # until the pool wraps around again.
+    if stats["notes_fetched"] > 0:
+        keywords_mod.advance_rotation(conn, cursor_next)
     conn.commit()
     log.info("run %d (%s): %s %s", run_id, mode, status, error or "")
     return run_id
