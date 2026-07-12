@@ -46,7 +46,11 @@ class Settings(BaseSettings):
     # retries each walled request — one run ground through 192 of them, which can only
     # deepen the flag. Stop instead: whatever was fetched before the wall is already ingested.
     CAPTCHA_ABORT_COUNT: int = 10
-    ENABLE_SUB_COMMENTS: bool = False
+    # Replies to comments. XHS ships the first few of them inside the parent comment's own
+    # response, so collecting them adds no requests and no risk — the crawler was fetching
+    # and discarding them. The paging loop that would chase the rest is patched out
+    # (CODE_PATCHES), so this cannot turn into extra traffic on its own.
+    ENABLE_SUB_COMMENTS: bool = True
     # Accounts registered on rednote.com (the international app) are not valid against
     # mainland xiaohongshu.com: the API host and cookie domain differ, and the search API
     # answers 您当前登录的账号没有权限访问. Switches to webapi.rednote.com / .rednote.com.

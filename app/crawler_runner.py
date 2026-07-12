@@ -37,6 +37,19 @@ CODE_PATCHES = [
         "await self.context_page.goto(self.index_url)",
         'await self.context_page.goto(self.index_url, wait_until="domcontentloaded")',
     ),
+    # XHS returns each root comment with its first few replies already nested inside the
+    # same response (`sub_comments`), and MediaCrawler hands those straight to the store
+    # callback — they cost nothing. What follows is the expensive half: one request per
+    # comment to chase the replies XHS withheld behind `sub_comment_has_more`. On an
+    # account XHS has already flagged, that request volume is the thing that walls us, so
+    # take the free replies and skip the paid ones. Anything below here is now unreachable.
+    (
+        "media_platform/xhs/client.py",
+        '                sub_comment_has_more = comment.get("sub_comment_has_more")\n'
+        "                if not sub_comment_has_more:\n"
+        "                    continue\n",
+        "                continue  # xiaofinance: inline replies only, never page for more\n",
+    ),
 ]
 
 LOGIN_HINTS = ["扫码", "二维码", "请扫码", "未登录", "登录已过期", "login expired", "login failed"]

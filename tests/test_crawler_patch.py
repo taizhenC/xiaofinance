@@ -27,6 +27,22 @@ def fake_vendor(tmp_path):
         "            await self.context_page.goto(self.index_url)\n",
         encoding="utf-8",
     )
+    (core / "client.py").write_text(
+        "        for comment in comments:\n"
+        "            try:\n"
+        '                sub_comments = comment.get("sub_comments")\n'
+        "                if sub_comments and callback:\n"
+        "                    await callback(note_id, sub_comments)\n"
+        "\n"
+        '                sub_comment_has_more = comment.get("sub_comment_has_more")\n'
+        "                if not sub_comment_has_more:\n"
+        "                    continue\n"
+        "\n"
+        '                root_comment_id = comment.get("id")\n'
+        "                while sub_comment_has_more:\n"
+        "                    comments_res = await self.get_note_sub_comments(...)\n",
+        encoding="utf-8",
+    )
     return tmp_path
 
 
@@ -90,3 +106,20 @@ def test_patch_config_is_idempotent(tmp_path):
     core = (mc / "media_platform" / "xhs" / "core.py").read_text(encoding="utf-8")
     assert core.count("set_default_timeout(120_000)") == 1
     assert core.count("domcontentloaded") == 1
+    client = (mc / "media_platform" / "xhs" / "client.py").read_text(encoding="utf-8")
+    assert client.count("inline replies only") == 1
+
+
+def test_inline_replies_are_kept_but_never_paged_for(tmp_path):
+    """The free half of sub-comments, without the half that walls the account: XHS nests the
+    first replies in the parent's own response, so keep those and never call back for more."""
+    mc = fake_vendor(tmp_path)
+    patch_config(mc, settings())
+    client = (mc / "media_platform" / "xhs" / "client.py").read_text(encoding="utf-8")
+
+    assert "await callback(note_id, sub_comments)" in client  # inline replies still stored
+    assert "continue  # xiaofinance: inline replies only" in client
+    # the paging loop's guard is gone, so the request-per-comment loop is unreachable
+    assert 'sub_comment_has_more = comment.get("sub_comment_has_more")' not in client
+    body = client.split("inline replies only, never page for more")[1]
+    assert "get_note_sub_comments" in body  # still present, just dead — we only cut the path
