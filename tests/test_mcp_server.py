@@ -150,3 +150,52 @@ def test_a_reshuffle_that_keeps_every_item_is_still_refused(corpus):
     out = M.submit_rating("SKHY", ev["evidence_hash"], "x", 1, 0, 0, [], [], [3])
     assert out["status"] == "stale_evidence"
     assert corpus.execute("SELECT COUNT(*) FROM stock_analyses").fetchone()[0] == 0
+
+
+def test_a_crawl_does_not_bury_the_agents_rating_under_a_keyless_fallback(corpus):
+    """Without this, the agent path is pointless. Every crawl changes a ticker's evidence, so
+    the keyless branch of analyze_ticker fires and writes a no_api_key row — quotes, no
+    judgement — which becomes the newest row and therefore the card. The agent's rating would
+    silently vanish within hours of being written, every time."""
+    from app.analyze import analyze_ticker
+    from app.config import settings
+
+    ev = M.evidence("SKHY")
+    M.submit_rating("SKHY", ev["evidence_hash"], "bulls on the pop, bears on the premium",
+                    6, 2, 3, ["pop"], ["premium"], [1])
+
+    # a crawl lands: a new post about the ticker, so the evidence really has changed
+    now = now_ms()
+    conn = corpus
+    conn.execute(
+        "INSERT INTO notes(note_id, title, note_desc, publish_time_ms, liked_count, simhash,"
+        " source_keyword) VALUES('n2','海力士又涨了','SK海力士需求爆表，海力士我继续拿着不动',?,60,?,'美股')",
+        (now - 600_000, to_signed64(simhash64("海力士又涨了 独特"))),
+    )
+    conn.commit()
+    recompute_dedup(conn, 24 * H, now)
+    extract_mentions(conn, DICT, [], 24 * H, now=now)
+
+    assert analyze_ticker(conn, "SKHY", settings, now=now) == "kept_rating"
+
+    latest = conn.execute(
+        "SELECT model, status, summary FROM stock_analyses WHERE ticker='SKHY'"
+        " ORDER BY generated_at_ms DESC LIMIT 1"
+    ).fetchone()
+    assert latest["model"] == M.AGENT_MODEL      # the card still shows the judgement
+    assert latest["status"] == "ok"
+    assert latest["summary"]
+
+    # ...and the agent is asked to refresh it, because the evidence moved
+    assert "SKHY" in [p["ticker"] for p in M.pending_ratings()]
+
+
+def test_a_ticker_nobody_has_rated_still_gets_its_fallback_quotes(corpus):
+    """The fallback is not dead code — it is what a keyless card shows when no judgement exists."""
+    from app.analyze import analyze_ticker
+    from app.config import settings
+
+    assert analyze_ticker(corpus, "SKHY", settings) == "no_api_key"
+    r = corpus.execute("SELECT status, notable_quotes FROM stock_analyses WHERE ticker='SKHY'").fetchone()
+    assert r["status"] == "no_api_key"
+    assert json.loads(r["notable_quotes"])

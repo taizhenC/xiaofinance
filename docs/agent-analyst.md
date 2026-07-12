@@ -59,6 +59,20 @@ different questions:
 `submit_rating` refuses a stale `evidence_hash` and stores nothing. If you are refused, call
 `evidence()` again and re-rate against the current list.
 
+## What happens to your rating when the next crawl lands
+
+It stays on the card. Nothing overwrites it.
+
+Without a `DEEPSEEK_API_KEY`, the pipeline writes a `no_api_key` row every time a ticker's
+evidence changes — top quotes, no summary, no sentiment. That row exists to give a card
+*something* when nothing has judged the ticker. But a crawl changes the evidence of nearly
+every ticker, so if it also fired when a rating already existed, your rating would be buried
+under a bare quote list within hours of writing it, every cycle. So it doesn't: the keyless
+branch leaves an existing `ok` rating alone.
+
+The rating does go slightly stale, and the card shows its age. `pending_ratings()` re-offers
+the ticker as soon as its evidence moves, so re-rating is one command away.
+
 ## Mine the dictionary's blind spots
 
 The other thing DeepSeek was for. `app/slang_scan.py` asks it to find nicknames the dictionary

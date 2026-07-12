@@ -413,6 +413,17 @@ def analyze_ticker(conn, ticker: str, settings=None, name_cn: str = "", score: f
         insert_analysis(conn, base_cols, status, **extra)
 
     if not settings.DEEPSEEK_API_KEY:
+        # The fallback row exists to give a card *something* when nothing has judged this
+        # ticker. If something has — an agent, over MCP — then writing one now would bury a
+        # real rating under a bare quote list, and it would happen on every crawl: each cycle
+        # changes the evidence, so this branch fires, so the only judgement the dashboard has
+        # is deleted every few hours. Keep it. It carries its own age on the card, and
+        # pending_ratings() re-offers the ticker the moment its evidence moves.
+        if conn.execute(
+            "SELECT 1 FROM stock_analyses WHERE ticker=? AND status='ok' LIMIT 1", (ticker,)
+        ).fetchone():
+            log.info("%s: keeping the existing rating rather than burying it in a fallback", ticker)
+            return "kept_rating"
         quotes = pick_quotes(items)
         insert("no_api_key", notable_quotes=json.dumps(quotes, ensure_ascii=False))
         return "no_api_key"
