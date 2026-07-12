@@ -2,6 +2,7 @@ import logging
 import os
 import re
 import subprocess
+import time
 from pathlib import Path
 
 log = logging.getLogger(__name__)
@@ -12,7 +13,6 @@ log = logging.getLogger(__name__)
 PATCHES = [
     ("config/xhs_config.py", "SORT_TYPE", '"time_descending"'),
     ("config/base_config.py", "ENABLE_CDP_MODE", "False"),
-    ("config/base_config.py", "CRAWLER_MAX_SLEEP_SEC", "3"),
 ]
 
 # Line patches for things that aren't config variables. Same contract as PATCHES:
@@ -54,6 +54,7 @@ def patch_config(mc_dir: Path, settings=None) -> None:
         from .config import settings
     patches = PATCHES + [
         ("config/base_config.py", "XHS_INTERNATIONAL", _bool(settings.XHS_INTERNATIONAL)),
+        ("config/base_config.py", "CRAWLER_MAX_SLEEP_SEC", str(settings.CRAWL_SLEEP_SEC)),
     ]
     for rel, var, value in patches:
         path = mc_dir / rel
@@ -106,6 +107,43 @@ def _patch_user_agent(mc_dir: Path, user_agent: str) -> None:
         log.info("patched xhs core.py: user_agent = %s", user_agent)
 
 
+class _CaptchaWatcher:
+    """Counts CAPTCHA lines as the log grows, reading only what is new each poll."""
+
+    def __init__(self, log_path: Path):
+        self.path = Path(log_path)
+        self.pos = 0
+        self.carry = ""
+        self.count = 0
+
+    def poll(self) -> int:
+        try:
+            with open(self.path, "rb") as f:
+                f.seek(self.pos)
+                chunk = f.read()
+                self.pos = f.tell()
+        except OSError:  # the crawler still holds it — try again next tick
+            return self.count
+        if chunk:
+            text = self.carry + chunk.decode("utf-8", errors="replace")
+            self.count += text.count(CAPTCHA_MARKER)
+            # a marker split across two reads would otherwise be missed
+            self.carry = text[-(len(CAPTCHA_MARKER) - 1):]
+        return self.count
+
+
+def _kill_tree(proc) -> None:
+    # a plain kill would orphan Chromium on Windows
+    subprocess.run(["taskkill", "/PID", str(proc.pid), "/T", "/F"], capture_output=True)
+    try:
+        proc.wait(timeout=30)
+    except subprocess.TimeoutExpired:
+        pass
+
+
+POLL_SEC = 5
+
+
 def run_crawl(keywords: list[str], run_dir: Path, settings, get_comments: bool = True) -> dict:
     mc_dir = Path(settings.MEDIACRAWLER_DIR)
     patch_config(mc_dir, settings)
@@ -127,27 +165,39 @@ def run_crawl(keywords: list[str], run_dir: Path, settings, get_comments: bool =
         "--max_comments_count_singlenotes", str(settings.MAX_COMMENTS_PER_NOTE),
         "--start", "1", "--headless", "no", "--max_concurrency_num", "1",
     ]
-    env = {**os.environ, "PYTHONIOENCODING": "utf-8", "PYTHONUTF8": "1"}
+    # unbuffered, or the child's stdout arrives in 8KB blocks and both the CAPTCHA abort
+    # and the progress readout lag tens of requests behind what the crawler is really doing
+    env = {**os.environ, "PYTHONIOENCODING": "utf-8", "PYTHONUTF8": "1", "PYTHONUNBUFFERED": "1"}
 
-    timed_out = False
+    timed_out = risk_controlled = False
+    watcher = _CaptchaWatcher(log_path)
+    deadline = time.monotonic() + settings.CRAWL_TIMEOUT_MIN * 60
     with open(log_path, "wb") as logf:
         proc = subprocess.Popen(
             cmd, cwd=mc_dir, stdout=logf, stderr=subprocess.STDOUT,
             stdin=subprocess.DEVNULL, env=env,
         )
-        try:
-            proc.wait(timeout=settings.CRAWL_TIMEOUT_MIN * 60)
-        except subprocess.TimeoutExpired:
-            timed_out = True
-            log.warning("crawl timed out after %d min, killing process tree", settings.CRAWL_TIMEOUT_MIN)
-            # plain kill would orphan Chromium on Windows
-            subprocess.run(["taskkill", "/PID", str(proc.pid), "/T", "/F"], capture_output=True)
+        while True:
             try:
-                proc.wait(timeout=30)
+                proc.wait(timeout=POLL_SEC)
+                break
             except subprocess.TimeoutExpired:
                 pass
+            if watcher.poll() >= settings.CAPTCHA_ABORT_COUNT:
+                risk_controlled = True
+                log.warning("XHS is serving CAPTCHAs (%d) — aborting rather than keep retrying",
+                            watcher.count)
+                _kill_tree(proc)
+                break
+            if time.monotonic() >= deadline:
+                timed_out = True
+                log.warning("crawl timed out after %d min, killing process tree",
+                            settings.CRAWL_TIMEOUT_MIN)
+                _kill_tree(proc)
+                break
 
-    return {"exit_code": proc.returncode, "timed_out": timed_out, "log_path": log_path}
+    return {"exit_code": proc.returncode, "timed_out": timed_out, "log_path": log_path,
+            "risk_controlled": risk_controlled, "captchas": watcher.poll()}
 
 
 CAPTCHA_MARKER = "CAPTCHA appeared"

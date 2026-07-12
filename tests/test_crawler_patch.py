@@ -30,8 +30,8 @@ def fake_vendor(tmp_path):
     return tmp_path
 
 
-def settings(intl=False, ua=WIN_UA):
-    return SimpleNamespace(XHS_INTERNATIONAL=intl, BROWSER_USER_AGENT=ua)
+def settings(intl=False, ua=WIN_UA, sleep=8):
+    return SimpleNamespace(XHS_INTERNATIONAL=intl, BROWSER_USER_AGENT=ua, CRAWL_SLEEP_SEC=sleep)
 
 
 def test_patch_config_switches_to_rednote_backend(tmp_path):
@@ -63,9 +63,15 @@ def test_patch_config_applies_base_patches(tmp_path):
     patch_config(mc, settings())
     base = (mc / "config" / "base_config.py").read_text(encoding="utf-8")
     assert "ENABLE_CDP_MODE = False" in base
-    assert "CRAWLER_MAX_SLEEP_SEC = 3" in base
     assert 'SORT_TYPE = "time_descending"' in (mc / "config" / "xhs_config.py").read_text(encoding="utf-8")
     assert "set_default_timeout(120_000)" in (mc / "media_platform" / "xhs" / "core.py").read_text(encoding="utf-8")
+
+
+def test_request_rate_comes_from_settings(tmp_path):
+    """The throttle is the one lever against XHS risk control — it must not be hardcoded."""
+    mc = fake_vendor(tmp_path)
+    patch_config(mc, settings(sleep=12))
+    assert "CRAWLER_MAX_SLEEP_SEC = 12" in (mc / "config" / "base_config.py").read_text(encoding="utf-8")
 
 
 def test_index_navigation_waits_only_for_domcontentloaded(tmp_path):

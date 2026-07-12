@@ -49,6 +49,12 @@ def run_fetch(conn, mode: str, dict_data: dict, settings) -> int | None:
         stats = ingest.ingest_run_dir(conn, run_dir, run_id, settings.context_window_ms)
         if crawler_runner.login_looks_required(result["log_path"], stats["notes_fresh"]):
             status, error = "failed", "login_required"
+        elif result.get("risk_controlled"):
+            status = "partial" if stats["notes_fresh"] > 0 else "failed"
+            error = (
+                f"stopped after {result['captchas']} CAPTCHAs — XHS is rate-limiting the "
+                "account; what was fetched before the wall is kept"
+            )
         elif result["timed_out"]:
             status = "partial" if stats["notes_fresh"] > 0 else "failed"
             error = f"timeout after {settings.CRAWL_TIMEOUT_MIN} min"

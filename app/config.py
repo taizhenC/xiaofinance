@@ -37,7 +37,15 @@ class Settings(BaseSettings):
     MAX_NOTES_PER_KEYWORD: int = 20
     MAX_COMMENTS_PER_NOTE: int = 20
     FETCH_INTERVAL_HOURS: float = 5
-    CRAWL_TIMEOUT_MIN: int = 35
+    # MediaCrawler sleeps this long after every note detail and every comment fetch — not
+    # just once per page — so it is the real request rate. Its default of 3s walled the
+    # account partway through a 6-keyword cycle; 8s costs ~10 min per keyword.
+    CRAWL_SLEEP_SEC: int = 8
+    CRAWL_TIMEOUT_MIN: int = 70
+    # Once XHS decides the account is a crawler it answers with a CAPTCHA (461) and tenacity
+    # retries each walled request — one run ground through 192 of them, which can only
+    # deepen the flag. Stop instead: whatever was fetched before the wall is already ingested.
+    CAPTCHA_ABORT_COUNT: int = 10
     ENABLE_SUB_COMMENTS: bool = False
     # Accounts registered on rednote.com (the international app) are not valid against
     # mainland xiaohongshu.com: the API host and cookie domain differ, and the search API
