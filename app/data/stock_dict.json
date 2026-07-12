@@ -1,168 +1,2395 @@
 {
   "context_words": [
-    "股", "美股", "股价", "股票", "股市", "个股", "持股", "股东", "股息", "分红",
-    "涨", "跌", "大涨", "大跌", "暴涨", "暴跌", "涨停", "跌停", "新高", "新低",
-    "买入", "卖出", "抄底", "加仓", "减仓", "建仓", "清仓", "持仓", "仓位", "满仓", "空仓", "梭哈",
-    "止损", "止盈", "套牢", "解套", "回调", "反弹", "回撤",
-    "财报", "业绩", "营收", "估值", "市值", "市盈率", "pe", "eps", "目标价",
-    "做多", "做空", "多头", "空头", "看多", "看空", "看涨", "看跌", "牛市", "熊市",
-    "纳指", "标普", "道指", "纳斯达克", "etf", "期权", "期货", "call", "put", "杠杆",
-    "韭菜", "散户", "机构", "庄家", "主力",
-    "盘前", "盘后", "开盘", "收盘", "美盘", "夜盘",
-    "富途", "老虎证券", "嘉信", "ibkr", "盈透", "券商", "开户",
-    "美联储", "降息", "加息", "cpi", "非农", "财季", "ipo", "上市", "拆股", "回购",
-    "投资", "理财", "定投", "被套", "浮亏", "浮盈", "收益率", "本金"
+    "股",
+    "美股",
+    "股价",
+    "股票",
+    "股市",
+    "个股",
+    "持股",
+    "股东",
+    "股息",
+    "分红",
+    "涨",
+    "跌",
+    "大涨",
+    "大跌",
+    "暴涨",
+    "暴跌",
+    "涨停",
+    "跌停",
+    "新高",
+    "新低",
+    "买入",
+    "卖出",
+    "抄底",
+    "加仓",
+    "减仓",
+    "建仓",
+    "清仓",
+    "持仓",
+    "仓位",
+    "满仓",
+    "空仓",
+    "梭哈",
+    "止损",
+    "止盈",
+    "套牢",
+    "解套",
+    "回调",
+    "反弹",
+    "回撤",
+    "财报",
+    "业绩",
+    "营收",
+    "估值",
+    "市值",
+    "市盈率",
+    "pe",
+    "eps",
+    "目标价",
+    "做多",
+    "做空",
+    "多头",
+    "空头",
+    "看多",
+    "看空",
+    "看涨",
+    "看跌",
+    "牛市",
+    "熊市",
+    "纳指",
+    "标普",
+    "道指",
+    "纳斯达克",
+    "etf",
+    "期权",
+    "期货",
+    "call",
+    "put",
+    "杠杆",
+    "韭菜",
+    "散户",
+    "机构",
+    "庄家",
+    "主力",
+    "盘前",
+    "盘后",
+    "开盘",
+    "收盘",
+    "美盘",
+    "夜盘",
+    "富途",
+    "老虎证券",
+    "嘉信",
+    "ibkr",
+    "盈透",
+    "券商",
+    "开户",
+    "美联储",
+    "降息",
+    "加息",
+    "cpi",
+    "非农",
+    "财季",
+    "ipo",
+    "上市",
+    "拆股",
+    "回购",
+    "投资",
+    "理财",
+    "定投",
+    "被套",
+    "浮亏",
+    "浮盈",
+    "收益率",
+    "本金",
+    "妖股",
+    "中概股",
+    "七巨头",
+    "美股七姐妹",
+    "科技股",
+    "半导体",
+    "芯片",
+    "算力",
+    "财报季",
+    "暴雷",
+    "业绩暴雷",
+    "超预期",
+    "不及预期",
+    "指引",
+    "电话会",
+    "割肉",
+    "吃面",
+    "上车",
+    "下车",
+    "追高",
+    "埋伏",
+    "潜伏",
+    "接盘",
+    "抬轿",
+    "一把梭",
+    "波段",
+    "长线",
+    "短线",
+    "价值投资",
+    "成长股",
+    "蓝筹",
+    "龙头",
+    "赛道",
+    "均线",
+    "支撑位",
+    "压力位",
+    "破位",
+    "站上",
+    "腰斩",
+    "翻倍",
+    "回本",
+    "分析师",
+    "评级",
+    "上调",
+    "下调",
+    "增持",
+    "减持",
+    "重仓",
+    "空头回补",
+    "正股",
+    "认沽",
+    "认购",
+    "波动率",
+    "隐波",
+    "行权",
+    "到期日",
+    "微牛",
+    "webull",
+    "moomoo",
+    "罗宾汉",
+    "美元",
+    "汇率",
+    "换汇",
+    "港美股",
+    "盘中",
+    "尾盘",
+    "竞价",
+    "熔断",
+    "崩盘",
+    "反转",
+    "逃顶"
   ],
   "collision_tickers": [
-    "LI", "GM", "ARM", "META", "COIN", "HOOD", "ALL", "MS", "KO", "BA", "CAT",
-    "HD", "TM", "MA", "IQ", "APP", "OPEN", "NET", "SHOP", "DASH", "TEAM", "SNOW",
-    "LOW", "TGT", "COST", "RIOT", "SMH", "IT", "ON", "NOW", "GO", "WB", "SPOT",
-    "CRM", "SMR", "AMC", "EDU", "SO", "ANY", "ARE", "FOR", "BIG", "CAN"
+    "LI",
+    "GM",
+    "ARM",
+    "META",
+    "COIN",
+    "HOOD",
+    "ALL",
+    "MS",
+    "KO",
+    "BA",
+    "CAT",
+    "HD",
+    "TM",
+    "MA",
+    "IQ",
+    "APP",
+    "OPEN",
+    "NET",
+    "SHOP",
+    "DASH",
+    "TEAM",
+    "SNOW",
+    "LOW",
+    "TGT",
+    "COST",
+    "RIOT",
+    "SMH",
+    "IT",
+    "ON",
+    "NOW",
+    "GO",
+    "WB",
+    "SPOT",
+    "CRM",
+    "SMR",
+    "AMC",
+    "EDU",
+    "SO",
+    "ANY",
+    "ARE",
+    "FOR",
+    "BIG",
+    "CAN",
+    "DE",
+    "NU",
+    "GD",
+    "EA",
+    "PG",
+    "TER",
+    "BX",
+    "HUT",
+    "U",
+    "MAR",
+    "ELF",
+    "VST",
+    "TOST",
+    "SNAP",
+    "XYZ",
+    "ADI",
+    "HON",
+    "DIA",
+    "NOC",
+    "RCL",
+    "CCL",
+    "DAL",
+    "UAL",
+    "UPS",
+    "CMG",
+    "MDB",
+    "ZS"
   ],
   "stocks": [
-    {"ticker": "AAPL", "name_cn": "苹果", "aliases": ["苹果公司"], "ambiguous": ["苹果", "库克"]},
-    {"ticker": "MSFT", "name_cn": "微软", "aliases": ["微软"], "ambiguous": []},
-    {"ticker": "GOOGL", "name_cn": "谷歌", "aliases": ["goog"], "ambiguous": ["谷歌", "alphabet"]},
-    {"ticker": "AMZN", "name_cn": "亚马逊", "aliases": ["亚马逊"], "ambiguous": []},
-    {"ticker": "META", "name_cn": "Meta", "aliases": ["脸书", "facebook"], "ambiguous": ["meta", "小扎", "扎克伯格"]},
-    {"ticker": "NVDA", "name_cn": "英伟达", "aliases": ["英伟达", "辉达", "nvidia"], "ambiguous": ["老黄", "黄仁勋"]},
-    {"ticker": "TSLA", "name_cn": "特斯拉", "aliases": ["特斯拉", "tesla"], "ambiguous": ["马斯克", "musk"]},
-    {"ticker": "NFLX", "name_cn": "奈飞", "aliases": ["奈飞", "网飞", "netflix"], "ambiguous": []},
-    {"ticker": "TSM", "name_cn": "台积电", "aliases": ["台积电", "tsmc"], "ambiguous": []},
-    {"ticker": "AVGO", "name_cn": "博通", "aliases": ["博通", "broadcom"], "ambiguous": []},
-    {"ticker": "ORCL", "name_cn": "甲骨文", "aliases": ["甲骨文", "oracle"], "ambiguous": []},
-    {"ticker": "CRM", "name_cn": "赛富时", "aliases": ["salesforce", "赛富时"], "ambiguous": []},
-    {"ticker": "ADBE", "name_cn": "Adobe", "aliases": ["adobe"], "ambiguous": []},
-    {"ticker": "IBM", "name_cn": "IBM", "aliases": [], "ambiguous": []},
-    {"ticker": "INTC", "name_cn": "英特尔", "aliases": ["英特尔", "intel"], "ambiguous": []},
-    {"ticker": "AMD", "name_cn": "AMD", "aliases": ["amd", "超威"], "ambiguous": ["苏妈"]},
-    {"ticker": "QCOM", "name_cn": "高通", "aliases": ["高通", "qualcomm"], "ambiguous": []},
-    {"ticker": "MU", "name_cn": "美光", "aliases": ["美光", "micron"], "ambiguous": []},
-    {"ticker": "ARM", "name_cn": "安谋", "aliases": ["安谋"], "ambiguous": ["arm"]},
-    {"ticker": "SMCI", "name_cn": "超微电脑", "aliases": ["超微电脑", "supermicro"], "ambiguous": ["超微"]},
-    {"ticker": "TXN", "name_cn": "德州仪器", "aliases": ["德州仪器"], "ambiguous": []},
-    {"ticker": "ASML", "name_cn": "阿斯麦", "aliases": ["阿斯麦", "asml"], "ambiguous": []},
-    {"ticker": "CSCO", "name_cn": "思科", "aliases": ["思科"], "ambiguous": []},
-    {"ticker": "CRWD", "name_cn": "CrowdStrike", "aliases": ["crowdstrike"], "ambiguous": []},
-    {"ticker": "PANW", "name_cn": "帕洛阿尔托", "aliases": ["palo alto"], "ambiguous": []},
-    {"ticker": "DDOG", "name_cn": "Datadog", "aliases": ["datadog"], "ambiguous": []},
-    {"ticker": "SNOW", "name_cn": "Snowflake", "aliases": ["snowflake"], "ambiguous": []},
-    {"ticker": "PLTR", "name_cn": "Palantir", "aliases": ["palantir", "帕兰提尔"], "ambiguous": []},
-    {"ticker": "UBER", "name_cn": "优步", "aliases": ["优步", "uber"], "ambiguous": []},
-    {"ticker": "LYFT", "name_cn": "Lyft", "aliases": ["lyft"], "ambiguous": []},
-    {"ticker": "ABNB", "name_cn": "爱彼迎", "aliases": ["爱彼迎", "airbnb"], "ambiguous": []},
-    {"ticker": "DASH", "name_cn": "DoorDash", "aliases": ["doordash"], "ambiguous": []},
-    {"ticker": "SHOP", "name_cn": "Shopify", "aliases": ["shopify"], "ambiguous": []},
-    {"ticker": "SPOT", "name_cn": "Spotify", "aliases": ["spotify"], "ambiguous": []},
-    {"ticker": "PYPL", "name_cn": "PayPal", "aliases": ["paypal", "贝宝"], "ambiguous": []},
-    {"ticker": "SOFI", "name_cn": "SoFi", "aliases": ["sofi"], "ambiguous": []},
-    {"ticker": "AFRM", "name_cn": "Affirm", "aliases": [], "ambiguous": ["affirm"]},
-    {"ticker": "ZM", "name_cn": "Zoom", "aliases": [], "ambiguous": ["zoom"]},
-    {"ticker": "NET", "name_cn": "Cloudflare", "aliases": ["cloudflare"], "ambiguous": []},
-    {"ticker": "APP", "name_cn": "AppLovin", "aliases": ["applovin"], "ambiguous": []},
-    {"ticker": "RBLX", "name_cn": "Roblox", "aliases": ["roblox"], "ambiguous": []},
-    {"ticker": "IONQ", "name_cn": "IonQ", "aliases": ["ionq"], "ambiguous": []},
-    {"ticker": "RGTI", "name_cn": "Rigetti", "aliases": ["rigetti"], "ambiguous": []},
-    {"ticker": "OKLO", "name_cn": "Oklo", "aliases": ["oklo"], "ambiguous": []},
-    {"ticker": "SMR", "name_cn": "NuScale", "aliases": ["nuscale"], "ambiguous": []},
-    {"ticker": "VRT", "name_cn": "Vertiv", "aliases": ["vertiv"], "ambiguous": []},
-    {"ticker": "OPEN", "name_cn": "Opendoor", "aliases": ["opendoor"], "ambiguous": []},
-    {"ticker": "HOOD", "name_cn": "Robinhood", "aliases": ["robinhood"], "ambiguous": ["罗宾汉"]},
-    {"ticker": "COIN", "name_cn": "Coinbase", "aliases": ["coinbase"], "ambiguous": []},
-    {"ticker": "CRCL", "name_cn": "Circle", "aliases": [], "ambiguous": ["circle"]},
-    {"ticker": "MSTR", "name_cn": "微策略", "aliases": ["微策略", "microstrategy"], "ambiguous": []},
-    {"ticker": "MARA", "name_cn": "MARA", "aliases": [], "ambiguous": []},
-    {"ticker": "RIOT", "name_cn": "Riot Platforms", "aliases": [], "ambiguous": []},
-    {"ticker": "GME", "name_cn": "游戏驿站", "aliases": ["游戏驿站", "gamestop"], "ambiguous": []},
-    {"ticker": "AMC", "name_cn": "AMC院线", "aliases": ["amc院线"], "ambiguous": []},
-    {"ticker": "RIVN", "name_cn": "Rivian", "aliases": ["rivian"], "ambiguous": []},
-    {"ticker": "LCID", "name_cn": "Lucid", "aliases": [], "ambiguous": ["lucid"]},
-    {"ticker": "JOBY", "name_cn": "Joby", "aliases": ["joby"], "ambiguous": []},
-    {"ticker": "RKLB", "name_cn": "火箭实验室", "aliases": ["rocket lab", "火箭实验室"], "ambiguous": []},
-    {"ticker": "HIMS", "name_cn": "Hims", "aliases": ["hims"], "ambiguous": []},
-    {"ticker": "BABA", "name_cn": "阿里巴巴", "aliases": ["阿里巴巴"], "ambiguous": ["阿里", "马云"]},
-    {"ticker": "PDD", "name_cn": "拼多多", "aliases": ["拼多多"], "ambiguous": ["多多"]},
-    {"ticker": "JD", "name_cn": "京东", "aliases": ["京东"], "ambiguous": []},
-    {"ticker": "BIDU", "name_cn": "百度", "aliases": ["百度"], "ambiguous": []},
-    {"ticker": "NTES", "name_cn": "网易", "aliases": ["网易"], "ambiguous": []},
-    {"ticker": "TME", "name_cn": "腾讯音乐", "aliases": ["腾讯音乐"], "ambiguous": []},
-    {"ticker": "NIO", "name_cn": "蔚来", "aliases": ["蔚来"], "ambiguous": []},
-    {"ticker": "XPEV", "name_cn": "小鹏汽车", "aliases": ["小鹏", "小鹏汽车"], "ambiguous": []},
-    {"ticker": "LI", "name_cn": "理想汽车", "aliases": ["理想汽车"], "ambiguous": ["理想"]},
-    {"ticker": "ZK", "name_cn": "极氪", "aliases": ["极氪"], "ambiguous": []},
-    {"ticker": "BILI", "name_cn": "哔哩哔哩", "aliases": ["哔哩哔哩", "b站"], "ambiguous": []},
-    {"ticker": "IQ", "name_cn": "爱奇艺", "aliases": ["爱奇艺"], "ambiguous": []},
-    {"ticker": "FUTU", "name_cn": "富途", "aliases": ["富途", "富途牛牛"], "ambiguous": []},
-    {"ticker": "TIGR", "name_cn": "老虎证券", "aliases": ["老虎证券"], "ambiguous": []},
-    {"ticker": "BEKE", "name_cn": "贝壳找房", "aliases": ["贝壳找房"], "ambiguous": ["贝壳"]},
-    {"ticker": "TCOM", "name_cn": "携程", "aliases": ["携程"], "ambiguous": []},
-    {"ticker": "YUMC", "name_cn": "百胜中国", "aliases": ["百胜中国"], "ambiguous": []},
-    {"ticker": "LKNCY", "name_cn": "瑞幸咖啡", "aliases": ["瑞幸", "luckin"], "ambiguous": []},
-    {"ticker": "EDU", "name_cn": "新东方", "aliases": ["新东方"], "ambiguous": []},
-    {"ticker": "TAL", "name_cn": "好未来", "aliases": ["好未来", "学而思"], "ambiguous": []},
-    {"ticker": "WB", "name_cn": "微博", "aliases": [], "ambiguous": ["微博"]},
-    {"ticker": "MNSO", "name_cn": "名创优品", "aliases": ["名创优品"], "ambiguous": []},
-    {"ticker": "BRK", "name_cn": "伯克希尔", "aliases": ["伯克希尔", "berkshire"], "ambiguous": ["巴菲特", "股神"]},
-    {"ticker": "JPM", "name_cn": "摩根大通", "aliases": ["摩根大通"], "ambiguous": ["小摩"]},
-    {"ticker": "MS", "name_cn": "摩根士丹利", "aliases": ["摩根士丹利"], "ambiguous": ["大摩"]},
-    {"ticker": "GS", "name_cn": "高盛", "aliases": ["高盛"], "ambiguous": []},
-    {"ticker": "BAC", "name_cn": "美国银行", "aliases": ["美银"], "ambiguous": ["美国银行"]},
-    {"ticker": "WFC", "name_cn": "富国银行", "aliases": ["富国银行"], "ambiguous": []},
-    {"ticker": "C", "name_cn": "花旗", "aliases": ["花旗"], "ambiguous": []},
-    {"ticker": "V", "name_cn": "Visa", "aliases": ["维萨"], "ambiguous": ["visa"]},
-    {"ticker": "MA", "name_cn": "万事达", "aliases": ["万事达"], "ambiguous": []},
-    {"ticker": "AXP", "name_cn": "美国运通", "aliases": ["美国运通", "运通"], "ambiguous": []},
-    {"ticker": "BLK", "name_cn": "贝莱德", "aliases": ["贝莱德"], "ambiguous": []},
-    {"ticker": "SCHW", "name_cn": "嘉信理财", "aliases": ["嘉信理财"], "ambiguous": ["嘉信"]},
-    {"ticker": "KO", "name_cn": "可口可乐", "aliases": ["可口可乐"], "ambiguous": ["可乐"]},
-    {"ticker": "PEP", "name_cn": "百事", "aliases": ["百事"], "ambiguous": []},
-    {"ticker": "MCD", "name_cn": "麦当劳", "aliases": [], "ambiguous": ["麦当劳", "金拱门"]},
-    {"ticker": "SBUX", "name_cn": "星巴克", "aliases": [], "ambiguous": ["星巴克"]},
-    {"ticker": "NKE", "name_cn": "耐克", "aliases": [], "ambiguous": ["耐克"]},
-    {"ticker": "LULU", "name_cn": "Lululemon", "aliases": ["lululemon", "露露柠檬"], "ambiguous": []},
-    {"ticker": "DIS", "name_cn": "迪士尼", "aliases": [], "ambiguous": ["迪士尼"]},
-    {"ticker": "BA", "name_cn": "波音", "aliases": ["波音"], "ambiguous": []},
-    {"ticker": "CAT", "name_cn": "卡特彼勒", "aliases": ["卡特彼勒"], "ambiguous": []},
-    {"ticker": "GE", "name_cn": "通用电气", "aliases": ["通用电气"], "ambiguous": []},
-    {"ticker": "MMM", "name_cn": "3M", "aliases": [], "ambiguous": ["3m"]},
-    {"ticker": "LLY", "name_cn": "礼来", "aliases": ["礼来"], "ambiguous": []},
-    {"ticker": "NVO", "name_cn": "诺和诺德", "aliases": ["诺和诺德"], "ambiguous": ["司美格鲁肽"]},
-    {"ticker": "PFE", "name_cn": "辉瑞", "aliases": ["辉瑞"], "ambiguous": []},
-    {"ticker": "MRK", "name_cn": "默沙东", "aliases": ["默沙东"], "ambiguous": []},
-    {"ticker": "JNJ", "name_cn": "强生", "aliases": [], "ambiguous": ["强生"]},
-    {"ticker": "UNH", "name_cn": "联合健康", "aliases": ["联合健康"], "ambiguous": []},
-    {"ticker": "ABBV", "name_cn": "艾伯维", "aliases": ["艾伯维"], "ambiguous": []},
-    {"ticker": "XOM", "name_cn": "埃克森美孚", "aliases": ["埃克森美孚", "埃克森"], "ambiguous": []},
-    {"ticker": "CVX", "name_cn": "雪佛龙", "aliases": ["雪佛龙"], "ambiguous": []},
-    {"ticker": "OXY", "name_cn": "西方石油", "aliases": ["西方石油"], "ambiguous": []},
-    {"ticker": "WMT", "name_cn": "沃尔玛", "aliases": [], "ambiguous": ["沃尔玛"]},
-    {"ticker": "COST", "name_cn": "开市客", "aliases": [], "ambiguous": ["开市客", "好市多", "costco"]},
-    {"ticker": "TGT", "name_cn": "塔吉特", "aliases": [], "ambiguous": ["塔吉特"]},
-    {"ticker": "HD", "name_cn": "家得宝", "aliases": ["家得宝"], "ambiguous": []},
-    {"ticker": "LOW", "name_cn": "劳氏", "aliases": ["劳氏"], "ambiguous": []},
-    {"ticker": "F", "name_cn": "福特", "aliases": ["福特"], "ambiguous": []},
-    {"ticker": "GM", "name_cn": "通用汽车", "aliases": ["通用汽车"], "ambiguous": []},
-    {"ticker": "TM", "name_cn": "丰田", "aliases": [], "ambiguous": ["丰田"]},
-    {"ticker": "SPY", "name_cn": "标普500 ETF", "aliases": [], "ambiguous": []},
-    {"ticker": "QQQ", "name_cn": "纳指100 ETF", "aliases": [], "ambiguous": []},
-    {"ticker": "TQQQ", "name_cn": "三倍做多纳指", "aliases": [], "ambiguous": []},
-    {"ticker": "SQQQ", "name_cn": "三倍做空纳指", "aliases": [], "ambiguous": []},
-    {"ticker": "SOXL", "name_cn": "三倍做多半导体", "aliases": [], "ambiguous": []},
-    {"ticker": "SOXS", "name_cn": "三倍做空半导体", "aliases": [], "ambiguous": []},
-    {"ticker": "NVDL", "name_cn": "两倍做多英伟达", "aliases": [], "ambiguous": []},
-    {"ticker": "TSLL", "name_cn": "两倍做多特斯拉", "aliases": [], "ambiguous": []},
-    {"ticker": "YINN", "name_cn": "三倍做多中国", "aliases": [], "ambiguous": []},
-    {"ticker": "YANG", "name_cn": "三倍做空中国", "aliases": [], "ambiguous": []},
-    {"ticker": "KWEB", "name_cn": "中概互联ETF", "aliases": ["中概互联"], "ambiguous": []},
-    {"ticker": "FXI", "name_cn": "富时中国ETF", "aliases": [], "ambiguous": []},
-    {"ticker": "ARKK", "name_cn": "方舟创新ETF", "aliases": ["木头姐", "方舟基金"], "ambiguous": ["cathie wood"]},
-    {"ticker": "VOO", "name_cn": "标普500 ETF(先锋)", "aliases": [], "ambiguous": []},
-    {"ticker": "VTI", "name_cn": "全市场ETF", "aliases": [], "ambiguous": []},
-    {"ticker": "SMH", "name_cn": "半导体ETF", "aliases": [], "ambiguous": []},
-    {"ticker": "IWM", "name_cn": "罗素2000 ETF", "aliases": [], "ambiguous": []},
-    {"ticker": "TLT", "name_cn": "20年+美债ETF", "aliases": [], "ambiguous": []},
-    {"ticker": "GLD", "name_cn": "黄金ETF", "aliases": [], "ambiguous": ["黄金etf"]},
-    {"ticker": "IBIT", "name_cn": "比特币ETF", "aliases": [], "ambiguous": ["比特币etf"]},
-    {"ticker": "UVXY", "name_cn": "恐慌指数ETF", "aliases": [], "ambiguous": []}
+    {
+      "ticker": "AAPL",
+      "name_cn": "苹果",
+      "aliases": [
+        "苹果公司"
+      ],
+      "ambiguous": [
+        "苹果",
+        "库克",
+        "果子",
+        "大果",
+        "苹果链",
+        "果链"
+      ]
+    },
+    {
+      "ticker": "MSFT",
+      "name_cn": "微软",
+      "aliases": [
+        "巨硬",
+        "微软"
+      ],
+      "ambiguous": [
+        "纳德拉"
+      ]
+    },
+    {
+      "ticker": "GOOGL",
+      "name_cn": "谷歌",
+      "aliases": [
+        "goog"
+      ],
+      "ambiguous": [
+        "谷歌",
+        "alphabet",
+        "古哥",
+        "大狗",
+        "字母表",
+        "google"
+      ]
+    },
+    {
+      "ticker": "AMZN",
+      "name_cn": "亚马逊",
+      "aliases": [
+        "亚马逊",
+        "amazon"
+      ],
+      "ambiguous": [
+        "亚麻",
+        "贝索斯"
+      ]
+    },
+    {
+      "ticker": "META",
+      "name_cn": "Meta",
+      "aliases": [
+        "脸书",
+        "facebook"
+      ],
+      "ambiguous": [
+        "meta",
+        "小扎",
+        "扎克伯格"
+      ]
+    },
+    {
+      "ticker": "NVDA",
+      "name_cn": "英伟达",
+      "aliases": [
+        "英伟达",
+        "辉达",
+        "nvidia",
+        "皮衣黄",
+        "皮衣刀客"
+      ],
+      "ambiguous": [
+        "老黄",
+        "黄仁勋",
+        "n卡",
+        "英伟达链"
+      ]
+    },
+    {
+      "ticker": "TSLA",
+      "name_cn": "特斯拉",
+      "aliases": [
+        "特斯拉",
+        "tesla"
+      ],
+      "ambiguous": [
+        "马斯克",
+        "musk",
+        "电动爹",
+        "马老板",
+        "钢铁侠"
+      ]
+    },
+    {
+      "ticker": "NFLX",
+      "name_cn": "奈飞",
+      "aliases": [
+        "奈飞",
+        "网飞",
+        "netflix"
+      ],
+      "ambiguous": [
+        "奶飞"
+      ]
+    },
+    {
+      "ticker": "TSM",
+      "name_cn": "台积电",
+      "aliases": [
+        "台积电",
+        "tsmc",
+        "护国神山",
+        "台积"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "AVGO",
+      "name_cn": "博通",
+      "aliases": [
+        "博通",
+        "broadcom"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "ORCL",
+      "name_cn": "甲骨文",
+      "aliases": [
+        "甲骨文",
+        "oracle"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "CRM",
+      "name_cn": "赛富时",
+      "aliases": [
+        "salesforce",
+        "赛富时"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "ADBE",
+      "name_cn": "Adobe",
+      "aliases": [
+        "adobe"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "IBM",
+      "name_cn": "IBM",
+      "aliases": [],
+      "ambiguous": []
+    },
+    {
+      "ticker": "INTC",
+      "name_cn": "英特尔",
+      "aliases": [
+        "英特尔",
+        "intel"
+      ],
+      "ambiguous": [
+        "牙膏厂",
+        "挤牙膏"
+      ]
+    },
+    {
+      "ticker": "AMD",
+      "name_cn": "AMD",
+      "aliases": [
+        "amd",
+        "超威"
+      ],
+      "ambiguous": [
+        "苏妈",
+        "a卡",
+        "苏姿丰"
+      ]
+    },
+    {
+      "ticker": "QCOM",
+      "name_cn": "高通",
+      "aliases": [
+        "高通",
+        "qualcomm"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "MU",
+      "name_cn": "美光",
+      "aliases": [
+        "美光",
+        "micron"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "ARM",
+      "name_cn": "安谋",
+      "aliases": [
+        "安谋"
+      ],
+      "ambiguous": [
+        "arm"
+      ]
+    },
+    {
+      "ticker": "SMCI",
+      "name_cn": "超微电脑",
+      "aliases": [
+        "超微电脑",
+        "supermicro"
+      ],
+      "ambiguous": [
+        "超微"
+      ]
+    },
+    {
+      "ticker": "TXN",
+      "name_cn": "德州仪器",
+      "aliases": [
+        "德州仪器"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "ASML",
+      "name_cn": "阿斯麦",
+      "aliases": [
+        "阿斯麦",
+        "asml"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "CSCO",
+      "name_cn": "思科",
+      "aliases": [
+        "思科"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "CRWD",
+      "name_cn": "CrowdStrike",
+      "aliases": [
+        "crowdstrike"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "PANW",
+      "name_cn": "帕洛阿尔托",
+      "aliases": [
+        "palo alto"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "DDOG",
+      "name_cn": "Datadog",
+      "aliases": [
+        "datadog"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "SNOW",
+      "name_cn": "Snowflake",
+      "aliases": [
+        "snowflake"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "PLTR",
+      "name_cn": "Palantir",
+      "aliases": [
+        "palantir",
+        "帕兰提尔"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "UBER",
+      "name_cn": "优步",
+      "aliases": [
+        "优步",
+        "uber"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "LYFT",
+      "name_cn": "Lyft",
+      "aliases": [
+        "lyft"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "ABNB",
+      "name_cn": "爱彼迎",
+      "aliases": [
+        "爱彼迎",
+        "airbnb"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "DASH",
+      "name_cn": "DoorDash",
+      "aliases": [
+        "doordash"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "SHOP",
+      "name_cn": "Shopify",
+      "aliases": [
+        "shopify"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "SPOT",
+      "name_cn": "Spotify",
+      "aliases": [
+        "spotify"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "PYPL",
+      "name_cn": "PayPal",
+      "aliases": [
+        "paypal",
+        "贝宝"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "SOFI",
+      "name_cn": "SoFi",
+      "aliases": [
+        "sofi"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "AFRM",
+      "name_cn": "Affirm",
+      "aliases": [],
+      "ambiguous": [
+        "affirm"
+      ]
+    },
+    {
+      "ticker": "ZM",
+      "name_cn": "Zoom",
+      "aliases": [],
+      "ambiguous": [
+        "zoom"
+      ]
+    },
+    {
+      "ticker": "NET",
+      "name_cn": "Cloudflare",
+      "aliases": [
+        "cloudflare"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "APP",
+      "name_cn": "AppLovin",
+      "aliases": [
+        "applovin"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "RBLX",
+      "name_cn": "Roblox",
+      "aliases": [
+        "roblox"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "IONQ",
+      "name_cn": "IonQ",
+      "aliases": [
+        "ionq"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "RGTI",
+      "name_cn": "Rigetti",
+      "aliases": [
+        "rigetti"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "OKLO",
+      "name_cn": "Oklo",
+      "aliases": [
+        "oklo"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "SMR",
+      "name_cn": "NuScale",
+      "aliases": [
+        "nuscale"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "VRT",
+      "name_cn": "Vertiv",
+      "aliases": [
+        "vertiv"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "OPEN",
+      "name_cn": "Opendoor",
+      "aliases": [
+        "opendoor"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "HOOD",
+      "name_cn": "Robinhood",
+      "aliases": [
+        "robinhood"
+      ],
+      "ambiguous": [
+        "罗宾汉"
+      ]
+    },
+    {
+      "ticker": "COIN",
+      "name_cn": "Coinbase",
+      "aliases": [
+        "coinbase"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "CRCL",
+      "name_cn": "Circle",
+      "aliases": [],
+      "ambiguous": [
+        "circle"
+      ]
+    },
+    {
+      "ticker": "MSTR",
+      "name_cn": "微策略",
+      "aliases": [
+        "微策略",
+        "microstrategy"
+      ],
+      "ambiguous": [
+        "saylor"
+      ]
+    },
+    {
+      "ticker": "MARA",
+      "name_cn": "MARA",
+      "aliases": [],
+      "ambiguous": []
+    },
+    {
+      "ticker": "RIOT",
+      "name_cn": "Riot Platforms",
+      "aliases": [],
+      "ambiguous": []
+    },
+    {
+      "ticker": "GME",
+      "name_cn": "游戏驿站",
+      "aliases": [
+        "游戏驿站",
+        "gamestop"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "AMC",
+      "name_cn": "AMC院线",
+      "aliases": [
+        "amc院线"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "RIVN",
+      "name_cn": "Rivian",
+      "aliases": [
+        "rivian"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "LCID",
+      "name_cn": "Lucid",
+      "aliases": [],
+      "ambiguous": [
+        "lucid"
+      ]
+    },
+    {
+      "ticker": "JOBY",
+      "name_cn": "Joby",
+      "aliases": [
+        "joby"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "RKLB",
+      "name_cn": "火箭实验室",
+      "aliases": [
+        "rocket lab",
+        "火箭实验室"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "HIMS",
+      "name_cn": "Hims",
+      "aliases": [
+        "hims"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "BABA",
+      "name_cn": "阿里巴巴",
+      "aliases": [
+        "阿里巴巴",
+        "alibaba"
+      ],
+      "ambiguous": [
+        "阿里",
+        "马云",
+        "淘宝"
+      ]
+    },
+    {
+      "ticker": "PDD",
+      "name_cn": "拼多多",
+      "aliases": [
+        "拼多多",
+        "拼夕夕"
+      ],
+      "ambiguous": [
+        "多多",
+        "temu"
+      ]
+    },
+    {
+      "ticker": "JD",
+      "name_cn": "京东",
+      "aliases": [
+        "京东"
+      ],
+      "ambiguous": [
+        "东哥",
+        "刘强东"
+      ]
+    },
+    {
+      "ticker": "BIDU",
+      "name_cn": "百度",
+      "aliases": [
+        "度娘",
+        "百度"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "NTES",
+      "name_cn": "网易",
+      "aliases": [
+        "网易"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "TME",
+      "name_cn": "腾讯音乐",
+      "aliases": [
+        "腾讯音乐"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "NIO",
+      "name_cn": "蔚来",
+      "aliases": [
+        "蔚来"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "XPEV",
+      "name_cn": "小鹏汽车",
+      "aliases": [
+        "小鹏",
+        "小鹏汽车"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "LI",
+      "name_cn": "理想汽车",
+      "aliases": [
+        "理想汽车"
+      ],
+      "ambiguous": [
+        "理想"
+      ]
+    },
+    {
+      "ticker": "ZK",
+      "name_cn": "极氪",
+      "aliases": [
+        "极氪"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "BILI",
+      "name_cn": "哔哩哔哩",
+      "aliases": [
+        "哔哩哔哩",
+        "b站"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "IQ",
+      "name_cn": "爱奇艺",
+      "aliases": [
+        "爱奇艺"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "FUTU",
+      "name_cn": "富途",
+      "aliases": [
+        "富途",
+        "富途牛牛",
+        "moomoo"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "TIGR",
+      "name_cn": "老虎证券",
+      "aliases": [
+        "老虎证券"
+      ],
+      "ambiguous": [
+        "老虎"
+      ]
+    },
+    {
+      "ticker": "BEKE",
+      "name_cn": "贝壳找房",
+      "aliases": [
+        "贝壳找房"
+      ],
+      "ambiguous": [
+        "贝壳"
+      ]
+    },
+    {
+      "ticker": "TCOM",
+      "name_cn": "携程",
+      "aliases": [
+        "携程"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "YUMC",
+      "name_cn": "百胜中国",
+      "aliases": [
+        "百胜中国"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "LKNCY",
+      "name_cn": "瑞幸咖啡",
+      "aliases": [
+        "瑞幸",
+        "luckin"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "EDU",
+      "name_cn": "新东方",
+      "aliases": [
+        "新东方"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "TAL",
+      "name_cn": "好未来",
+      "aliases": [
+        "好未来",
+        "学而思"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "WB",
+      "name_cn": "微博",
+      "aliases": [],
+      "ambiguous": [
+        "微博"
+      ]
+    },
+    {
+      "ticker": "MNSO",
+      "name_cn": "名创优品",
+      "aliases": [
+        "名创优品"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "BRK",
+      "name_cn": "伯克希尔",
+      "aliases": [
+        "伯克希尔",
+        "berkshire"
+      ],
+      "ambiguous": [
+        "巴菲特",
+        "股神",
+        "老巴",
+        "buffett"
+      ]
+    },
+    {
+      "ticker": "JPM",
+      "name_cn": "摩根大通",
+      "aliases": [
+        "摩根大通"
+      ],
+      "ambiguous": [
+        "小摩"
+      ]
+    },
+    {
+      "ticker": "MS",
+      "name_cn": "摩根士丹利",
+      "aliases": [
+        "摩根士丹利"
+      ],
+      "ambiguous": [
+        "大摩"
+      ]
+    },
+    {
+      "ticker": "GS",
+      "name_cn": "高盛",
+      "aliases": [
+        "高盛"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "BAC",
+      "name_cn": "美国银行",
+      "aliases": [
+        "美银"
+      ],
+      "ambiguous": [
+        "美国银行"
+      ]
+    },
+    {
+      "ticker": "WFC",
+      "name_cn": "富国银行",
+      "aliases": [
+        "富国银行"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "C",
+      "name_cn": "花旗",
+      "aliases": [
+        "花旗"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "V",
+      "name_cn": "Visa",
+      "aliases": [
+        "维萨"
+      ],
+      "ambiguous": [
+        "visa"
+      ]
+    },
+    {
+      "ticker": "MA",
+      "name_cn": "万事达",
+      "aliases": [
+        "万事达"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "AXP",
+      "name_cn": "美国运通",
+      "aliases": [
+        "美国运通",
+        "运通"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "BLK",
+      "name_cn": "贝莱德",
+      "aliases": [
+        "贝莱德"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "SCHW",
+      "name_cn": "嘉信理财",
+      "aliases": [
+        "嘉信理财"
+      ],
+      "ambiguous": [
+        "嘉信"
+      ]
+    },
+    {
+      "ticker": "KO",
+      "name_cn": "可口可乐",
+      "aliases": [
+        "可口可乐"
+      ],
+      "ambiguous": [
+        "可乐"
+      ]
+    },
+    {
+      "ticker": "PEP",
+      "name_cn": "百事",
+      "aliases": [
+        "百事"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "MCD",
+      "name_cn": "麦当劳",
+      "aliases": [],
+      "ambiguous": [
+        "麦当劳",
+        "金拱门"
+      ]
+    },
+    {
+      "ticker": "SBUX",
+      "name_cn": "星巴克",
+      "aliases": [
+        "starbucks"
+      ],
+      "ambiguous": [
+        "星巴克"
+      ]
+    },
+    {
+      "ticker": "NKE",
+      "name_cn": "耐克",
+      "aliases": [],
+      "ambiguous": [
+        "耐克"
+      ]
+    },
+    {
+      "ticker": "LULU",
+      "name_cn": "Lululemon",
+      "aliases": [
+        "lululemon",
+        "露露柠檬"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "DIS",
+      "name_cn": "迪士尼",
+      "aliases": [],
+      "ambiguous": [
+        "迪士尼"
+      ]
+    },
+    {
+      "ticker": "BA",
+      "name_cn": "波音",
+      "aliases": [
+        "波音"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "CAT",
+      "name_cn": "卡特彼勒",
+      "aliases": [
+        "卡特彼勒"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "GE",
+      "name_cn": "通用电气",
+      "aliases": [
+        "通用电气"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "MMM",
+      "name_cn": "3M",
+      "aliases": [],
+      "ambiguous": [
+        "3m"
+      ]
+    },
+    {
+      "ticker": "LLY",
+      "name_cn": "礼来",
+      "aliases": [
+        "礼来"
+      ],
+      "ambiguous": [
+        "替尔泊肽",
+        "穆峰达"
+      ]
+    },
+    {
+      "ticker": "NVO",
+      "name_cn": "诺和诺德",
+      "aliases": [
+        "诺和诺德"
+      ],
+      "ambiguous": [
+        "司美格鲁肽",
+        "诺和泰"
+      ]
+    },
+    {
+      "ticker": "PFE",
+      "name_cn": "辉瑞",
+      "aliases": [
+        "辉瑞"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "MRK",
+      "name_cn": "默沙东",
+      "aliases": [
+        "默沙东"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "JNJ",
+      "name_cn": "强生",
+      "aliases": [],
+      "ambiguous": [
+        "强生"
+      ]
+    },
+    {
+      "ticker": "UNH",
+      "name_cn": "联合健康",
+      "aliases": [
+        "联合健康"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "ABBV",
+      "name_cn": "艾伯维",
+      "aliases": [
+        "艾伯维"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "XOM",
+      "name_cn": "埃克森美孚",
+      "aliases": [
+        "埃克森美孚",
+        "埃克森"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "CVX",
+      "name_cn": "雪佛龙",
+      "aliases": [
+        "雪佛龙"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "OXY",
+      "name_cn": "西方石油",
+      "aliases": [
+        "西方石油"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "WMT",
+      "name_cn": "沃尔玛",
+      "aliases": [],
+      "ambiguous": [
+        "沃尔玛"
+      ]
+    },
+    {
+      "ticker": "COST",
+      "name_cn": "开市客",
+      "aliases": [],
+      "ambiguous": [
+        "开市客",
+        "好市多",
+        "costco"
+      ]
+    },
+    {
+      "ticker": "TGT",
+      "name_cn": "塔吉特",
+      "aliases": [],
+      "ambiguous": [
+        "塔吉特"
+      ]
+    },
+    {
+      "ticker": "HD",
+      "name_cn": "家得宝",
+      "aliases": [
+        "家得宝"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "LOW",
+      "name_cn": "劳氏",
+      "aliases": [
+        "劳氏"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "F",
+      "name_cn": "福特",
+      "aliases": [
+        "福特"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "GM",
+      "name_cn": "通用汽车",
+      "aliases": [
+        "通用汽车"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "TM",
+      "name_cn": "丰田",
+      "aliases": [],
+      "ambiguous": [
+        "丰田"
+      ]
+    },
+    {
+      "ticker": "SPY",
+      "name_cn": "标普500 ETF",
+      "aliases": [],
+      "ambiguous": []
+    },
+    {
+      "ticker": "QQQ",
+      "name_cn": "纳指100 ETF",
+      "aliases": [],
+      "ambiguous": []
+    },
+    {
+      "ticker": "TQQQ",
+      "name_cn": "三倍做多纳指",
+      "aliases": [
+        "三倍纳指",
+        "三倍做多纳指"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "SQQQ",
+      "name_cn": "三倍做空纳指",
+      "aliases": [
+        "三倍做空纳指"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "SOXL",
+      "name_cn": "三倍做多半导体",
+      "aliases": [
+        "三倍半导体"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "SOXS",
+      "name_cn": "三倍做空半导体",
+      "aliases": [],
+      "ambiguous": []
+    },
+    {
+      "ticker": "NVDL",
+      "name_cn": "两倍做多英伟达",
+      "aliases": [],
+      "ambiguous": []
+    },
+    {
+      "ticker": "TSLL",
+      "name_cn": "两倍做多特斯拉",
+      "aliases": [],
+      "ambiguous": []
+    },
+    {
+      "ticker": "YINN",
+      "name_cn": "三倍做多中国",
+      "aliases": [],
+      "ambiguous": []
+    },
+    {
+      "ticker": "YANG",
+      "name_cn": "三倍做空中国",
+      "aliases": [],
+      "ambiguous": []
+    },
+    {
+      "ticker": "KWEB",
+      "name_cn": "中概互联ETF",
+      "aliases": [
+        "中概互联"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "FXI",
+      "name_cn": "富时中国ETF",
+      "aliases": [],
+      "ambiguous": []
+    },
+    {
+      "ticker": "ARKK",
+      "name_cn": "方舟创新ETF",
+      "aliases": [
+        "方舟基金",
+        "木头姐"
+      ],
+      "ambiguous": [
+        "cathie wood"
+      ]
+    },
+    {
+      "ticker": "VOO",
+      "name_cn": "标普500 ETF(先锋)",
+      "aliases": [],
+      "ambiguous": []
+    },
+    {
+      "ticker": "VTI",
+      "name_cn": "全市场ETF",
+      "aliases": [],
+      "ambiguous": []
+    },
+    {
+      "ticker": "SMH",
+      "name_cn": "半导体ETF",
+      "aliases": [],
+      "ambiguous": []
+    },
+    {
+      "ticker": "IWM",
+      "name_cn": "罗素2000 ETF",
+      "aliases": [],
+      "ambiguous": []
+    },
+    {
+      "ticker": "TLT",
+      "name_cn": "20年+美债ETF",
+      "aliases": [],
+      "ambiguous": []
+    },
+    {
+      "ticker": "GLD",
+      "name_cn": "黄金ETF",
+      "aliases": [],
+      "ambiguous": [
+        "黄金etf"
+      ]
+    },
+    {
+      "ticker": "IBIT",
+      "name_cn": "比特币ETF",
+      "aliases": [],
+      "ambiguous": [
+        "比特币etf"
+      ]
+    },
+    {
+      "ticker": "UVXY",
+      "name_cn": "恐慌指数ETF",
+      "aliases": [],
+      "ambiguous": []
+    },
+    {
+      "ticker": "LRCX",
+      "name_cn": "泛林",
+      "aliases": [
+        "泛林",
+        "lam research"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "AMAT",
+      "name_cn": "应用材料",
+      "aliases": [
+        "应用材料",
+        "applied materials"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "KLAC",
+      "name_cn": "科天",
+      "aliases": [
+        "科天",
+        "kla"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "MRVL",
+      "name_cn": "迈威尔",
+      "aliases": [
+        "迈威尔",
+        "marvell"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "ADI",
+      "name_cn": "亚德诺",
+      "aliases": [
+        "亚德诺",
+        "analog devices"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "NXPI",
+      "name_cn": "恩智浦",
+      "aliases": [
+        "恩智浦",
+        "nxp"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "MPWR",
+      "name_cn": "芯源系统",
+      "aliases": [
+        "monolithic power"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "ALAB",
+      "name_cn": "Astera Labs",
+      "aliases": [
+        "astera"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "CRDO",
+      "name_cn": "Credo",
+      "aliases": [
+        "credo"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "TER",
+      "name_cn": "泰瑞达",
+      "aliases": [
+        "泰瑞达",
+        "teradyne"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "GFS",
+      "name_cn": "格芯",
+      "aliases": [
+        "格芯",
+        "globalfoundries"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "WDC",
+      "name_cn": "西部数据",
+      "aliases": [
+        "西部数据",
+        "western digital"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "STX",
+      "name_cn": "希捷",
+      "aliases": [
+        "希捷",
+        "seagate"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "INTU",
+      "name_cn": "财捷",
+      "aliases": [
+        "财捷",
+        "intuit"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "ADSK",
+      "name_cn": "欧特克",
+      "aliases": [
+        "欧特克",
+        "autodesk"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "WDAY",
+      "name_cn": "Workday",
+      "aliases": [
+        "workday"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "MDB",
+      "name_cn": "MongoDB",
+      "aliases": [
+        "mongodb"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "ZS",
+      "name_cn": "Zscaler",
+      "aliases": [
+        "zscaler"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "OKTA",
+      "name_cn": "Okta",
+      "aliases": [
+        "okta"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "TWLO",
+      "name_cn": "Twilio",
+      "aliases": [
+        "twilio"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "HUBS",
+      "name_cn": "HubSpot",
+      "aliases": [
+        "hubspot"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "TTD",
+      "name_cn": "Trade Desk",
+      "aliases": [
+        "trade desk"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "SNPS",
+      "name_cn": "新思科技",
+      "aliases": [
+        "新思",
+        "synopsys"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "CDNS",
+      "name_cn": "楷登",
+      "aliases": [
+        "楷登",
+        "cadence"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "PINS",
+      "name_cn": "Pinterest",
+      "aliases": [
+        "pinterest"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "SNAP",
+      "name_cn": "Snap",
+      "aliases": [
+        "snapchat"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "RDDT",
+      "name_cn": "Reddit",
+      "aliases": [
+        "reddit"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "ROKU",
+      "name_cn": "Roku",
+      "aliases": [
+        "roku"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "EA",
+      "name_cn": "艺电",
+      "aliases": [
+        "艺电",
+        "electronic arts"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "TTWO",
+      "name_cn": "Take-Two",
+      "aliases": [
+        "take-two",
+        "2k"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "DUOL",
+      "name_cn": "多邻国",
+      "aliases": [
+        "多邻国",
+        "duolingo"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "U",
+      "name_cn": "Unity",
+      "aliases": [
+        "unity"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "XYZ",
+      "name_cn": "Block",
+      "aliases": [
+        "block",
+        "square"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "NU",
+      "name_cn": "Nubank",
+      "aliases": [
+        "nubank"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "UPST",
+      "name_cn": "Upstart",
+      "aliases": [
+        "upstart"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "TOST",
+      "name_cn": "Toast",
+      "aliases": [
+        "toast"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "MRNA",
+      "name_cn": "莫德纳",
+      "aliases": [
+        "莫德纳",
+        "moderna"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "AMGN",
+      "name_cn": "安进",
+      "aliases": [
+        "安进",
+        "amgen"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "GILD",
+      "name_cn": "吉利德",
+      "aliases": [
+        "吉利德",
+        "gilead"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "VRTX",
+      "name_cn": "福泰",
+      "aliases": [
+        "福泰",
+        "vertex"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "REGN",
+      "name_cn": "再生元",
+      "aliases": [
+        "再生元",
+        "regeneron"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "ISRG",
+      "name_cn": "直觉外科",
+      "aliases": [
+        "直觉外科",
+        "intuitive surgical"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "DXCM",
+      "name_cn": "德康",
+      "aliases": [
+        "dexcom"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "CMG",
+      "name_cn": "Chipotle",
+      "aliases": [
+        "chipotle"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "MNST",
+      "name_cn": "怪物饮料",
+      "aliases": [
+        "怪物饮料",
+        "魔爪"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "CELH",
+      "name_cn": "Celsius",
+      "aliases": [
+        "celsius"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "ELF",
+      "name_cn": "elf美妆",
+      "aliases": [
+        "e.l.f."
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "DECK",
+      "name_cn": "Deckers",
+      "aliases": [
+        "deckers",
+        "ugg"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "ONON",
+      "name_cn": "昂跑",
+      "aliases": [
+        "昂跑",
+        "on running"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "CROX",
+      "name_cn": "卡骆驰",
+      "aliases": [
+        "卡骆驰",
+        "crocs"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "PG",
+      "name_cn": "宝洁",
+      "aliases": [
+        "宝洁",
+        "procter"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "MDLZ",
+      "name_cn": "亿滋",
+      "aliases": [
+        "亿滋",
+        "mondelez"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "RTX",
+      "name_cn": "雷神",
+      "aliases": [
+        "雷神技术",
+        "raytheon"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "LMT",
+      "name_cn": "洛克希德",
+      "aliases": [
+        "洛克希德",
+        "洛马",
+        "lockheed"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "NOC",
+      "name_cn": "诺斯罗普",
+      "aliases": [
+        "诺斯罗普",
+        "northrop"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "GD",
+      "name_cn": "通用动力",
+      "aliases": [
+        "通用动力",
+        "general dynamics"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "HON",
+      "name_cn": "霍尼韦尔",
+      "aliases": [
+        "霍尼韦尔",
+        "honeywell"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "DE",
+      "name_cn": "迪尔",
+      "aliases": [
+        "迪尔",
+        "john deere"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "UPS",
+      "name_cn": "联合包裹",
+      "aliases": [
+        "联合包裹",
+        "ups快递"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "FDX",
+      "name_cn": "联邦快递",
+      "aliases": [
+        "联邦快递",
+        "fedex"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "KKR",
+      "name_cn": "KKR",
+      "aliases": [
+        "kkr"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "BX",
+      "name_cn": "黑石",
+      "aliases": [
+        "黑石集团",
+        "blackstone"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "PGR",
+      "name_cn": "前进保险",
+      "aliases": [
+        "progressive"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "BKNG",
+      "name_cn": "Booking",
+      "aliases": [
+        "booking"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "MAR",
+      "name_cn": "万豪",
+      "aliases": [
+        "万豪",
+        "marriott"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "HLT",
+      "name_cn": "希尔顿",
+      "aliases": [
+        "希尔顿",
+        "hilton"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "RCL",
+      "name_cn": "皇家加勒比",
+      "aliases": [
+        "皇家加勒比",
+        "royal caribbean"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "CCL",
+      "name_cn": "嘉年华邮轮",
+      "aliases": [
+        "嘉年华邮轮",
+        "carnival"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "DAL",
+      "name_cn": "达美航空",
+      "aliases": [
+        "达美航空",
+        "delta航空"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "UAL",
+      "name_cn": "美联航",
+      "aliases": [
+        "美联航",
+        "united airlines"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "VST",
+      "name_cn": "Vistra",
+      "aliases": [
+        "vistra"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "CEG",
+      "name_cn": "星座能源",
+      "aliases": [
+        "星座能源",
+        "constellation energy"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "TLN",
+      "name_cn": "Talen",
+      "aliases": [
+        "talen"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "NRG",
+      "name_cn": "NRG能源",
+      "aliases": [
+        "nrg energy"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "GEV",
+      "name_cn": "GE Vernova",
+      "aliases": [
+        "ge vernova",
+        "vernova"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "FSLR",
+      "name_cn": "第一太阳能",
+      "aliases": [
+        "第一太阳能",
+        "first solar"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "ENPH",
+      "name_cn": "Enphase",
+      "aliases": [
+        "enphase"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "CLSK",
+      "name_cn": "CleanSpark",
+      "aliases": [
+        "cleanspark"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "HUT",
+      "name_cn": "Hut 8",
+      "aliases": [
+        "hut 8"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "BITF",
+      "name_cn": "Bitfarms",
+      "aliases": [
+        "bitfarms"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "QBTS",
+      "name_cn": "D-Wave",
+      "aliases": [
+        "d-wave",
+        "dwave"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "QUBT",
+      "name_cn": "量子计算公司",
+      "aliases": [
+        "quantum computing inc"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "LUNR",
+      "name_cn": "Intuitive Machines",
+      "aliases": [
+        "intuitive machines"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "ASTS",
+      "name_cn": "AST SpaceMobile",
+      "aliases": [
+        "ast spacemobile"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "ATAT",
+      "name_cn": "亚朵",
+      "aliases": [
+        "亚朵"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "ZTO",
+      "name_cn": "中通快递",
+      "aliases": [
+        "中通快递"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "VIPS",
+      "name_cn": "唯品会",
+      "aliases": [
+        "唯品会"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "HTHT",
+      "name_cn": "华住",
+      "aliases": [
+        "华住"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "QFIN",
+      "name_cn": "奇富科技",
+      "aliases": [
+        "奇富"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "DIA",
+      "name_cn": "道指ETF",
+      "aliases": [
+        "道指etf"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "SOXX",
+      "name_cn": "半导体ETF",
+      "aliases": [
+        "soxx"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "XLK",
+      "name_cn": "科技ETF",
+      "aliases": [
+        "xlk"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "XLF",
+      "name_cn": "金融ETF",
+      "aliases": [
+        "xlf"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "XLE",
+      "name_cn": "能源ETF",
+      "aliases": [
+        "xle"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "XLV",
+      "name_cn": "医疗ETF",
+      "aliases": [
+        "xlv"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "SLV",
+      "name_cn": "白银ETF",
+      "aliases": [
+        "白银etf"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "JEPI",
+      "name_cn": "JEPI",
+      "aliases": [
+        "jepi"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "JEPQ",
+      "name_cn": "JEPQ",
+      "aliases": [
+        "jepq"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "SCHD",
+      "name_cn": "SCHD",
+      "aliases": [
+        "schd"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "VXX",
+      "name_cn": "波动率ETF",
+      "aliases": [
+        "vxx"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "MSTU",
+      "name_cn": "MSTU",
+      "aliases": [
+        "mstu"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "NVDY",
+      "name_cn": "NVDY",
+      "aliases": [
+        "nvdy"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "TSLY",
+      "name_cn": "TSLY",
+      "aliases": [
+        "tsly"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "SNDK",
+      "name_cn": "闪迪",
+      "aliases": [
+        "闪迪",
+        "sandisk"
+      ],
+      "ambiguous": []
+    }
   ]
 }

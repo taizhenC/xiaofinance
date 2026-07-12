@@ -15,12 +15,27 @@ class Settings(BaseSettings):
     LLM_BASE_URL: str = "https://api.deepseek.com"
     SUMMARY_LANG: str = "en"
 
-    DISCOVERY_KEYWORDS: str = "美股,纳斯达克,纳指,标普500,美股投资"
-    MAX_NOTES_PER_KEYWORD: int = 20
+    DISCOVERY_KEYWORDS: str = (
+        "美股,纳斯达克,纳指,标普500,美股投资,美股分析,美股日记,美股小白,中概股,美股财报"
+    )
+    MAX_NOTES_PER_KEYWORD: int = 12
     MAX_COMMENTS_PER_NOTE: int = 20
     FETCH_INTERVAL_HOURS: float = 5
     CRAWL_TIMEOUT_MIN: int = 30
     ENABLE_SUB_COMMENTS: bool = False
+    # Accounts registered on rednote.com (the international app) are not valid against
+    # mainland xiaohongshu.com: the API host and cookie domain differ, and the search API
+    # answers 您当前登录的账号没有权限访问. Switches to webapi.rednote.com / .rednote.com.
+    XHS_INTERNATIONAL: bool = False
+    # MediaCrawler hardcodes a macOS Chrome 126 UA, which mismatches the real client on a
+    # Windows box (XHS logs the session as an "unknown" device) — send a truthful one.
+    BROWSER_USER_AGENT: str = (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+        "(KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36"
+    )
+    # Paste a logged-in browser's cookie string to crawl with that session instead of a
+    # QR-login one. Must come from the same site the account lives on (see XHS_INTERNATIONAL).
+    XHS_COOKIES: str = ""
 
     FRESH_WINDOW_HOURS: int = 24
     MIN_MENTIONS_FOR_ANALYSIS: int = 2
