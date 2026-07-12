@@ -290,6 +290,45 @@ async function buildCards(entries) {
   });
 }
 
+/* ---------- sectors ---------- */
+const SECTOR_COLORS = {
+  半导体: "#4c8dff", 科技: "#3fb0ac", 中概: "#e0574f", 金融: "#c9a227",
+  医药: "#8a63d2", 消费: "#e08a3c", 汽车: "#5aa9e6", 能源电力: "#2f9e6e",
+  工业军工: "#7d8590", 加密: "#d9a441", 旅游航空: "#b06fbd", 题材: "#9c6b4f",
+  ETF指数: "#5d6673", 其他: "#495057",
+};
+const sectorColor = (s) => SECTOR_COLORS[s] || "#495057";
+
+function renderSectors(sectors) {
+  const shown = (sectors || []).filter((s) => s.share > 0);
+  $("#sectorPanel").hidden = shown.length === 0;
+  if (!shown.length) return;
+
+  // One sector owning most of the board isn't a bug to hide — it's the day's headline,
+  // and the number is here so it can't be mistaken for broad-based interest.
+  const top = shown[0];
+  $("#sectorConcentration").textContent =
+    top.share >= 50 ? `${top.sector} 占 ${top.share}% — 今日讨论高度集中` : `${shown.length} 个板块有讨论`;
+
+  $("#sectorBar").innerHTML = shown.map((s) =>
+    `<span class="sector-seg" style="width:${s.share}%;background:${sectorColor(s.sector)}"
+           title="${esc(s.sector)} ${s.share}% · ${s.tickers}只 · ${s.mentions}次提及"></span>`
+  ).join("");
+
+  $("#sectorLeaders").innerHTML = shown.map((s) => {
+    const l = s.leader;
+    if (!l) return "";
+    const faint = l.focused_mentions < 1 ? ' style="opacity:.55"' : "";
+    const why = l.focused_mentions < 1 ? " title=\"只在盘点/标签里被提到，没有专门讨论\"" : "";
+    return `<span class="chip"${faint}${why}>
+      <i class="dot" style="background:${sectorColor(s.sector)}"></i>${esc(s.sector)}
+      <span class="muted small">${s.share}%</span>
+      <span class="tk">${l.ticker}</span> ${esc(l.name_cn || "")}
+      <span class="muted small">·${l.mentions}</span>
+    </span>`;
+  }).join("");
+}
+
 /* ---------- radar / tracked / suggestions / runs ---------- */
 function renderRadar(radar) {
   $("#radarPanel").hidden = radar.length === 0;
@@ -393,6 +432,7 @@ $("#fetchBtn").addEventListener("click", async () => {
 async function refreshData() {
   const { data } = await api("/api/ranking");
   renderRanking(data.ranking);
+  renderSectors(data.sectors);
   renderRadar(data.radar);
   await buildCards(data.ranking);
   loadTracked(); loadSuggestions(); loadRuns(); loadScoreboard();

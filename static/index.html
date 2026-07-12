@@ -44,6 +44,15 @@
     <div id="rankingEmpty" class="empty" hidden>还没有数据 — 点右上角 Fetch now 抓一轮（首次需要先扫码登录）。</div>
   </section>
 
+  <section class="panel" id="sectorPanel" hidden>
+    <div class="panel-head">
+      <h2>板块构成 <span class="muted small">今日讨论的板块占比与领跑个股</span></h2>
+      <span id="sectorConcentration" class="muted small"></span>
+    </div>
+    <div id="sectorBar" class="sector-bar"></div>
+    <div id="sectorLeaders" class="chip-row"></div>
+  </section>
+
   <section class="panel" id="radarPanel" hidden>
     <div class="panel-head"><h2>On the radar <span class="muted small">提及数低于分析门槛的票</span></h2></div>
     <div id="radarStrip" class="chip-row"></div>

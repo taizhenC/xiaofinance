@@ -78,6 +78,13 @@ code { font-family: var(--mono); background: var(--panel-2); padding: 1px 5px; b
 #rankingChart { width: 100%; }
 .empty { color: var(--ink-3); padding: 26px 0; text-align: center; }
 
+.sector-bar {
+  display: flex; width: 100%; height: 10px; border-radius: 5px;
+  overflow: hidden; background: var(--panel-2); margin-bottom: 12px;
+}
+.sector-seg { height: 100%; }
+.sector-seg + .sector-seg { border-left: 1px solid var(--panel); }
+
 .chip-row { display: flex; flex-wrap: wrap; gap: 8px; }
 .chip {
   display: inline-flex; align-items: center; gap: 7px;
