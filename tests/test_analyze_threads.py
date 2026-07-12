@@ -39,9 +39,11 @@ def test_thread_comments_from_focused_note_reach_analysis(conn):
 def test_thread_comments_skipped_for_roundup_notes(conn):
     now = now_ms()
     _note(conn, "cal", "财报日历", "JPM、GS、MS、英伟达财报下周登场", now - H, 50)
+    # substantial enough to reach the model on its own merits — what keeps it out is the
+    # roundup gate, not the noise filter
     conn.execute(
         "INSERT INTO comments(comment_id, note_id, content, create_time_ms, like_count)"
-        " VALUES('t1','cal','mark',?,9)", (now - H,),
+        " VALUES('t1','cal','这周财报我都会看，重点是净息差和指引',?,9)", (now - H,),
     )
     _process(conn, now)
     ids = {i["id"] for i in gather_items(conn, "NVDA", WINDOW, now)}

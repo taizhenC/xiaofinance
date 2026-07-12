@@ -1,7 +1,15 @@
 import math
 
 from .mentions import _compile_alias
-from .util import clean_tags, norm_text, note_text, now_ms, strip_hashtags
+from .util import (
+    QUOTE_MIN_SUBSTANCE,
+    clean_tags,
+    norm_text,
+    note_text,
+    now_ms,
+    strip_hashtags,
+    substance,
+)
 
 # a source naming more tickers than this is a roundup (财报日历/涨幅盘点), not discussion
 FOCUS_MAX_FANOUT = 3
@@ -16,8 +24,14 @@ def _entry(stats: dict, ticker: str) -> dict:
         "_note_w": 0.0, "_comment_w": 0.0,
         "_note_like_sum": 0.0, "_comment_like_sum": 0.0,
         "latest_item_ms": 0,
-        "top_quote": None, "_top_quote_key": (-1, -1),
+        "top_quote": None, "_top_quote_key": (-1, -1, -1),
     })
+
+
+def _quote_key(text: str, focused: bool, likes: int) -> tuple[int, int, int]:
+    """Readable before focused before popular: the most-liked source for a ticker is often
+    an image post whose desc is a tag block, and showing its bare title says nothing."""
+    return (1 if substance(text) >= QUOTE_MIN_SUBSTANCE else 0, 1 if focused else 0, likes)
 
 
 def source_fanout(conn, source_type: str, cutoff: int) -> dict[str, int]:
@@ -75,10 +89,11 @@ def compute_stats(conn, fresh_window_ms: int, now: int | None = None) -> dict[st
             e["_note_like_sum"] += w * math.log10(1 + max(0, r["likes"]))
             if focused:
                 e["focused_mentions"] += 1
-            key = (1 if focused else 0, r["likes"])
+            text = clean_tags(note_text(r["title"], r["note_desc"]))
+            key = _quote_key(text, focused, r["likes"])
             if key > e["_top_quote_key"]:
                 e["_top_quote_key"] = key
-                e["top_quote"] = clean_tags(note_text(r["title"], r["note_desc"]))[:100]
+                e["top_quote"] = text[:100]
 
     for r in conn.execute(
         """SELECT m.ticker, m.content_time_ms, m.source_id, c.like_count AS likes, c.content,
@@ -99,10 +114,11 @@ def compute_stats(conn, fresh_window_ms: int, now: int | None = None) -> dict[st
             focused = k <= FOCUS_MAX_FANOUT
             if focused:
                 e["focused_mentions"] += 1
-            key = (1 if focused else 0, r["likes"])
+            text = " ".join((r["content"] or "").split())
+            key = _quote_key(text, focused, r["likes"])
             if key > e["_top_quote_key"]:
                 e["_top_quote_key"] = key
-                e["top_quote"] = " ".join((r["content"] or "").split())[:100]
+                e["top_quote"] = text[:100]
 
     for e in stats.values():
         e["score"] = round(

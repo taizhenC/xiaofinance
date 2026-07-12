@@ -9,7 +9,17 @@ from .config import settings as default_settings
 from .db import connect
 from .dedup import comment_cluster_sizes, note_cluster_sizes
 from .scoring import is_rankable, source_fanout
-from .util import clean_tags, note_text, now_ms, sha256_hex
+from .util import (
+    MIN_COMMENT_SUBSTANCE,
+    MIN_NOTE_SUBSTANCE,
+    QUOTE_MIN_SUBSTANCE,
+    clean_tags,
+    is_bot_prompt,
+    note_text,
+    now_ms,
+    sha256_hex,
+    substance,
+)
 
 log = logging.getLogger(__name__)
 
@@ -49,7 +59,12 @@ def gather_items(conn, ticker: str, fresh_window_ms: int, now: int | None = None
     """Canonical fresh items mentioning ticker, most-liked first, capped at MAX_ITEMS.
     Also pulls thread comments from focused mentioning notes (fanout ≤ 2): most
     comments never name the ticker, but under a dedicated note they are reactions
-    to it — without this, nearly all crawled comments are invisible to analysis."""
+    to it — without this, nearly all crawled comments are invisible to analysis.
+
+    Items with no readable prose are dropped rather than left for the model to sort out:
+    an image post tagged #美光 costs input tokens and says nothing, and it surfaces as a
+    quote in the keyless path where no model is there to sort anything out. The mention
+    still counts — someone did post about the ticker — it just carries no evidence."""
     now = now or now_ms()
     cutoff = now - fresh_window_ms
     note_sizes = note_cluster_sizes(conn, fresh_window_ms, now)
@@ -66,8 +81,11 @@ def gather_items(conn, ticker: str, fresh_window_ms: int, now: int | None = None
         (ticker, cutoff),
     ):
         text = clean_tags(note_text(r["title"], r["note_desc"]))[:NOTE_TRUNC]
+        subs = substance(text)
+        if subs < MIN_NOTE_SUBSTANCE:
+            continue
         items.append({"type": "note", "id": r["id"], "text": text, "likes": r["likes"],
-                      "ts": r["ts"], "url": r["note_url"],
+                      "ts": r["ts"], "url": r["note_url"], "substance": subs,
                       "cluster_size": note_sizes.get(r["id"], 1),
                       "fanout": note_fanout.get(r["id"], 1)})
     mention_cids = set()
@@ -82,19 +100,22 @@ def gather_items(conn, ticker: str, fresh_window_ms: int, now: int | None = None
     ):
         mention_cids.add(r["id"])
         text = " ".join((r["content"] or "").split())
+        subs = substance(text)
+        if is_bot_prompt(text) or subs < MIN_COMMENT_SUBSTANCE:
+            continue
         if r["parent_content"]:
             # a bare reply ("同意楼上") is meaningless without its thread
             parent = " ".join((r["parent_content"] or "").split())[:30]
             text = f"回复「{parent}」: {text}"
         items.append({"type": "comment", "id": r["id"], "text": text[:COMMENT_TRUNC],
-                      "likes": r["likes"], "ts": r["ts"], "url": None,
+                      "likes": r["likes"], "ts": r["ts"], "url": None, "substance": subs,
                       "cluster_size": comment_sizes.get(r["id"], 1),
                       "fanout": comment_fanout.get(r["id"], 1)})
 
     by_note: dict[str, list] = {}
     for r in conn.execute(
         """SELECT c.comment_id AS id, c.content, c.like_count AS likes, c.create_time_ms AS ts,
-                  c.note_id, n.title
+                  c.note_id, n.title, n.note_desc
            FROM stock_mentions m JOIN notes n ON n.note_id = m.source_id
            JOIN comments c ON c.note_id = n.note_id
            WHERE m.ticker=? AND m.source_type='note' AND m.content_time_ms>=?
@@ -107,15 +128,36 @@ def gather_items(conn, ticker: str, fresh_window_ms: int, now: int | None = None
     for rows in by_note.values():
         rows.sort(key=lambda r: r["likes"], reverse=True)
         for r in rows[:THREAD_PER_NOTE]:
-            t20 = " ".join((r["title"] or "").split())[:20]
             text = " ".join((r["content"] or "").split())
+            subs = substance(text)
+            if is_bot_prompt(text) or subs < MIN_COMMENT_SUBSTANCE:
+                continue
+            # The reaction still counts when the post it reacts to is an unreadable image
+            # ("Is That True？"); quoting that title back as context does not.
+            body = clean_tags(note_text(r["title"], r["note_desc"]))
+            title = clean_tags(" ".join((r["title"] or "").split()))[:20]
+            head = f"主帖「{title}」下的评论" if substance(body) >= MIN_NOTE_SUBSTANCE else "主帖下的评论"
             items.append({"type": "comment", "id": r["id"],
-                          "text": f"主帖「{t20}」下的评论: {text}"[:COMMENT_TRUNC],
-                          "likes": r["likes"], "ts": r["ts"], "url": None,
+                          "text": f"{head}: {text}"[:COMMENT_TRUNC],
+                          "likes": r["likes"], "ts": r["ts"], "url": None, "substance": subs,
                           "cluster_size": comment_sizes.get(r["id"], 1), "fanout": 1})
 
     items.sort(key=lambda i: i["likes"], reverse=True)
     return items[:MAX_ITEMS]
+
+
+def pick_quotes(items: list[dict], k: int = 3) -> list[str]:
+    """The keyless card's evidence. Focused sources first — a dedicated post beats a
+    12-ticker roundup as this ticker's quote even when the roundup has far more likes —
+    and only text that says something standalone, falling back to whatever exists rather
+    than showing an empty card.
+
+    Substance is judged on the item's own words, not on the "主帖「…」下的评论:" framing
+    gather_items wraps them in, which would otherwise let a four-word reaction over the bar.
+    """
+    ranked = sorted(items, key=lambda i: (i.get("fanout", 1), -i["likes"]))
+    strong = [i for i in ranked if i.get("substance", 0) >= QUOTE_MIN_SUBSTANCE]
+    return [i["text"] for i in (strong or ranked)[:k]]
 
 
 def input_hash(items: list[dict]) -> str:
@@ -207,10 +249,7 @@ def analyze_ticker(conn, ticker: str, settings=None, name_cn: str = "", score: f
         conn.commit()
 
     if not settings.DEEPSEEK_API_KEY:
-        # focused sources first: a dedicated post beats a 12-ticker roundup as
-        # this ticker's quote, even when the roundup has far more likes
-        ranked_items = sorted(items, key=lambda i: (i.get("fanout", 1), -i["likes"]))
-        quotes = [i["text"] for i in ranked_items[:3]]
+        quotes = pick_quotes(items)
         insert("no_api_key", notable_quotes=json.dumps(quotes, ensure_ascii=False))
         return "no_api_key"
 
@@ -254,7 +293,8 @@ def analyze_ticker(conn, ticker: str, settings=None, name_cn: str = "", score: f
 
 def analyze_all(conn, settings, dict_data: dict, stats: dict[str, dict],
                 tracked: set[str], min_mentions: int, max_stocks: int,
-                run_id: int | None = None, now: int | None = None) -> dict[str, str]:
+                run_id: int | None = None, now: int | None = None,
+                force: bool = False) -> dict[str, str]:
     names = {s["ticker"]: s.get("name_cn", "") for s in dict_data.get("stocks", [])}
     ranked = sorted(
         (e for e in stats.values() if is_rankable(e, min_mentions)),
@@ -268,7 +308,8 @@ def analyze_all(conn, settings, dict_data: dict, stats: dict[str, dict],
     results = {}
     for t in candidates:
         results[t] = analyze_ticker(
-            conn, t, settings, names.get(t, ""), stats.get(t, {}).get("score", 0.0), run_id, now
+            conn, t, settings, names.get(t, ""), stats.get(t, {}).get("score", 0.0),
+            run_id, now, force,
         )
         if settings.DEEPSEEK_API_KEY:
             time.sleep(0.5)
