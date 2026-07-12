@@ -299,16 +299,19 @@ const SECTOR_COLORS = {
 };
 const sectorColor = (s) => SECTOR_COLORS[s] || "#495057";
 
-function renderSectors(sectors) {
+function renderSectors(sectors, windows) {
   const shown = (sectors || []).filter((s) => s.share > 0);
   $("#sectorPanel").hidden = shown.length === 0;
   if (!shown.length) return;
 
-  // One sector owning most of the board isn't a bug to hide — it's the day's headline,
-  // and the number is here so it can't be mistaken for broad-based interest.
+  const hours = windows?.context_hours ?? 72;
+  $("#sectorWindow").textContent = `近 ${hours}h`;
+
+  // One sector owning most of the board isn't a bug to hide — it's the headline, and the
+  // number is here so it can't be mistaken for broad-based interest.
   const top = shown[0];
   $("#sectorConcentration").textContent =
-    top.share >= 50 ? `${top.sector} 占 ${top.share}% — 今日讨论高度集中` : `${shown.length} 个板块有讨论`;
+    top.share >= 50 ? `${top.sector} 占 ${top.share}% — 讨论高度集中` : `${shown.length} 个板块有讨论`;
 
   $("#sectorBar").innerHTML = shown.map((s) =>
     `<span class="sector-seg" style="width:${s.share}%;background:${sectorColor(s.sector)}"
@@ -330,8 +333,10 @@ function renderSectors(sectors) {
 }
 
 /* ---------- radar / tracked / suggestions / runs ---------- */
-function renderRadar(radar) {
+function renderRadar(radar, windows) {
   $("#radarPanel").hidden = radar.length === 0;
+  const rw = $("#radarWindow");
+  if (rw) rw.textContent = `近 ${windows?.context_hours ?? 72}h`;
   $("#radarStrip").innerHTML = radar.map((r) =>
     `<span class="chip" title="${esc(r.top_quote || "")}">
        ${r.trend?.dir === "new" ? "🔥 " : ""}<span class="tk">${r.ticker}</span> ${esc(r.name_cn)} ·${r.mentions}
@@ -432,8 +437,8 @@ $("#fetchBtn").addEventListener("click", async () => {
 async function refreshData() {
   const { data } = await api("/api/ranking");
   renderRanking(data.ranking);
-  renderSectors(data.sectors);
-  renderRadar(data.radar);
+  renderSectors(data.sectors, data.windows);
+  renderRadar(data.radar, data.windows);
   await buildCards(data.ranking);
   loadTracked(); loadSuggestions(); loadRuns(); loadScoreboard();
 }
