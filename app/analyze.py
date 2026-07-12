@@ -8,7 +8,7 @@ from pydantic import BaseModel, Field, ValidationError
 from .config import settings as default_settings
 from .db import connect
 from .dedup import comment_cluster_sizes, note_cluster_sizes
-from .mentions import alias_hits, is_aside
+from .mentions import alias_hits, index_tickers, is_aside
 from .scoring import is_rankable, source_fanout
 from .util import (
     MIN_COMMENT_SUBSTANCE,
@@ -344,12 +344,20 @@ def analyze_ticker(conn, ticker: str, settings=None, name_cn: str = "", score: f
 def analyze_all(conn, settings, dict_data: dict, stats: dict[str, dict],
                 tracked: set[str], min_mentions: int, max_stocks: int,
                 run_id: int | None = None, now: int | None = None,
-                force: bool = False) -> dict[str, str]:
+                force: bool = False, max_indexes: int = 3) -> dict[str, str]:
     names = {s["ticker"]: s.get("name_cn", "") for s in dict_data.get("stocks", [])}
+    indexes = index_tickers(dict_data)
+    # Budgeted separately, or 纳指 and 标普 would take most of the stock budget on score alone.
     ranked = sorted(
-        (e for e in stats.values() if is_rankable(e, min_mentions)),
+        (e for e in stats.values()
+         if e["ticker"] not in indexes and is_rankable(e, min_mentions)),
         key=lambda e: e["score"], reverse=True,
     )[:max_stocks]
+    ranked += sorted(
+        (e for e in stats.values()
+         if e["ticker"] in indexes and e.get("mentions", 0) >= min_mentions),
+        key=lambda e: e["score"], reverse=True,
+    )[:max_indexes]
     candidates = [e["ticker"] for e in ranked]
     for t in sorted(tracked):
         if t not in candidates and stats.get(t, {}).get("mentions", 0) >= 1:

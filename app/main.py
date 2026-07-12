@@ -171,20 +171,22 @@ def api_ranking():
         dict_data = mentions.load_stock_dict()
         names = {s["ticker"]: s.get("name_cn", "") for s in dict_data["stocks"]}
         sectors = {s["ticker"]: s.get("sector", "") for s in dict_data["stocks"]}
-        stats = scoring.compute_stats(conn, settings.fresh_window_ms, now)
-        context = scoring.compute_stats(conn, settings.context_window_ms, now)
+        indexes = mentions.index_tickers(dict_data)
+        stats = scoring.compute_stats(conn, settings.fresh_window_ms, now, indexes=indexes)
+        context = scoring.compute_stats(conn, settings.context_window_ms, now, indexes=indexes)
         tracked = _tracked_map(conn)
         trends = scoring.compute_trends(conn)
-        ranking, _ = scoring.ranking_and_radar(stats, settings.MIN_MENTIONS_FOR_ANALYSIS)
+        ranking, _ = scoring.ranking_and_radar(stats, settings.MIN_MENTIONS_FOR_ANALYSIS, indexes)
+        index_ranking = scoring.index_board(stats, indexes, settings.MIN_MENTIONS_FOR_ANALYSIS)
         # Sectors and radar read the wider window: a sector that produces one post a day
         # is invisible in 24h, and calling that "no interest" would be a measurement
         # artifact rather than a finding.
-        breakdown = scoring.sector_breakdown(context, sectors)
+        breakdown = scoring.sector_breakdown(context, sectors, exclude=indexes)
         for s in breakdown:
             if s["leader"]:
                 s["leader"]["name_cn"] = names.get(s["leader"]["ticker"], "")
 
-        shown = {e["ticker"] for e in ranking}
+        shown = {e["ticker"] for e in ranking} | {e["ticker"] for e in index_ranking}
         for t in sorted(tracked):
             if t not in shown:
                 e = stats.get(t) or {
@@ -194,19 +196,19 @@ def api_ranking():
                     "focused_mentions": 0,
                     "latest_item_ms": 0, "top_quote": None,
                 }
-                ranking.append(e)
+                # a tracked ticker always shows, but on the board it belongs to
+                (index_ranking if t in indexes else ranking).append(e)
                 shown.add(t)
 
-        history = scoring.score_history(conn, [e["ticker"] for e in ranking])
+        boarded = [e["ticker"] for e in ranking] + [e["ticker"] for e in index_ranking]
+        history = scoring.score_history(conn, boarded)
         quotes = {}
         if settings.ENABLE_PRICE_QUOTES:
-            shown_list = [e["ticker"] for e in ranking]
-            quotes = prices.get_quotes(conn, shown_list)
-            if prices.quotes_need_refresh(conn, shown_list, settings.QUOTE_REFRESH_MIN * 60_000, now):
-                _refresh_quotes_bg(shown_list)
+            quotes = prices.get_quotes(conn, boarded)
+            if prices.quotes_need_refresh(conn, boarded, settings.QUOTE_REFRESH_MIN * 60_000, now):
+                _refresh_quotes_bg(boarded)
 
-        out = []
-        for e in ranking:
+        def card(e: dict) -> dict:
             t = e["ticker"]
             a = _latest_analysis(conn, t)
             sc = json.loads(a["sentiment_counts"]) if a and a["sentiment_counts"] else None
@@ -215,7 +217,7 @@ def api_ranking():
             if q and q.get("change_pct") is not None and sc:
                 net = sc.get("bullish", 0) - sc.get("bearish", 0)
                 divergence = (net >= 2 and q["change_pct"] <= -2) or (net <= -2 and q["change_pct"] >= 2)
-            out.append({
+            return {
                 "ticker": t,
                 "name_cn": names.get(t, ""),
                 "sector": sectors.get(t, ""),
@@ -238,8 +240,11 @@ def api_ranking():
                 "latest_item_age_ms": (now - e["latest_item_ms"]) if e.get("latest_item_ms") else None,
                 "trend": trends.get(t),
                 "history": history.get(t, []),
-            })
-        radar = scoring.radar_entries(context, exclude=shown | set(tracked))
+            }
+
+        out = [card(e) for e in ranking]
+        indexes_out = [card(e) for e in index_ranking]
+        radar = scoring.radar_entries(context, exclude=shown | set(tracked) | indexes)
         radar_out = [
             {
                 "ticker": e["ticker"],
@@ -253,6 +258,7 @@ def api_ranking():
         ]
         return {
             "ranking": out,
+            "indexes": indexes_out,
             "radar": radar_out,
             "sectors": breakdown,
             "windows": {

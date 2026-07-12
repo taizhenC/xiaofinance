@@ -73,6 +73,31 @@ def add_alias_to_overlay(term: str, ticker: str) -> None:
         json.dump(data, f, ensure_ascii=False, indent=2)
 
 
+# Funds and indexes, not companies. They are matched and scored like any other ticker, but
+# ranked on their own board: 纳指/标普 are the most-discussed words in the corpus by a wide
+# margin, and letting them into the stock ranking both buries the stocks (QQQ scored 4x the
+# top name) and dilutes them, since every "英伟达带动纳指新高" post would name two tickers
+# and halve NVDA's fan-out weight.
+INDEX_SECTOR = "ETF指数"
+
+
+def index_tickers(dict_data: dict) -> set[str]:
+    return {s["ticker"] for s in dict_data.get("stocks", []) if s.get("sector") == INDEX_SECTOR}
+
+
+def mask_traps(lower: str, traps) -> str:
+    """Blank out phrases that merely contain an alias without meaning it.
+
+    The CJK matcher is a plain substring test — there are no word boundaries to lean on — so
+    女大 (NVDA) fires inside 女大学生, and 纳斯达克 (QQQ) fires inside 纳斯达克上市, which is
+    about a listing venue rather than the index. Masking keeps the string's length, so match
+    positions still line up with the original text."""
+    for p in traps:
+        if p in lower:
+            lower = lower.replace(p, "\x00" * len(p))
+    return lower
+
+
 def _compile_alias(alias: str):
     a = alias.lower()
     if _ASCII_ALIAS_RE.match(a):
@@ -126,6 +151,7 @@ class Matcher:
             _compile_alias(w.lower()) for w in dict_data.get("context_words", [])
         ]
         self.collision = set(dict_data.get("collision_tickers", []))
+        self.traps = [t.lower() for t in dict_data.get("traps", [])]
         self.stocks: dict[str, dict] = {}
         for s in dict_data.get("stocks", []):
             self.stocks[s["ticker"]] = {
@@ -159,7 +185,7 @@ class Matcher:
         raw = norm_text(text or "")
         if not raw.strip():
             return {}
-        lower = raw.lower()
+        lower = mask_traps(raw.lower(), self.traps)
         ctx = self.has_context(lower)
         out: dict[str, tuple[str, str]] = {}
 

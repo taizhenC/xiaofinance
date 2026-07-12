@@ -121,7 +121,8 @@ def run_cycle(mode: str = "both", skip_crawl: bool = False, settings=None,
 
         dedup.recompute_dedup(conn, settings.context_window_ms)
         mentions.extract_mentions(conn, dict_data, _tracked_rows(conn), settings.context_window_ms, last_run_id)
-        stats = scoring.compute_stats(conn, settings.fresh_window_ms)
+        stats = scoring.compute_stats(conn, settings.fresh_window_ms,
+                                      indexes=mentions.index_tickers(dict_data))
         if not skip_crawl:
             scoring.snapshot_scores(conn, stats, last_run_id)
         tracked = {r["ticker"] for r in _tracked_rows(conn)}

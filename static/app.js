@@ -342,6 +342,41 @@ function renderSectors(sectors, windows) {
   }).join("");
 }
 
+/* ---------- 大盘 / indexes ---------- */
+// Index talk is most of what XHS says about US markets — 纳指 and 标普 outrun every company
+// name in the corpus. On the stock board it would bury the stocks; hidden, it was the
+// largest thing the dashboard could not see. So: its own strip, its own scale.
+function renderIndexes(indexes) {
+  const rows = indexes || [];
+  $("#indexPanel").hidden = rows.length === 0;
+  if (!rows.length) return;
+
+  const commentShare = rows.reduce((n, e) => n + (e.comment_count || 0), 0);
+  $("#indexNote").textContent = commentShare
+    ? `${rows.length} 项 · 其中 ${commentShare} 次来自评论区`
+    : `${rows.length} 项`;
+
+  $("#indexStrip").innerHTML = rows.map((e) => {
+    const sc = e.sentiment_counts;
+    const senti = sc
+      ? `<span class="senti"><b style="color:${BULL}">${sc.bullish || 0}</b>/<b style="color:${BEAR}">${sc.bearish || 0}</b>/<b style="color:${NEUT}">${sc.neutral || 0}</b></span>`
+      : "";
+    return `<div class="index-cell">
+      <div class="index-top">
+        <span class="tk">${e.ticker}</span>
+        <span class="muted small">${esc(e.name_cn || "")}</span>
+        ${trendBadge(e.trend)}
+      </div>
+      <div class="index-score">${e.score}</div>
+      <div class="index-meta">
+        <span class="muted small" title="${e.note_count} 帖 · ${e.comment_count} 评">${e.mentions} 次提及</span>
+        ${quoteBadge(e)}
+        ${senti}
+      </div>
+    </div>`;
+  }).join("");
+}
+
 /* ---------- radar / tracked / suggestions / runs ---------- */
 function renderRadar(radar, windows) {
   $("#radarPanel").hidden = radar.length === 0;
@@ -459,10 +494,12 @@ $("#fetchBtn").addEventListener("click", async () => {
 /* ---------- boot ---------- */
 async function refreshData() {
   const { data } = await api("/api/ranking");
+  renderIndexes(data.indexes);
   renderRanking(data.ranking);
   renderSectors(data.sectors, data.windows);
   renderRadar(data.radar, data.windows);
-  await buildCards(data.ranking);
+  // stocks lead; the index cards follow, so 大盘 reads as context rather than as the headline
+  await buildCards([...data.ranking, ...(data.indexes || [])]);
   loadTracked(); loadSuggestions(); loadRuns(); loadScoreboard();
 }
 window.addEventListener("resize", () => rankingChart?.resize());

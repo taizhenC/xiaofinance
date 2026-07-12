@@ -46,19 +46,35 @@ def _quote_key(text: str, focused: bool, likes: int, aside: bool = False) -> tup
     )
 
 
+def source_tickers(conn, source_type: str, cutoff: int) -> dict[str, set[str]]:
+    """source_id -> the set of tickers that source mentions."""
+    out: dict[str, set[str]] = {}
+    for source_id, ticker in conn.execute(
+        "SELECT source_id, ticker FROM stock_mentions WHERE source_type=? AND content_time_ms>=?",
+        (source_type, cutoff),
+    ):
+        out.setdefault(source_id, set()).add(ticker)
+    return out
+
+
+def fanout(peers: set[str], ticker: str, indexes: set[str]) -> int:
+    """How many tickers of the same kind this source names, the ticker itself included.
+
+    Counted within a class, not across it. A post arguing "英伟达带动纳指新高" is a dedicated
+    NVDA post that happens to say where the index went — charging NVDA a 1/2 fan-out for it
+    would punish the stock for the market context around it. Indexes divide among indexes for
+    the same reason, so a 纳指/标普/道指 roundup does not read as three dedicated posts."""
+    is_index = ticker in indexes
+    return max(sum(1 for p in peers if (p in indexes) == is_index), 1)
+
+
 def source_fanout(conn, source_type: str, cutoff: int) -> dict[str, int]:
     """source_id -> number of distinct tickers that source mentions."""
-    return {
-        r[0]: r[1]
-        for r in conn.execute(
-            "SELECT source_id, COUNT(DISTINCT ticker) FROM stock_mentions"
-            " WHERE source_type=? AND content_time_ms>=? GROUP BY source_id",
-            (source_type, cutoff),
-        )
-    }
+    return {sid: len(ts) for sid, ts in source_tickers(conn, source_type, cutoff).items()}
 
 
-def compute_stats(conn, fresh_window_ms: int, now: int | None = None) -> dict[str, dict]:
+def compute_stats(conn, fresh_window_ms: int, now: int | None = None,
+                  indexes: set[str] | None = None) -> dict[str, dict]:
     """Per-ticker fresh-window stats. Counts and like-sums are over dup clusters
     (canonical items only); *_raw counts include repost duplicates.
 
@@ -69,9 +85,10 @@ def compute_stats(conn, fresh_window_ms: int, now: int | None = None) -> dict[st
     (or a 12-ticker roundup) keeps the ticker off the main ranking by itself."""
     now = now or now_ms()
     cutoff = now - fresh_window_ms
+    indexes = indexes or set()
     stats: dict[str, dict] = {}
-    note_fanout = source_fanout(conn, "note", cutoff)
-    comment_fanout = source_fanout(conn, "comment", cutoff)
+    note_peers = source_tickers(conn, "note", cutoff)
+    comment_peers = source_tickers(conn, "comment", cutoff)
     alias_fns: dict[str, object] = {}
 
     def in_prose(alias: str | None, title, desc) -> bool:
@@ -96,7 +113,7 @@ def compute_stats(conn, fresh_window_ms: int, now: int | None = None) -> dict[st
             text = clean_tags(note_text(r["title"], r["note_desc"]))
             _, hits = alias_hits(text, r["matched_alias"] or "")
             aside = is_aside(text, hits)
-            k = note_fanout.get(r["source_id"], 1)
+            k = fanout(note_peers.get(r["source_id"], set()), r["ticker"], indexes)
             w = 1.0 / k * (ASIDE_WEIGHT if aside else 1.0)
             # Being name-dropped still qualifies a ticker for the board — it is just worth
             # less. Dropping it there would hide a name nobody argued about but everybody
@@ -123,7 +140,7 @@ def compute_stats(conn, fresh_window_ms: int, now: int | None = None) -> dict[st
         e["comment_count_raw"] += 1
         e["latest_item_ms"] = max(e["latest_item_ms"], r["content_time_ms"])
         if r["dup_group_id"] is None:
-            k = comment_fanout.get(r["source_id"], 1)
+            k = fanout(comment_peers.get(r["source_id"], set()), r["ticker"], indexes)
             w = 1.0 / k
             e["comment_count"] += 1
             e["_comment_w"] += w
@@ -237,16 +254,30 @@ def is_rankable(e: dict, min_mentions: int) -> bool:
     return e.get("mentions", 0) >= min_mentions and e.get("focused_mentions", 0) >= 1
 
 
-def ranking_and_radar(stats: dict[str, dict], min_mentions: int) -> tuple[list[dict], list[dict]]:
+def ranking_and_radar(stats: dict[str, dict], min_mentions: int,
+                      indexes: set[str] | None = None) -> tuple[list[dict], list[dict]]:
+    indexes = indexes or set()
+    stocks = [e for e in stats.values() if e["ticker"] not in indexes]
     ranking = sorted(
-        (e for e in stats.values() if is_rankable(e, min_mentions)),
+        (e for e in stocks if is_rankable(e, min_mentions)),
         key=lambda e: e["score"], reverse=True,
     )
     radar = sorted(
-        (e for e in stats.values() if e["mentions"] >= 1 and not is_rankable(e, min_mentions)),
+        (e for e in stocks if e["mentions"] >= 1 and not is_rankable(e, min_mentions)),
         key=lambda e: (e["mentions"], e["score"]), reverse=True,
     )
     return ranking, radar
+
+
+def index_board(stats: dict[str, dict], indexes: set[str], min_mentions: int) -> list[dict]:
+    """The 大盘 strip. Same scoring as a stock, its own ranking — index talk is the bulk of
+    what XHS says about US markets (纳指 and 标普 outrun every company name in the corpus),
+    and it is worth reading on its own terms rather than not at all."""
+    return sorted(
+        (e for e in stats.values()
+         if e["ticker"] in indexes and e.get("mentions", 0) >= min_mentions),
+        key=lambda e: e["score"], reverse=True,
+    )
 
 
 def radar_entries(stats: dict[str, dict], exclude: set[str]) -> list[dict]:
@@ -264,16 +295,22 @@ def radar_entries(stats: dict[str, dict], exclude: set[str]) -> list[dict]:
 OTHER_SECTOR = "其他"
 
 
-def sector_breakdown(stats: dict[str, dict], sectors: dict[str, str]) -> list[dict]:
+def sector_breakdown(stats: dict[str, dict], sectors: dict[str, str],
+                     exclude: set[str] | None = None) -> list[dict]:
     """What today's discussion is made of, by share of weighted score.
 
     Reports rather than corrects: the board stays a pure ranking, and a semiconductor day
     is allowed to look like one. The point is that a 90% semis reading is visible instead
     of being mistaken for the market's whole conversation.
+
+    Indexes are excluded (they have their own board), or the answer to "which sectors are
+    being talked about" would be swamped by a single ETF指数 slice worth more than half the
+    corpus — true, but not what the question is asking.
     """
+    exclude = exclude or set()
     agg: dict[str, dict] = {}
     for ticker, e in stats.items():
-        if e.get("mentions", 0) < 1:
+        if e.get("mentions", 0) < 1 or ticker in exclude:
             continue
         sector = sectors.get(ticker) or OTHER_SECTOR
         a = agg.setdefault(

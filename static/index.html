@@ -31,9 +31,17 @@
 </div>
 
 <main>
+  <section class="panel" id="indexPanel" hidden>
+    <div class="panel-head">
+      <h2>大盘 / 指数 <span class="muted small">指数与ETF · 单独计分，不参与个股榜</span></h2>
+      <span id="indexNote" class="muted small"></span>
+    </div>
+    <div id="indexStrip" class="index-row"></div>
+  </section>
+
   <section class="panel">
     <div class="panel-head">
-      <h2>热度排行 <span class="muted small">popularity score, 24h</span></h2>
+      <h2>热度排行 <span class="muted small">个股 popularity score, 24h</span></h2>
       <span class="legend-inline">
         <i class="dot" style="background:#26a877"></i>偏多
         <i class="dot" style="background:#e05252"></i>偏空

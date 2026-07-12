@@ -85,6 +85,21 @@ code { font-family: var(--mono); background: var(--panel-2); padding: 1px 5px; b
 .sector-seg { height: 100%; }
 .sector-seg + .sector-seg { border-left: 1px solid var(--panel); }
 
+.index-row {
+  display: grid; gap: 10px;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+}
+.index-cell {
+  background: var(--panel-2); border: 1px solid var(--border);
+  border-radius: 8px; padding: 10px 12px;
+}
+.index-top { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-bottom: 4px; }
+.index-top .tk { font-family: var(--mono); font-weight: 600; }
+/* the index scale is an order of magnitude above the stock board's — never compare them */
+.index-score { font-family: var(--mono); font-size: 22px; line-height: 1.1; }
+.index-meta { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+.index-meta .senti { font-family: var(--mono); font-size: 12px; }
+
 .chip-row { display: flex; flex-wrap: wrap; gap: 8px; }
 .chip {
   display: inline-flex; align-items: center; gap: 7px;
