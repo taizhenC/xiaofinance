@@ -22,10 +22,11 @@ class Settings(BaseSettings):
     # Crawled every cycle: the broad terms that carry general US-stock discussion.
     DISCOVERY_CORE: str = "美股,美股财报"
     # Rotated across cycles, KEYWORDS_PER_CYCLE at a time, so a day's cycles cover sectors
-    # a single cycle can't afford. Probe a candidate (python -m app.probe) before adding it:
-    # index terms return 定投/ETF posts and bare sector terms return A-share posts, both of
-    # which name no US stock and quietly burn a tenth of the crawl.
-    DISCOVERY_POOL: str = ""
+    # a single cycle can't afford. Every one below was measured with app.probe; the rule
+    # that fell out is that 美股-prefixed terms return US-stock content while bare Chinese
+    # sector terms return A-share or consumer posts — 电动车 returns scooter rentals, 黄金股
+    # returns 紫金/老铺黄金, 减肥药 returns diet pills. Probe before adding, never guess.
+    DISCOVERY_POOL: str = "中概股,美股医药,美股银行,巴菲特,美股打新"
     # A keyword costs ~5 min (20 notes + their comments), so 6 is what fits inside
     # CRAWL_TIMEOUT_MIN. Overshoot and the crawler is killed mid-list, silently dropping
     # the cycle's tail keywords.
