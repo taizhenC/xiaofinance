@@ -64,8 +64,8 @@ function schedulePoll(ms) {
 function trendLabel(tr) {
   if (!tr) return "";
   if (tr.dir === "new") return "🔥 新上榜";
-  if (tr.dir === "up") return `↑ 升温 +${tr.delta_pct}%`;
-  if (tr.dir === "down") return `↓ 降温 ${tr.delta_pct}%`;
+  if (tr.dir === "up") return tr.delta_pct == null ? "↑ 升温" : `↑ 升温 +${tr.delta_pct}%`;
+  if (tr.dir === "down") return tr.delta_pct == null ? "↓ 降温" : `↓ 降温 ${tr.delta_pct}%`;
   return "";
 }
 function trendBadge(tr) {
@@ -78,7 +78,8 @@ function trendBadge(tr) {
 
 /* ---------- price reality check (Stooq daily closes) ---------- */
 function quoteText(q) {
-  if (!q || q.change_pct == null) return "";
+  if (!q || q.price == null) return "";
+  if (q.change_pct == null) return `$${q.price}`;
   const sign = q.change_pct > 0 ? "+" : "";
   return `$${q.price} (${sign}${q.change_pct}%)`;
 }
