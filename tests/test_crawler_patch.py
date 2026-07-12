@@ -23,7 +23,8 @@ def fake_vendor(tmp_path):
     (core / "core.py").write_text(
         "        # self.user_agent = utils.get_user_agent()\n"
         f'        self.user_agent = "{MAC_UA}"\n'
-        "            self.context_page = await self.browser_context.new_page()\n",
+        "            self.context_page = await self.browser_context.new_page()\n"
+        "            await self.context_page.goto(self.index_url)\n",
         encoding="utf-8",
     )
     return tmp_path
@@ -67,6 +68,13 @@ def test_patch_config_applies_base_patches(tmp_path):
     assert "set_default_timeout(120_000)" in (mc / "media_platform" / "xhs" / "core.py").read_text(encoding="utf-8")
 
 
+def test_index_navigation_waits_only_for_domcontentloaded(tmp_path):
+    mc = fake_vendor(tmp_path)
+    patch_config(mc, settings())
+    core = (mc / "media_platform" / "xhs" / "core.py").read_text(encoding="utf-8")
+    assert 'goto(self.index_url, wait_until="domcontentloaded")' in core
+
+
 def test_patch_config_is_idempotent(tmp_path):
     mc = fake_vendor(tmp_path)
     patch_config(mc, settings())
@@ -75,3 +83,4 @@ def test_patch_config_is_idempotent(tmp_path):
     assert base.count("ENABLE_CDP_MODE") == 1
     core = (mc / "media_platform" / "xhs" / "core.py").read_text(encoding="utf-8")
     assert core.count("set_default_timeout(120_000)") == 1
+    assert core.count("domcontentloaded") == 1

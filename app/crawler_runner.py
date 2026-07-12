@@ -27,6 +27,16 @@ CODE_PATCHES = [
         "            self.context_page.set_default_timeout(120_000)\n"
         "            self.context_page.set_default_navigation_timeout(120_000)",
     ),
+    # goto() defaults to waiting for `load` — every image, font and tracker on the XHS
+    # home page. That page takes ~23s just to deliver its HTML from here, so `load` blows
+    # past even a 120s timeout and the crawl dies before it searches anything. The crawler
+    # only needs the page's cookies and JS context (the signed API calls go out over
+    # httpx), and both exist at domcontentloaded.
+    (
+        "media_platform/xhs/core.py",
+        "await self.context_page.goto(self.index_url)",
+        'await self.context_page.goto(self.index_url, wait_until="domcontentloaded")',
+    ),
 ]
 
 LOGIN_HINTS = ["扫码", "二维码", "请扫码", "未登录", "登录已过期", "login expired", "login failed"]
