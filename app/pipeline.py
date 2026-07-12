@@ -36,8 +36,11 @@ def run_fetch(conn, mode: str, dict_data: dict, settings) -> int | None:
         (mode, ",".join(keywords), started),
     )
     run_id = cur.lastrowid
-    conn.commit()
     run_dir = Path(settings.RAW_DIR) / f"run_{run_id:06d}"
+    # Recorded up front, not at the end: it is what lets the dashboard read a crawl's
+    # progress out of the run directory while it is still running.
+    conn.execute("UPDATE fetch_runs SET raw_dir=? WHERE id=?", (str(run_dir), run_id))
+    conn.commit()
 
     status, error = "failed", None
     stats = {"notes_fetched": 0, "notes_fresh": 0, "comments_fresh": 0, "malformed": 0}
@@ -51,7 +54,7 @@ def run_fetch(conn, mode: str, dict_data: dict, settings) -> int | None:
             error = f"timeout after {settings.CRAWL_TIMEOUT_MIN} min"
         elif result["exit_code"] != 0:
             status = "partial" if stats["notes_fresh"] > 0 else "failed"
-            error = f"crawler exit code {result['exit_code']}"
+            error = crawler_runner.failure_reason(result["log_path"], result["exit_code"])
         elif stats["malformed"] > 0:
             status, error = "partial", f"{stats['malformed']} malformed lines skipped"
         else:
@@ -95,7 +98,8 @@ def cleanup(conn, settings, now: int | None = None) -> None:
     conn.commit()
 
 
-def run_cycle(mode: str = "both", skip_crawl: bool = False, settings=None) -> dict:
+def run_cycle(mode: str = "both", skip_crawl: bool = False, settings=None,
+              force_analysis: bool = False) -> dict:
     settings = settings or default_settings
     conn = connect(settings.DB_PATH)
     try:
@@ -118,6 +122,7 @@ def run_cycle(mode: str = "both", skip_crawl: bool = False, settings=None) -> di
         analysis = analyze.analyze_all(
             conn, settings, dict_data, stats, tracked,
             settings.MIN_MENTIONS_FOR_ANALYSIS, settings.MAX_ANALYZED_STOCKS, last_run_id,
+            force=force_analysis,
         )
         if settings.ENABLE_PRICE_QUOTES:
             ranked = sorted(stats, key=lambda t: -stats[t]["score"])[: settings.MAX_ANALYZED_STOCKS]
@@ -141,6 +146,12 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--mode", choices=["both", "discovery", "tracked"], default="both")
     parser.add_argument("--skip-crawl", action="store_true", help="re-run analysis on existing data")
+    parser.add_argument(
+        "--force", action="store_true",
+        help="re-analyse even when the inputs are unchanged — the cache is keyed on which "
+             "items came in, so a change to how they are ranked, quoted or prompted is "
+             "otherwise invisible until new data arrives",
+    )
     args = parser.parse_args()
-    result = run_cycle(args.mode, args.skip_crawl)
+    result = run_cycle(args.mode, args.skip_crawl, force_analysis=args.force)
     print(json.dumps(result, ensure_ascii=False, indent=2))
