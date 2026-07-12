@@ -161,10 +161,14 @@ def api_ranking():
         names = {s["ticker"]: s.get("name_cn", "") for s in dict_data["stocks"]}
         sectors = {s["ticker"]: s.get("sector", "") for s in dict_data["stocks"]}
         stats = scoring.compute_stats(conn, settings.fresh_window_ms, now)
+        context = scoring.compute_stats(conn, settings.context_window_ms, now)
         tracked = _tracked_map(conn)
         trends = scoring.compute_trends(conn)
-        ranking, radar = scoring.ranking_and_radar(stats, settings.MIN_MENTIONS_FOR_ANALYSIS)
-        breakdown = scoring.sector_breakdown(stats, sectors)
+        ranking, _ = scoring.ranking_and_radar(stats, settings.MIN_MENTIONS_FOR_ANALYSIS)
+        # Sectors and radar read the wider window: a sector that produces one post a day
+        # is invisible in 24h, and calling that "no interest" would be a measurement
+        # artifact rather than a finding.
+        breakdown = scoring.sector_breakdown(context, sectors)
         for s in breakdown:
             if s["leader"]:
                 s["leader"]["name_cn"] = names.get(s["leader"]["ticker"], "")
@@ -224,6 +228,7 @@ def api_ranking():
                 "trend": trends.get(t),
                 "history": history.get(t, []),
             })
+        radar = scoring.radar_entries(context, exclude=shown | set(tracked))
         radar_out = [
             {
                 "ticker": e["ticker"],
@@ -233,9 +238,18 @@ def api_ranking():
                 "top_quote": e["top_quote"],
                 "trend": trends.get(e["ticker"]),
             }
-            for e in radar if e["ticker"] not in tracked
+            for e in radar
         ]
-        return {"ranking": out, "radar": radar_out, "sectors": breakdown, "now_ms": now}
+        return {
+            "ranking": out,
+            "radar": radar_out,
+            "sectors": breakdown,
+            "windows": {
+                "board_hours": settings.FRESH_WINDOW_HOURS,
+                "context_hours": settings.CONTEXT_WINDOW_HOURS,
+            },
+            "now_ms": now,
+        }
     finally:
         conn.close()
 

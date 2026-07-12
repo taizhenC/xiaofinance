@@ -52,7 +52,14 @@ class Settings(BaseSettings):
     # QR-login one. Must come from the same site the account lives on (see XHS_INTERNATIONAL).
     XHS_COOKIES: str = ""
 
+    # The board scores the last FRESH_WINDOW_HOURS: it answers "what is hot today", and
+    # trend badges compare snapshots taken on that basis.
     FRESH_WINDOW_HOURS: int = 24
+    # But XHS discusses non-tech at roughly a post a day (美股医药 returned 1 fresh note out
+    # of 20, the other 19 spanning ten days), so a 24h view of a sector is mostly empty.
+    # Notes are kept and mention-scanned over this wider window, and the sector strip and
+    # radar read from it — the board itself stays 24h.
+    CONTEXT_WINDOW_HOURS: int = 72
     MIN_MENTIONS_FOR_ANALYSIS: int = 2
     MAX_ANALYZED_STOCKS: int = 15
     SLANG_SCAN_EVERY_N_CYCLES: int = 20
@@ -73,6 +80,10 @@ class Settings(BaseSettings):
     @property
     def fresh_window_ms(self) -> int:
         return self.FRESH_WINDOW_HOURS * 3600 * 1000
+
+    @property
+    def context_window_ms(self) -> int:
+        return max(self.CONTEXT_WINDOW_HOURS, self.FRESH_WINDOW_HOURS) * 3600 * 1000
 
     @staticmethod
     def _split(raw: str) -> list[str]:

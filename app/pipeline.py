@@ -43,7 +43,7 @@ def run_fetch(conn, mode: str, dict_data: dict, settings) -> int | None:
     stats = {"notes_fetched": 0, "notes_fresh": 0, "comments_fresh": 0, "malformed": 0}
     try:
         result = crawler_runner.run_crawl(keywords, run_dir, settings)
-        stats = ingest.ingest_run_dir(conn, run_dir, run_id, settings.fresh_window_ms)
+        stats = ingest.ingest_run_dir(conn, run_dir, run_id, settings.context_window_ms)
         if crawler_runner.login_looks_required(result["log_path"], stats["notes_fresh"]):
             status, error = "failed", "login_required"
         elif result["timed_out"]:
@@ -109,8 +109,8 @@ def run_cycle(mode: str = "both", skip_crawl: bool = False, settings=None) -> di
                     run_ids.append(rid)
         last_run_id = run_ids[-1] if run_ids else None
 
-        dedup.recompute_dedup(conn, settings.fresh_window_ms)
-        mentions.extract_mentions(conn, dict_data, _tracked_rows(conn), settings.fresh_window_ms, last_run_id)
+        dedup.recompute_dedup(conn, settings.context_window_ms)
+        mentions.extract_mentions(conn, dict_data, _tracked_rows(conn), settings.context_window_ms, last_run_id)
         stats = scoring.compute_stats(conn, settings.fresh_window_ms)
         if not skip_crawl:
             scoring.snapshot_scores(conn, stats, last_run_id)

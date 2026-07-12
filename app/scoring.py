@@ -216,6 +216,18 @@ def ranking_and_radar(stats: dict[str, dict], min_mentions: int) -> tuple[list[d
     return ranking, radar
 
 
+def radar_entries(stats: dict[str, dict], exclude: set[str]) -> list[dict]:
+    """Everything mentioned in the context window that the board didn't show.
+
+    Fed the wider window, this is where a sector that only produces a post a day becomes
+    visible at all — it would never clear the 24h board's bar.
+    """
+    return sorted(
+        (e for e in stats.values() if e.get("mentions", 0) >= 1 and e["ticker"] not in exclude),
+        key=lambda e: (e["mentions"], e["score"]), reverse=True,
+    )
+
+
 OTHER_SECTOR = "其他"
 
 

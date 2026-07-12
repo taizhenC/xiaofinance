@@ -12,7 +12,8 @@ import json
 import logging
 from pathlib import Path
 
-from . import crawler_runner, dedup, ingest, keywords, mentions
+from . import crawler_runner, dedup, ingest, mentions
+from . import keywords as keywords_mod
 from .config import settings as default_settings
 from .db import connect
 from .util import now_ms
@@ -41,7 +42,7 @@ def probe_keywords(keywords: list[str], notes_per_keyword: int = 5, settings=Non
         run_dir = Path(settings.RAW_DIR) / f"run_{run_id:06d}"
 
         result = crawler_runner.run_crawl(keywords, run_dir, probe_settings, get_comments=False)
-        stats = ingest.ingest_run_dir(conn, run_dir, run_id, settings.fresh_window_ms)
+        stats = ingest.ingest_run_dir(conn, run_dir, run_id, settings.context_window_ms)
 
         status = "success"
         error = None
@@ -53,9 +54,9 @@ def probe_keywords(keywords: list[str], notes_per_keyword: int = 5, settings=Non
             status = "partial" if stats["notes_fresh"] > 0 else "failed"
             error = f"crawler exit code {result['exit_code']}"
 
-        dedup.recompute_dedup(conn, settings.fresh_window_ms)
+        dedup.recompute_dedup(conn, settings.context_window_ms)
         mentions.extract_mentions(
-            conn, mentions.load_stock_dict(), [], settings.fresh_window_ms, run_id
+            conn, mentions.load_stock_dict(), [], settings.context_window_ms, run_id
         )
         conn.execute(
             "UPDATE fetch_runs SET status=?, finished_at_ms=?, notes_fetched=?, notes_fresh=?,"
@@ -68,7 +69,7 @@ def probe_keywords(keywords: list[str], notes_per_keyword: int = 5, settings=Non
             "run_id": run_id,
             "status": status,
             "error": error,
-            "yield": keywords.yield_stats(conn, run_id=run_id),
+            "yield": keywords_mod.yield_stats(conn, run_id=run_id),
         }
     finally:
         conn.close()
