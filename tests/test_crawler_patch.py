@@ -24,10 +24,22 @@ def fake_vendor(tmp_path):
         "        # self.user_agent = utils.get_user_agent()\n"
         f'        self.user_agent = "{MAC_UA}"\n'
         "            self.context_page = await self.browser_context.new_page()\n"
-        "            await self.context_page.goto(self.index_url)\n",
+        "            await self.context_page.goto(self.index_url)\n"
+        "            await self.xhs_client.get_note_all_comments(\n"
+        "                note_id=note_id,\n"
+        "                xsec_token=xsec_token,\n"
+        "                crawl_interval=crawl_interval,\n"
+        "                callback=xhs_store.batch_update_xhs_note_comments,\n"
+        "                max_count=config.CRAWLER_MAX_COMMENTS_COUNT_SINGLENOTES,\n"
+        "            )\n",
         encoding="utf-8",
     )
     (core / "client.py").write_text(
+        "        if response.status_code == 471 or response.status_code == 461:\n"
+        "            # someday someone maybe will bypass captcha\n"
+        '            verify_type = response.headers["Verifytype"]\n'
+        '            verify_uuid = response.headers["Verifyuuid"]\n'
+        "\n"
         "        for comment in comments:\n"
         "            try:\n"
         '                sub_comments = comment.get("sub_comments")\n'
@@ -123,3 +135,26 @@ def test_inline_replies_are_kept_but_never_paged_for(tmp_path):
     assert 'sub_comment_has_more = comment.get("sub_comment_has_more")' not in client
     body = client.split("inline replies only, never page for more")[1]
     assert "get_note_sub_comments" in body  # still present, just dead — we only cut the path
+
+
+def test_a_walled_461_without_verifytype_header_cannot_crash_the_detector(tmp_path):
+    """Run 16: XHS answered 461 with no Verifytype header, headers[] raised KeyError before
+    "CAPTCHA appeared" was logged, and the run died anonymously. The detector must survive
+    the very response it exists to detect."""
+    mc = fake_vendor(tmp_path)
+    patch_config(mc, settings())
+    client = (mc / "media_platform" / "xhs" / "client.py").read_text(encoding="utf-8")
+    assert 'response.headers["Verifytype"]' not in client
+    assert 'response.headers.get("Verifytype", "unknown")' in client
+    assert 'response.headers.get("Verifyuuid", "unknown")' in client
+
+
+def test_a_failed_comment_fetch_skips_the_note_instead_of_killing_the_run(tmp_path):
+    """One bad response in batch_get_note_comments propagates through asyncio.gather and
+    aborts every keyword still in the queue — run 16 lost 3 of its 6 to that."""
+    mc = fake_vendor(tmp_path)
+    patch_config(mc, settings())
+    core = (mc / "media_platform" / "xhs" / "core.py").read_text(encoding="utf-8")
+    assert "try:\n                await self.xhs_client.get_note_all_comments(" in core
+    assert "except Exception as ex:" in core
+    assert "skipping" in core

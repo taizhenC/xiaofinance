@@ -50,6 +50,41 @@ CODE_PATCHES = [
         "                    continue\n",
         "                continue  # xiaofinance: inline replies only, never page for more\n",
     ),
+    # One flavour of the 461 risk-control wall carries no Verifytype header, and reading
+    # it with [] crashed the CAPTCHA detector itself — the KeyError escaped before
+    # "CAPTCHA appeared" was logged, so the abort counter saw nothing and the run died as
+    # an anonymous RetryError (run 16).
+    (
+        "media_platform/xhs/client.py",
+        '            verify_type = response.headers["Verifytype"]\n'
+        '            verify_uuid = response.headers["Verifyuuid"]\n',
+        '            verify_type = response.headers.get("Verifytype", "unknown")\n'
+        '            verify_uuid = response.headers.get("Verifyuuid", "unknown")\n',
+    ),
+    # A comment fetch that fails after retries propagates through asyncio.gather and
+    # kills the whole crawl — run 16 lost keywords 4-6 to a single walled response. Skip
+    # the note instead; a real CAPTCHA storm still aborts via CAPTCHA_ABORT_COUNT.
+    (
+        "media_platform/xhs/core.py",
+        "            await self.xhs_client.get_note_all_comments(\n"
+        "                note_id=note_id,\n"
+        "                xsec_token=xsec_token,\n"
+        "                crawl_interval=crawl_interval,\n"
+        "                callback=xhs_store.batch_update_xhs_note_comments,\n"
+        "                max_count=config.CRAWLER_MAX_COMMENTS_COUNT_SINGLENOTES,\n"
+        "            )\n",
+        "            try:\n"
+        "                await self.xhs_client.get_note_all_comments(\n"
+        "                    note_id=note_id,\n"
+        "                    xsec_token=xsec_token,\n"
+        "                    crawl_interval=crawl_interval,\n"
+        "                    callback=xhs_store.batch_update_xhs_note_comments,\n"
+        "                    max_count=config.CRAWLER_MAX_COMMENTS_COUNT_SINGLENOTES,\n"
+        "                )\n"
+        "            except Exception as ex:\n"
+        '                utils.logger.error(f"[XiaoHongShuCrawler.get_comments] '
+        'comments failed for note {note_id}, skipping: {ex}")\n',
+    ),
 ]
 
 LOGIN_HINTS = ["扫码", "二维码", "请扫码", "未登录", "登录已过期", "login expired", "login failed"]
@@ -97,7 +132,7 @@ def patch_config(mc_dir: Path, settings=None) -> None:
                 f"update CODE_PATCHES in crawler_runner.py or re-pin the vendor commit"
             )
         path.write_text(text.replace(anchor, replacement, 1), encoding="utf-8")
-        log.info("patched %s: extended page timeouts to 120s", rel)
+        log.info("patched %s: %s", rel, replacement.strip().splitlines()[0])
     _patch_user_agent(mc_dir, settings.BROWSER_USER_AGENT)
 
 
@@ -243,6 +278,11 @@ def failure_reason(log_path: Path, exit_code: int) -> str:
         return (
             f"XHS risk control: {captchas} requests answered with a CAPTCHA (461) — "
             "the account is being rate-limited, not logged out"
+        )
+    if "KeyError: 'Verifytype'" in text:
+        return (
+            "XHS risk control (461 without a Verifytype header) — MediaCrawler's CAPTCHA "
+            f"detector crashed on it before it could be counted; crawler exit code {exit_code}"
         )
     for m in NETWORK_MARKERS:
         if m in text:

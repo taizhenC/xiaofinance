@@ -13,6 +13,22 @@ def test_captcha_storm_is_named_not_reported_as_exit_code_1(tmp_path):
     assert "192" in reason and "rate-limit" in reason
 
 
+def test_a_verifytype_keyerror_is_named_risk_control_not_retries_ran_out(tmp_path):
+    """Run 16's log: a 461 without the Verifytype header crashed the CAPTCHA detector, so
+    zero "CAPTCHA appeared" lines exist — but the KeyError itself proves the 461 happened."""
+    log = tmp_path / "crawler.log"
+    log.write_text(
+        "  File \"...client.py\", line 137, in request\n"
+        "    verify_type = response.headers[\"Verifytype\"]\n"
+        "KeyError: 'Verifytype'\n"
+        "tenacity.RetryError: RetryError[<Future at 0x1 state=finished raised KeyError>]\n",
+        encoding="utf-8",
+    )
+    reason = failure_reason(log, 1)
+    assert "risk control" in reason and "Verifytype" in reason
+    assert "retries ran out" not in reason
+
+
 def test_network_failure_is_not_mistaken_for_risk_control(tmp_path):
     log = tmp_path / "crawler.log"
     log.write_text("httpx.ConnectError: connection refused\n", encoding="utf-8")
