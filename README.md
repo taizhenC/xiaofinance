@@ -44,7 +44,11 @@ Freshness gate #2: every API query re-filters to the trailing 24h window, so ite
 ## Notes & troubleshooting
 
 - **Login expired**: red banner appears → run `scripts\login_xhs.ps1` again.
-- **Login works but search fails** (`您当前登录的账号没有权限访问` in `data\raw\run_*\crawler.log`): XHS risk-control rejecting the browser fingerprint or the account. The default `ENABLE_CDP_MODE=true` crawls with your real installed Chrome/Edge (isolated profile) instead of Playwright's bundled Chromium, which avoids the fingerprint flag. If the error persists, verify the same account can search on xiaohongshu.com in your normal browser (new/unverified accounts and overseas IPs get gated), then wait a few hours — repeated logins raise the risk score.
+- **Login works but every search fails** with `您当前登录的账号没有权限访问` (see `data\raw\run_*\crawler.log`): XHS risk-control is refusing the *session*, not the login. First check whether the same account can search on xiaohongshu.com in your normal browser:
+  - **It can** → the QR-minted session is the problem, not the account. Copy that browser's cookie string into `XHS_COOKIES` in `.env` (see `.env.example` for how) so the crawler reuses the session XHS already trusts. Verify with `scripts\smoke_crawl.ps1`.
+  - **It can't** → the account itself is gated (common for new/unverified accounts and overseas IPs). Verify the phone number, use the account normally for a few days, and stop retrying — repeated failed logins raise the risk score.
+
+  Note that switching browsers does *not* address this: the crawler signs and sends API calls over httpx, so `ENABLE_CDP_MODE` only changes how login and rendering happen, never how the search request looks to XHS.
 - **Trend badges** (🔥 新上榜 / ↑ 升温 / ↓ 降温) compare popularity against the previous fetch cycle, so they appear once two cycles of history exist. Amber/gray on purpose — green/red are reserved for sentiment.
 - **Price reality check**: daily closes from Yahoo Finance's public chart API (free, no key, delayed). The 🔀 badge flags sentiment/price divergence (e.g. crowd bullish while the stock fell ≥2%). This is the app's only non-XHS external request; set `ENABLE_PRICE_QUOTES=false` to stay fully offline.
 - **Tracked tickers** always render (targeted search: ticker symbol + finance-qualified keywords). Sub-floor tickers appear in the "On the radar" strip.

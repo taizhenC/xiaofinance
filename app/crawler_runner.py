@@ -77,9 +77,12 @@ def run_crawl(keywords: list[str], run_dir: Path, settings) -> dict:
     run_dir.mkdir(parents=True, exist_ok=True)
     log_path = run_dir / "crawler.log"
 
+    cookies = (getattr(settings, "XHS_COOKIES", "") or "").strip()
+    login_args = ["--lt", "cookie", "--cookies", cookies] if cookies else ["--lt", "qrcode"]
+
     cmd = [
         settings.UV_EXE, "run", "main.py",
-        "--platform", "xhs", "--lt", "qrcode", "--type", "search",
+        "--platform", "xhs", *login_args, "--type", "search",
         "--keywords", ",".join(keywords),
         "--save_data_option", "jsonl",
         "--save_data_path", str(run_dir),

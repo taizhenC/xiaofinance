@@ -22,6 +22,10 @@ class Settings(BaseSettings):
     CRAWL_TIMEOUT_MIN: int = 30
     ENABLE_SUB_COMMENTS: bool = False
     ENABLE_CDP_MODE: bool = True
+    # Paste a logged-in browser's XHS cookie string to crawl with that session instead
+    # of a QR-login one. XHS risk-control often permits the search API only for sessions
+    # that look organically browsed; a fresh QR session gets 您当前登录的账号没有权限访问.
+    XHS_COOKIES: str = ""
 
     FRESH_WINDOW_HOURS: int = 24
     MIN_MENTIONS_FOR_ANALYSIS: int = 2
