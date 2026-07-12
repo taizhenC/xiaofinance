@@ -214,3 +214,40 @@ def ranking_and_radar(stats: dict[str, dict], min_mentions: int) -> tuple[list[d
         key=lambda e: (e["mentions"], e["score"]), reverse=True,
     )
     return ranking, radar
+
+
+OTHER_SECTOR = "其他"
+
+
+def sector_breakdown(stats: dict[str, dict], sectors: dict[str, str]) -> list[dict]:
+    """What today's discussion is made of, by share of weighted score.
+
+    Reports rather than corrects: the board stays a pure ranking, and a semiconductor day
+    is allowed to look like one. The point is that a 90% semis reading is visible instead
+    of being mistaken for the market's whole conversation.
+    """
+    agg: dict[str, dict] = {}
+    for ticker, e in stats.items():
+        if e.get("mentions", 0) < 1:
+            continue
+        sector = sectors.get(ticker) or OTHER_SECTOR
+        a = agg.setdefault(
+            sector,
+            {"sector": sector, "score": 0.0, "mentions": 0, "tickers": 0, "leader": None},
+        )
+        a["score"] += e.get("score", 0.0)
+        a["mentions"] += e.get("mentions", 0)
+        a["tickers"] += 1
+        if a["leader"] is None or e.get("score", 0.0) > a["leader"]["score"]:
+            a["leader"] = {
+                "ticker": ticker,
+                "score": e.get("score", 0.0),
+                "mentions": e.get("mentions", 0),
+                "focused_mentions": e.get("focused_mentions", 0),
+            }
+
+    total = sum(a["score"] for a in agg.values())
+    for a in agg.values():
+        a["score"] = round(a["score"], 2)
+        a["share"] = round(a["score"] / total * 100, 1) if total else 0.0
+    return sorted(agg.values(), key=lambda a: -a["score"])

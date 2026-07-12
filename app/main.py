@@ -159,10 +159,15 @@ def api_ranking():
         now = now_ms()
         dict_data = mentions.load_stock_dict()
         names = {s["ticker"]: s.get("name_cn", "") for s in dict_data["stocks"]}
+        sectors = {s["ticker"]: s.get("sector", "") for s in dict_data["stocks"]}
         stats = scoring.compute_stats(conn, settings.fresh_window_ms, now)
         tracked = _tracked_map(conn)
         trends = scoring.compute_trends(conn)
         ranking, radar = scoring.ranking_and_radar(stats, settings.MIN_MENTIONS_FOR_ANALYSIS)
+        breakdown = scoring.sector_breakdown(stats, sectors)
+        for s in breakdown:
+            if s["leader"]:
+                s["leader"]["name_cn"] = names.get(s["leader"]["ticker"], "")
 
         shown = {e["ticker"] for e in ranking}
         for t in sorted(tracked):
@@ -198,6 +203,7 @@ def api_ranking():
             out.append({
                 "ticker": t,
                 "name_cn": names.get(t, ""),
+                "sector": sectors.get(t, ""),
                 "score": e.get("score", 0.0),
                 "note_count": e["note_count"],
                 "comment_count": e["comment_count"],
@@ -222,13 +228,14 @@ def api_ranking():
             {
                 "ticker": e["ticker"],
                 "name_cn": names.get(e["ticker"], ""),
+                "sector": sectors.get(e["ticker"], ""),
                 "mentions": e["mentions"],
                 "top_quote": e["top_quote"],
                 "trend": trends.get(e["ticker"]),
             }
             for e in radar if e["ticker"] not in tracked
         ]
-        return {"ranking": out, "radar": radar_out, "now_ms": now}
+        return {"ranking": out, "radar": radar_out, "sectors": breakdown, "now_ms": now}
     finally:
         conn.close()
 
