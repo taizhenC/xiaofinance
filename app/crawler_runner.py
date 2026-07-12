@@ -30,6 +30,9 @@ CODE_PATCHES = [
 ]
 
 LOGIN_HINTS = ["扫码", "二维码", "请扫码", "未登录", "登录已过期", "login expired", "login failed"]
+# The platform can expire a session mid-crawl, so a run that fetched notes and *then*
+# died still needs a re-login. These say so outright — trust them over the note count.
+EXPIRED_MARKERS = ["登录已过期", "login expired"]
 
 
 def _bool(v) -> str:
@@ -138,11 +141,15 @@ def run_crawl(keywords: list[str], run_dir: Path, settings) -> dict:
 
 
 def login_looks_required(log_path: Path, notes_fresh: int) -> bool:
-    """Heuristic: crawl produced zero fresh notes AND the log mentions QR/login."""
-    if notes_fresh > 0 or not Path(log_path).exists():
+    """True if the log says the session expired, or the crawl got nothing and mentions login."""
+    if not Path(log_path).exists():
         return False
     try:
         text = Path(log_path).read_text(encoding="utf-8", errors="replace")
     except OSError:
+        return False
+    if any(m in text for m in EXPIRED_MARKERS):
+        return True
+    if notes_fresh > 0:
         return False
     return any(h in text for h in LOGIN_HINTS)
