@@ -267,6 +267,7 @@ def extract_mentions(conn, dict_data: dict, tracked_rows, fresh_window_ms: int,
     """
 
     count = 0
+    produced: set[tuple[str, str, str]] = set()
     for n in conn.execute(
         "SELECT note_id, title, note_desc, source_keyword, publish_time_ms FROM notes WHERE publish_time_ms >= ?",
         (cutoff,),
@@ -276,6 +277,7 @@ def extract_mentions(conn, dict_data: dict, tracked_rows, fresh_window_ms: int,
         for t, (alias, basis) in found.items():
             conn.execute(upsert, (t, "note", n["note_id"], n["note_id"], alias, basis,
                                   n["publish_time_ms"], run_id))
+            produced.add((t, "note", n["note_id"]))
             count += 1
 
     for c in conn.execute(
@@ -289,8 +291,25 @@ def extract_mentions(conn, dict_data: dict, tracked_rows, fresh_window_ms: int,
         for t, (alias, basis) in found.items():
             conn.execute(upsert, (t, "comment", c["comment_id"], c["note_id"], alias, basis,
                                   c["create_time_ms"], run_id))
+            produced.add((t, "comment", c["comment_id"]))
             count += 1
 
+    # Mentions are derived data, so this pass is the whole truth about the window: anything in
+    # the table that the dictionary no longer produces is stale and must go. Without this the
+    # upserts could only ever *add* — dropping a bad alias or adding a trap would leave every
+    # false positive it ever made sitting in the DB until the note aged out of the window.
+    stale = [
+        row for row in conn.execute(
+            "SELECT ticker, source_type, source_id FROM stock_mentions WHERE content_time_ms >= ?",
+            (cutoff,),
+        ).fetchall()
+        if (row["ticker"], row["source_type"], row["source_id"]) not in produced
+    ]
+    conn.executemany(
+        "DELETE FROM stock_mentions WHERE ticker=? AND source_type=? AND source_id=?",
+        [(r["ticker"], r["source_type"], r["source_id"]) for r in stale],
+    )
+
     conn.commit()
-    log.info("mentions: %d matches", count)
+    log.info("mentions: %d matches, %d stale removed", count, len(stale))
     return count

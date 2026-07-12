@@ -259,98 +259,227 @@
     "纳斯达克交易所",
     "登陆纳斯达克",
     "纳斯达克敲钟",
-    "纳斯达克挂牌"
+    "纳斯达克挂牌",
+    "提高通",
+    "高通胀",
+    "高通货",
+    "高通量",
+    "高通滤波",
+    "美国银行股",
+    "美国银行业",
+    "美国银行开户",
+    "美国银行体系",
+    "美国银行监管",
+    "美国银行账户",
+    "美国银行卡",
+    "镁光灯",
+    "西部数据中心",
+    "花旗参",
+    "花旗国",
+    "好未来的",
+    "更好未来",
+    "个好未来",
+    "有好未来",
+    "微博热搜",
+    "发微博",
+    "刷微博",
+    "微博上",
+    "贝壳粉",
+    "捡贝壳",
+    "扇贝",
+    "的好未来",
+    "好未来比",
+    "好未来是",
+    "华美银行",
+    "部分美国银行",
+    "美国银行收"
   ],
   "stocks": [
     {
       "ticker": "AAPL",
       "name_cn": "苹果",
-      "aliases": ["苹果公司"],
-      "ambiguous": ["苹果", "库克", "果子", "大果", "苹果链", "果链"],
+      "aliases": [
+        "苹果公司"
+      ],
+      "ambiguous": [
+        "苹果",
+        "库克",
+        "果子",
+        "大果",
+        "苹果链",
+        "果链"
+      ],
       "sector": "科技"
     },
     {
       "ticker": "MSFT",
       "name_cn": "微软",
-      "aliases": ["巨硬", "微软"],
-      "ambiguous": ["纳德拉", "大软"],
+      "aliases": [
+        "巨硬",
+        "微软"
+      ],
+      "ambiguous": [
+        "纳德拉",
+        "大软"
+      ],
       "sector": "科技"
     },
     {
       "ticker": "GOOGL",
       "name_cn": "谷歌",
-      "aliases": ["goog"],
-      "ambiguous": ["谷歌", "alphabet", "古哥", "大狗", "字母表", "google"],
+      "aliases": [
+        "goog",
+        "狗家"
+      ],
+      "ambiguous": [
+        "谷歌",
+        "alphabet",
+        "古哥",
+        "大狗",
+        "字母表",
+        "google",
+        "劈柴哥"
+      ],
       "sector": "科技"
     },
     {
       "ticker": "AMZN",
       "name_cn": "亚马逊",
-      "aliases": ["亚马逊", "amazon"],
-      "ambiguous": ["亚麻", "贝索斯"],
+      "aliases": [
+        "亚马逊",
+        "amazon"
+      ],
+      "ambiguous": [
+        "亚麻",
+        "贝索斯",
+        "香蕉厂"
+      ],
       "sector": "科技"
     },
     {
       "ticker": "META",
       "name_cn": "Meta",
-      "aliases": ["脸书", "facebook"],
-      "ambiguous": ["meta", "小扎", "扎克伯格", "妹塔"],
+      "aliases": [
+        "脸书",
+        "facebook",
+        "非死不可"
+      ],
+      "ambiguous": [
+        "meta",
+        "小扎",
+        "扎克伯格",
+        "妹塔"
+      ],
       "sector": "科技"
     },
     {
       "ticker": "NVDA",
       "name_cn": "英伟达",
-      "aliases": ["英伟达", "辉达", "nvidia", "皮衣黄", "皮衣刀客"],
-      "ambiguous": ["老黄", "黄仁勋", "n卡", "英伟达链", "女大", "达子"],
+      "aliases": [
+        "英伟达",
+        "辉达",
+        "nvidia",
+        "皮衣黄",
+        "皮衣刀客",
+        "核弹厂"
+      ],
+      "ambiguous": [
+        "老黄",
+        "黄仁勋",
+        "n卡",
+        "英伟达链",
+        "女大",
+        "达子",
+        "黄教主"
+      ],
       "sector": "半导体"
     },
     {
       "ticker": "TSLA",
       "name_cn": "特斯拉",
-      "aliases": ["特斯拉", "tesla"],
-      "ambiguous": ["马斯克", "musk", "马老板", "钢铁侠"],
+      "aliases": [
+        "特斯拉",
+        "tesla"
+      ],
+      "ambiguous": [
+        "马斯克",
+        "musk",
+        "马老板",
+        "钢铁侠",
+        "马一龙"
+      ],
       "sector": "汽车"
     },
     {
       "ticker": "NFLX",
       "name_cn": "奈飞",
-      "aliases": ["奈飞", "网飞", "netflix"],
-      "ambiguous": ["奶飞"],
+      "aliases": [
+        "奈飞",
+        "网飞",
+        "netflix"
+      ],
+      "ambiguous": [
+        "奶飞"
+      ],
       "sector": "科技"
     },
     {
       "ticker": "TSM",
       "name_cn": "台积电",
-      "aliases": ["台积电", "tsmc", "护国神山", "台积"],
-      "ambiguous": [],
+      "aliases": [
+        "台积电",
+        "tsmc",
+        "护国神山",
+        "台积"
+      ],
+      "ambiguous": [
+        "台gg"
+      ],
       "sector": "半导体"
     },
     {
       "ticker": "AVGO",
       "name_cn": "博通",
-      "aliases": ["博通", "broadcom"],
-      "ambiguous": [],
+      "aliases": [
+        "博通",
+        "broadcom"
+      ],
+      "ambiguous": [
+        "陈福阳"
+      ],
       "sector": "半导体"
     },
     {
       "ticker": "ORCL",
       "name_cn": "甲骨文",
-      "aliases": ["甲骨文", "oracle"],
-      "ambiguous": [],
+      "aliases": [
+        "甲骨文",
+        "oracle"
+      ],
+      "ambiguous": [
+        "埃里森"
+      ],
       "sector": "科技"
     },
     {
       "ticker": "CRM",
       "name_cn": "赛富时",
-      "aliases": ["salesforce", "赛富时"],
+      "aliases": [
+        "salesforce",
+        "赛富时"
+      ],
       "ambiguous": [],
       "sector": "科技"
     },
     {
       "ticker": "ADBE",
       "name_cn": "Adobe",
-      "aliases": ["adobe"],
-      "ambiguous": [],
+      "aliases": [
+        "adobe"
+      ],
+      "ambiguous": [
+        "阿逗比"
+      ],
       "sector": "科技"
     },
     {
@@ -363,168 +492,253 @@
     {
       "ticker": "INTC",
       "name_cn": "英特尔",
-      "aliases": ["英特尔", "intel"],
-      "ambiguous": ["牙膏厂", "挤牙膏"],
+      "aliases": [
+        "英特尔",
+        "intel"
+      ],
+      "ambiguous": [
+        "牙膏厂",
+        "挤牙膏",
+        "因特尔",
+        "酷睿"
+      ],
       "sector": "半导体"
     },
     {
       "ticker": "AMD",
       "name_cn": "AMD",
-      "aliases": ["amd", "超威"],
-      "ambiguous": ["苏妈", "a卡", "苏姿丰"],
+      "aliases": [
+        "amd",
+        "超威"
+      ],
+      "ambiguous": [
+        "苏妈",
+        "a卡",
+        "苏姿丰"
+      ],
       "sector": "半导体"
     },
     {
       "ticker": "QCOM",
       "name_cn": "高通",
-      "aliases": ["高通", "qualcomm"],
+      "aliases": [
+        "高通",
+        "qualcomm",
+        "骁龙"
+      ],
       "ambiguous": [],
       "sector": "半导体"
     },
     {
       "ticker": "MU",
       "name_cn": "美光",
-      "aliases": ["美光", "micron"],
-      "ambiguous": [],
+      "aliases": [
+        "美光",
+        "micron"
+      ],
+      "ambiguous": [
+        "镁光"
+      ],
       "sector": "半导体"
     },
     {
       "ticker": "SKHY",
       "name_cn": "SK海力士",
-      "aliases": ["海力士", "hynix"],
+      "aliases": [
+        "海力士",
+        "hynix"
+      ],
       "ambiguous": [],
       "sector": "半导体"
     },
     {
       "ticker": "SPCX",
       "name_cn": "SpaceX",
-      "aliases": ["spacex"],
-      "ambiguous": ["星舰", "星链", "马斯克", "musk"],
+      "aliases": [
+        "spacex"
+      ],
+      "ambiguous": [
+        "星舰",
+        "星链",
+        "马斯克",
+        "musk"
+      ],
       "sector": "工业军工"
     },
     {
       "ticker": "ARM",
       "name_cn": "安谋",
-      "aliases": ["安谋"],
-      "ambiguous": ["arm"],
+      "aliases": [
+        "安谋"
+      ],
+      "ambiguous": [
+        "arm"
+      ],
       "sector": "半导体"
     },
     {
       "ticker": "SMCI",
       "name_cn": "超微电脑",
-      "aliases": ["超微电脑", "supermicro"],
-      "ambiguous": ["超微", "美超微"],
+      "aliases": [
+        "超微电脑",
+        "supermicro"
+      ],
+      "ambiguous": [
+        "超微",
+        "美超微"
+      ],
       "sector": "半导体"
     },
     {
       "ticker": "TXN",
       "name_cn": "德州仪器",
-      "aliases": ["德州仪器"],
+      "aliases": [
+        "德州仪器"
+      ],
       "ambiguous": [],
       "sector": "半导体"
     },
     {
       "ticker": "ASML",
       "name_cn": "阿斯麦",
-      "aliases": ["阿斯麦", "asml"],
-      "ambiguous": [],
+      "aliases": [
+        "阿斯麦",
+        "asml",
+        "艾司摩尔"
+      ],
+      "ambiguous": [
+        "阿斯麦尔"
+      ],
       "sector": "半导体"
     },
     {
       "ticker": "CSCO",
       "name_cn": "思科",
-      "aliases": ["思科"],
+      "aliases": [
+        "思科"
+      ],
       "ambiguous": [],
       "sector": "科技"
     },
     {
       "ticker": "CRWD",
       "name_cn": "CrowdStrike",
-      "aliases": ["crowdstrike"],
+      "aliases": [
+        "crowdstrike"
+      ],
       "ambiguous": [],
       "sector": "科技"
     },
     {
       "ticker": "PANW",
       "name_cn": "帕洛阿尔托",
-      "aliases": ["palo alto"],
+      "aliases": [
+        "palo alto"
+      ],
       "ambiguous": [],
       "sector": "科技"
     },
     {
       "ticker": "DDOG",
       "name_cn": "Datadog",
-      "aliases": ["datadog"],
+      "aliases": [
+        "datadog"
+      ],
       "ambiguous": [],
       "sector": "科技"
     },
     {
       "ticker": "SNOW",
       "name_cn": "Snowflake",
-      "aliases": ["snowflake"],
+      "aliases": [
+        "snowflake"
+      ],
       "ambiguous": [],
       "sector": "科技"
     },
     {
       "ticker": "PLTR",
       "name_cn": "Palantir",
-      "aliases": ["palantir", "帕兰提尔"],
+      "aliases": [
+        "palantir",
+        "帕兰提尔",
+        "帕兰泰尔"
+      ],
       "ambiguous": [],
       "sector": "科技"
     },
     {
       "ticker": "UBER",
       "name_cn": "优步",
-      "aliases": ["优步", "uber"],
+      "aliases": [
+        "优步",
+        "uber"
+      ],
       "ambiguous": [],
       "sector": "科技"
     },
     {
       "ticker": "LYFT",
       "name_cn": "Lyft",
-      "aliases": ["lyft"],
+      "aliases": [
+        "lyft"
+      ],
       "ambiguous": [],
       "sector": "科技"
     },
     {
       "ticker": "ABNB",
       "name_cn": "爱彼迎",
-      "aliases": ["爱彼迎", "airbnb"],
+      "aliases": [
+        "爱彼迎",
+        "airbnb"
+      ],
       "ambiguous": [],
       "sector": "旅游航空"
     },
     {
       "ticker": "DASH",
       "name_cn": "DoorDash",
-      "aliases": ["doordash"],
+      "aliases": [
+        "doordash"
+      ],
       "ambiguous": [],
       "sector": "科技"
     },
     {
       "ticker": "SHOP",
       "name_cn": "Shopify",
-      "aliases": ["shopify"],
+      "aliases": [
+        "shopify"
+      ],
       "ambiguous": [],
       "sector": "科技"
     },
     {
       "ticker": "SPOT",
       "name_cn": "Spotify",
-      "aliases": ["spotify"],
+      "aliases": [
+        "spotify"
+      ],
       "ambiguous": [],
       "sector": "科技"
     },
     {
       "ticker": "PYPL",
       "name_cn": "PayPal",
-      "aliases": ["paypal", "贝宝"],
+      "aliases": [
+        "paypal",
+        "贝宝"
+      ],
       "ambiguous": [],
       "sector": "金融"
     },
     {
       "ticker": "SOFI",
       "name_cn": "SoFi",
-      "aliases": ["sofi"],
+      "aliases": [
+        "sofi"
+      ],
       "ambiguous": [],
       "sector": "金融"
     },
@@ -532,90 +746,119 @@
       "ticker": "AFRM",
       "name_cn": "Affirm",
       "aliases": [],
-      "ambiguous": ["affirm"],
+      "ambiguous": [
+        "affirm"
+      ],
       "sector": "金融"
     },
     {
       "ticker": "ZM",
       "name_cn": "Zoom",
       "aliases": [],
-      "ambiguous": ["zoom"],
+      "ambiguous": [
+        "zoom"
+      ],
       "sector": "科技"
     },
     {
       "ticker": "NET",
       "name_cn": "Cloudflare",
-      "aliases": ["cloudflare"],
+      "aliases": [
+        "cloudflare"
+      ],
       "ambiguous": [],
       "sector": "科技"
     },
     {
       "ticker": "APP",
       "name_cn": "AppLovin",
-      "aliases": ["applovin"],
+      "aliases": [
+        "applovin"
+      ],
       "ambiguous": [],
       "sector": "科技"
     },
     {
       "ticker": "RBLX",
       "name_cn": "Roblox",
-      "aliases": ["roblox"],
+      "aliases": [
+        "roblox"
+      ],
       "ambiguous": [],
       "sector": "科技"
     },
     {
       "ticker": "IONQ",
       "name_cn": "IonQ",
-      "aliases": ["ionq"],
+      "aliases": [
+        "ionq"
+      ],
       "ambiguous": [],
       "sector": "科技"
     },
     {
       "ticker": "RGTI",
       "name_cn": "Rigetti",
-      "aliases": ["rigetti"],
+      "aliases": [
+        "rigetti"
+      ],
       "ambiguous": [],
       "sector": "科技"
     },
     {
       "ticker": "OKLO",
       "name_cn": "Oklo",
-      "aliases": ["oklo"],
+      "aliases": [
+        "oklo"
+      ],
       "ambiguous": [],
       "sector": "能源电力"
     },
     {
       "ticker": "SMR",
       "name_cn": "NuScale",
-      "aliases": ["nuscale"],
+      "aliases": [
+        "nuscale"
+      ],
       "ambiguous": [],
       "sector": "能源电力"
     },
     {
       "ticker": "VRT",
       "name_cn": "Vertiv",
-      "aliases": ["vertiv"],
+      "aliases": [
+        "vertiv"
+      ],
       "ambiguous": [],
       "sector": "工业军工"
     },
     {
       "ticker": "OPEN",
       "name_cn": "Opendoor",
-      "aliases": ["opendoor"],
+      "aliases": [
+        "opendoor"
+      ],
       "ambiguous": [],
       "sector": "题材"
     },
     {
       "ticker": "HOOD",
       "name_cn": "Robinhood",
-      "aliases": ["robinhood"],
-      "ambiguous": ["罗宾汉"],
+      "aliases": [
+        "robinhood",
+        "罗宾侠"
+      ],
+      "ambiguous": [
+        "罗宾汉"
+      ],
       "sector": "金融"
     },
     {
       "ticker": "COIN",
       "name_cn": "Coinbase",
-      "aliases": ["coinbase"],
+      "aliases": [
+        "coinbase"
+      ],
       "ambiguous": [],
       "sector": "加密"
     },
@@ -623,14 +866,21 @@
       "ticker": "CRCL",
       "name_cn": "Circle",
       "aliases": [],
-      "ambiguous": ["circle"],
+      "ambiguous": [
+        "circle"
+      ],
       "sector": "加密"
     },
     {
       "ticker": "MSTR",
       "name_cn": "微策略",
-      "aliases": ["微策略", "microstrategy"],
-      "ambiguous": ["saylor"],
+      "aliases": [
+        "微策略",
+        "microstrategy"
+      ],
+      "ambiguous": [
+        "saylor"
+      ],
       "sector": "加密"
     },
     {
@@ -650,21 +900,28 @@
     {
       "ticker": "GME",
       "name_cn": "游戏驿站",
-      "aliases": ["游戏驿站", "gamestop"],
+      "aliases": [
+        "游戏驿站",
+        "gamestop"
+      ],
       "ambiguous": [],
       "sector": "题材"
     },
     {
       "ticker": "AMC",
       "name_cn": "AMC院线",
-      "aliases": ["amc院线"],
+      "aliases": [
+        "amc院线"
+      ],
       "ambiguous": [],
       "sector": "题材"
     },
     {
       "ticker": "RIVN",
       "name_cn": "Rivian",
-      "aliases": ["rivian"],
+      "aliases": [
+        "rivian"
+      ],
       "ambiguous": [],
       "sector": "汽车"
     },
@@ -672,279 +929,415 @@
       "ticker": "LCID",
       "name_cn": "Lucid",
       "aliases": [],
-      "ambiguous": ["lucid"],
+      "ambiguous": [
+        "lucid"
+      ],
       "sector": "汽车"
     },
     {
       "ticker": "JOBY",
       "name_cn": "Joby",
-      "aliases": ["joby"],
+      "aliases": [
+        "joby"
+      ],
       "ambiguous": [],
       "sector": "工业军工"
     },
     {
       "ticker": "RKLB",
       "name_cn": "火箭实验室",
-      "aliases": ["rocket lab", "火箭实验室"],
+      "aliases": [
+        "rocket lab",
+        "火箭实验室"
+      ],
       "ambiguous": [],
       "sector": "工业军工"
     },
     {
       "ticker": "HIMS",
       "name_cn": "Hims",
-      "aliases": ["hims"],
+      "aliases": [
+        "hims"
+      ],
       "ambiguous": [],
       "sector": "医药"
     },
     {
       "ticker": "BABA",
       "name_cn": "阿里巴巴",
-      "aliases": ["阿里巴巴", "alibaba"],
-      "ambiguous": ["阿里", "马云", "淘宝"],
+      "aliases": [
+        "阿里巴巴",
+        "alibaba"
+      ],
+      "ambiguous": [
+        "阿里",
+        "马云",
+        "淘宝"
+      ],
       "sector": "中概"
     },
     {
       "ticker": "PDD",
       "name_cn": "拼多多",
-      "aliases": ["拼多多", "拼夕夕"],
-      "ambiguous": ["多多", "temu"],
+      "aliases": [
+        "拼多多",
+        "拼夕夕",
+        "并夕夕"
+      ],
+      "ambiguous": [
+        "temu",
+        "黄峥"
+      ],
       "sector": "中概"
     },
     {
       "ticker": "JD",
       "name_cn": "京东",
-      "aliases": ["京东"],
-      "ambiguous": ["东哥", "刘强东"],
+      "aliases": [
+        "京东"
+      ],
+      "ambiguous": [
+        "东哥",
+        "刘强东",
+        "狗厂",
+        "大强子"
+      ],
       "sector": "中概"
     },
     {
       "ticker": "BIDU",
       "name_cn": "百度",
-      "aliases": ["度娘", "百度"],
-      "ambiguous": [],
+      "aliases": [
+        "度娘",
+        "百度"
+      ],
+      "ambiguous": [
+        "狼厂",
+        "熊厂"
+      ],
       "sector": "中概"
     },
     {
       "ticker": "NTES",
       "name_cn": "网易",
-      "aliases": ["网易"],
-      "ambiguous": [],
+      "aliases": [
+        "网易",
+        "丁三石"
+      ],
+      "ambiguous": [
+        "猪厂",
+        "丁磊"
+      ],
       "sector": "中概"
     },
     {
       "ticker": "TME",
       "name_cn": "腾讯音乐",
-      "aliases": ["腾讯音乐"],
+      "aliases": [
+        "腾讯音乐"
+      ],
       "ambiguous": [],
       "sector": "中概"
     },
     {
       "ticker": "NIO",
       "name_cn": "蔚来",
-      "aliases": ["蔚来"],
+      "aliases": [
+        "蔚来",
+        "蔚小理"
+      ],
       "ambiguous": [],
       "sector": "中概"
     },
     {
       "ticker": "XPEV",
       "name_cn": "小鹏汽车",
-      "aliases": ["小鹏", "小鹏汽车"],
+      "aliases": [
+        "小鹏",
+        "小鹏汽车",
+        "蔚小理"
+      ],
       "ambiguous": [],
       "sector": "中概"
     },
     {
       "ticker": "LI",
       "name_cn": "理想汽车",
-      "aliases": ["理想汽车"],
-      "ambiguous": ["理想"],
+      "aliases": [
+        "理想汽车",
+        "蔚小理"
+      ],
+      "ambiguous": [],
       "sector": "中概"
     },
     {
       "ticker": "ZK",
       "name_cn": "极氪",
-      "aliases": ["极氪"],
+      "aliases": [
+        "极氪"
+      ],
       "ambiguous": [],
       "sector": "中概"
     },
     {
       "ticker": "BILI",
       "name_cn": "哔哩哔哩",
-      "aliases": ["哔哩哔哩", "b站"],
+      "aliases": [
+        "哔哩哔哩",
+        "b站"
+      ],
       "ambiguous": [],
       "sector": "中概"
     },
     {
       "ticker": "IQ",
       "name_cn": "爱奇艺",
-      "aliases": ["爱奇艺"],
+      "aliases": [
+        "爱奇艺"
+      ],
       "ambiguous": [],
       "sector": "中概"
     },
     {
       "ticker": "FUTU",
       "name_cn": "富途",
-      "aliases": ["富途", "富途牛牛", "moomoo"],
+      "aliases": [
+        "富途",
+        "富途牛牛",
+        "moomoo"
+      ],
       "ambiguous": [],
       "sector": "中概"
     },
     {
       "ticker": "TIGR",
       "name_cn": "老虎证券",
-      "aliases": ["老虎证券"],
-      "ambiguous": ["老虎"],
+      "aliases": [
+        "老虎证券"
+      ],
+      "ambiguous": [],
       "sector": "中概"
     },
     {
       "ticker": "BEKE",
       "name_cn": "贝壳找房",
-      "aliases": ["贝壳找房"],
-      "ambiguous": ["贝壳"],
+      "aliases": [
+        "贝壳找房"
+      ],
+      "ambiguous": [
+        "贝壳"
+      ],
       "sector": "中概"
     },
     {
       "ticker": "TCOM",
       "name_cn": "携程",
-      "aliases": ["携程"],
+      "aliases": [
+        "携程"
+      ],
       "ambiguous": [],
       "sector": "中概"
     },
     {
       "ticker": "YUMC",
       "name_cn": "百胜中国",
-      "aliases": ["百胜中国"],
+      "aliases": [
+        "百胜中国"
+      ],
       "ambiguous": [],
       "sector": "中概"
     },
     {
       "ticker": "LKNCY",
       "name_cn": "瑞幸咖啡",
-      "aliases": ["瑞幸", "luckin"],
+      "aliases": [
+        "瑞幸",
+        "luckin"
+      ],
       "ambiguous": [],
       "sector": "中概"
     },
     {
       "ticker": "EDU",
       "name_cn": "新东方",
-      "aliases": ["新东方"],
+      "aliases": [
+        "新东方"
+      ],
       "ambiguous": [],
       "sector": "中概"
     },
     {
       "ticker": "TAL",
       "name_cn": "好未来",
-      "aliases": ["好未来", "学而思"],
-      "ambiguous": [],
+      "aliases": [
+        "学而思"
+      ],
+      "ambiguous": [
+        "好未来"
+      ],
       "sector": "中概"
     },
     {
       "ticker": "WB",
       "name_cn": "微博",
       "aliases": [],
-      "ambiguous": ["微博"],
+      "ambiguous": [
+        "微博"
+      ],
       "sector": "中概"
     },
     {
       "ticker": "MNSO",
       "name_cn": "名创优品",
-      "aliases": ["名创优品"],
+      "aliases": [
+        "名创优品"
+      ],
       "ambiguous": [],
       "sector": "中概"
     },
     {
       "ticker": "BRK",
       "name_cn": "伯克希尔",
-      "aliases": ["伯克希尔", "berkshire"],
-      "ambiguous": ["巴菲特", "股神", "老巴", "buffett"],
+      "aliases": [
+        "伯克希尔",
+        "berkshire",
+        "巴郡",
+        "波克夏",
+        "哈撒韦"
+      ],
+      "ambiguous": [
+        "巴菲特",
+        "股神",
+        "老巴",
+        "buffett"
+      ],
       "sector": "金融"
     },
     {
       "ticker": "JPM",
       "name_cn": "摩根大通",
-      "aliases": ["摩根大通"],
-      "ambiguous": ["小摩"],
+      "aliases": [
+        "摩根大通"
+      ],
+      "ambiguous": [
+        "小摩"
+      ],
       "sector": "金融"
     },
     {
       "ticker": "MS",
       "name_cn": "摩根士丹利",
-      "aliases": ["摩根士丹利"],
-      "ambiguous": ["大摩"],
+      "aliases": [
+        "摩根士丹利"
+      ],
+      "ambiguous": [
+        "大摩"
+      ],
       "sector": "金融"
     },
     {
       "ticker": "GS",
       "name_cn": "高盛",
-      "aliases": ["高盛"],
+      "aliases": [
+        "高盛"
+      ],
       "ambiguous": [],
       "sector": "金融"
     },
     {
       "ticker": "BAC",
       "name_cn": "美国银行",
-      "aliases": ["美银"],
-      "ambiguous": ["美国银行"],
+      "aliases": [
+        "美银"
+      ],
+      "ambiguous": [],
       "sector": "金融"
     },
     {
       "ticker": "WFC",
       "name_cn": "富国银行",
-      "aliases": ["富国银行"],
+      "aliases": [
+        "富国银行"
+      ],
       "ambiguous": [],
       "sector": "金融"
     },
     {
       "ticker": "C",
       "name_cn": "花旗",
-      "aliases": ["花旗"],
+      "aliases": [
+        "花旗"
+      ],
       "ambiguous": [],
       "sector": "金融"
     },
     {
       "ticker": "V",
       "name_cn": "Visa",
-      "aliases": ["维萨"],
-      "ambiguous": ["visa"],
+      "aliases": [
+        "维萨"
+      ],
+      "ambiguous": [
+        "visa"
+      ],
       "sector": "金融"
     },
     {
       "ticker": "MA",
       "name_cn": "万事达",
-      "aliases": ["万事达"],
+      "aliases": [
+        "万事达"
+      ],
       "ambiguous": [],
       "sector": "金融"
     },
     {
       "ticker": "AXP",
       "name_cn": "美国运通",
-      "aliases": ["美国运通", "运通"],
+      "aliases": [
+        "美国运通",
+        "运通"
+      ],
       "ambiguous": [],
       "sector": "金融"
     },
     {
       "ticker": "BLK",
       "name_cn": "贝莱德",
-      "aliases": ["贝莱德"],
+      "aliases": [
+        "贝莱德"
+      ],
       "ambiguous": [],
       "sector": "金融"
     },
     {
       "ticker": "SCHW",
       "name_cn": "嘉信理财",
-      "aliases": ["嘉信理财"],
-      "ambiguous": ["嘉信"],
+      "aliases": [
+        "嘉信理财"
+      ],
+      "ambiguous": [
+        "嘉信"
+      ],
       "sector": "金融"
     },
     {
       "ticker": "KO",
       "name_cn": "可口可乐",
-      "aliases": ["可口可乐"],
-      "ambiguous": ["可乐"],
+      "aliases": [
+        "可口可乐"
+      ],
+      "ambiguous": [
+        "可乐"
+      ],
       "sector": "消费"
     },
     {
       "ticker": "PEP",
       "name_cn": "百事",
-      "aliases": ["百事"],
+      "aliases": [
+        "百事"
+      ],
       "ambiguous": [],
       "sector": "消费"
     },
@@ -952,27 +1345,39 @@
       "ticker": "MCD",
       "name_cn": "麦当劳",
       "aliases": [],
-      "ambiguous": ["麦当劳", "金拱门"],
+      "ambiguous": [
+        "麦当劳",
+        "金拱门"
+      ],
       "sector": "消费"
     },
     {
       "ticker": "SBUX",
       "name_cn": "星巴克",
-      "aliases": ["starbucks"],
-      "ambiguous": ["星巴克"],
+      "aliases": [
+        "starbucks"
+      ],
+      "ambiguous": [
+        "星巴克"
+      ],
       "sector": "消费"
     },
     {
       "ticker": "NKE",
       "name_cn": "耐克",
       "aliases": [],
-      "ambiguous": ["耐克"],
+      "ambiguous": [
+        "耐克"
+      ],
       "sector": "消费"
     },
     {
       "ticker": "LULU",
       "name_cn": "Lululemon",
-      "aliases": ["lululemon", "露露柠檬"],
+      "aliases": [
+        "lululemon",
+        "露露柠檬"
+      ],
       "ambiguous": [],
       "sector": "消费"
     },
@@ -980,27 +1385,35 @@
       "ticker": "DIS",
       "name_cn": "迪士尼",
       "aliases": [],
-      "ambiguous": ["迪士尼"],
+      "ambiguous": [
+        "迪士尼"
+      ],
       "sector": "消费"
     },
     {
       "ticker": "BA",
       "name_cn": "波音",
-      "aliases": ["波音"],
+      "aliases": [
+        "波音"
+      ],
       "ambiguous": [],
       "sector": "工业军工"
     },
     {
       "ticker": "CAT",
       "name_cn": "卡特彼勒",
-      "aliases": ["卡特彼勒"],
+      "aliases": [
+        "卡特彼勒"
+      ],
       "ambiguous": [],
       "sector": "工业军工"
     },
     {
       "ticker": "GE",
       "name_cn": "通用电气",
-      "aliases": ["通用电气"],
+      "aliases": [
+        "通用电气"
+      ],
       "ambiguous": [],
       "sector": "工业军工"
     },
@@ -1008,34 +1421,52 @@
       "ticker": "MMM",
       "name_cn": "3M",
       "aliases": [],
-      "ambiguous": ["3m"],
+      "ambiguous": [
+        "3m"
+      ],
       "sector": "工业军工"
     },
     {
       "ticker": "LLY",
       "name_cn": "礼来",
-      "aliases": ["礼来"],
-      "ambiguous": ["替尔泊肽", "穆峰达"],
+      "aliases": [
+        "礼来",
+        "替尔泊肽"
+      ],
+      "ambiguous": [
+        "替尔泊肽",
+        "穆峰达"
+      ],
       "sector": "医药"
     },
     {
       "ticker": "NVO",
       "name_cn": "诺和诺德",
-      "aliases": ["诺和诺德"],
-      "ambiguous": ["司美格鲁肽", "诺和泰"],
+      "aliases": [
+        "诺和诺德",
+        "司美格鲁肽"
+      ],
+      "ambiguous": [
+        "司美格鲁肽",
+        "诺和泰"
+      ],
       "sector": "医药"
     },
     {
       "ticker": "PFE",
       "name_cn": "辉瑞",
-      "aliases": ["辉瑞"],
+      "aliases": [
+        "辉瑞"
+      ],
       "ambiguous": [],
       "sector": "医药"
     },
     {
       "ticker": "MRK",
       "name_cn": "默沙东",
-      "aliases": ["默沙东"],
+      "aliases": [
+        "默沙东"
+      ],
       "ambiguous": [],
       "sector": "医药"
     },
@@ -1043,41 +1474,54 @@
       "ticker": "JNJ",
       "name_cn": "强生",
       "aliases": [],
-      "ambiguous": ["强生"],
+      "ambiguous": [
+        "强生"
+      ],
       "sector": "医药"
     },
     {
       "ticker": "UNH",
       "name_cn": "联合健康",
-      "aliases": ["联合健康"],
+      "aliases": [
+        "联合健康"
+      ],
       "ambiguous": [],
       "sector": "医药"
     },
     {
       "ticker": "ABBV",
       "name_cn": "艾伯维",
-      "aliases": ["艾伯维"],
+      "aliases": [
+        "艾伯维"
+      ],
       "ambiguous": [],
       "sector": "医药"
     },
     {
       "ticker": "XOM",
       "name_cn": "埃克森美孚",
-      "aliases": ["埃克森美孚", "埃克森"],
+      "aliases": [
+        "埃克森美孚",
+        "埃克森"
+      ],
       "ambiguous": [],
       "sector": "能源电力"
     },
     {
       "ticker": "CVX",
       "name_cn": "雪佛龙",
-      "aliases": ["雪佛龙"],
+      "aliases": [
+        "雪佛龙"
+      ],
       "ambiguous": [],
       "sector": "能源电力"
     },
     {
       "ticker": "OXY",
       "name_cn": "西方石油",
-      "aliases": ["西方石油"],
+      "aliases": [
+        "西方石油"
+      ],
       "ambiguous": [],
       "sector": "能源电力"
     },
@@ -1085,48 +1529,64 @@
       "ticker": "WMT",
       "name_cn": "沃尔玛",
       "aliases": [],
-      "ambiguous": ["沃尔玛"],
+      "ambiguous": [
+        "沃尔玛"
+      ],
       "sector": "消费"
     },
     {
       "ticker": "COST",
       "name_cn": "开市客",
       "aliases": [],
-      "ambiguous": ["开市客", "好市多", "costco"],
+      "ambiguous": [
+        "开市客",
+        "好市多",
+        "costco"
+      ],
       "sector": "消费"
     },
     {
       "ticker": "TGT",
       "name_cn": "塔吉特",
       "aliases": [],
-      "ambiguous": ["塔吉特"],
+      "ambiguous": [
+        "塔吉特"
+      ],
       "sector": "消费"
     },
     {
       "ticker": "HD",
       "name_cn": "家得宝",
-      "aliases": ["家得宝"],
+      "aliases": [
+        "家得宝"
+      ],
       "ambiguous": [],
       "sector": "消费"
     },
     {
       "ticker": "LOW",
       "name_cn": "劳氏",
-      "aliases": ["劳氏"],
+      "aliases": [
+        "劳氏"
+      ],
       "ambiguous": [],
       "sector": "消费"
     },
     {
       "ticker": "F",
       "name_cn": "福特",
-      "aliases": ["福特"],
+      "aliases": [
+        "福特"
+      ],
       "ambiguous": [],
       "sector": "汽车"
     },
     {
       "ticker": "GM",
       "name_cn": "通用汽车",
-      "aliases": ["通用汽车"],
+      "aliases": [
+        "通用汽车"
+      ],
       "ambiguous": [],
       "sector": "汽车"
     },
@@ -1134,13 +1594,21 @@
       "ticker": "TM",
       "name_cn": "丰田",
       "aliases": [],
-      "ambiguous": ["丰田"],
+      "ambiguous": [
+        "丰田"
+      ],
       "sector": "汽车"
     },
     {
       "ticker": "SPY",
       "name_cn": "标普500 ETF",
-      "aliases": ["标普", "标普500", "标普指数", "标普500指数", "sp500"],
+      "aliases": [
+        "标普",
+        "标普500",
+        "标普指数",
+        "标普500指数",
+        "sp500"
+      ],
       "ambiguous": [],
       "sector": "ETF指数"
     },
@@ -1161,21 +1629,28 @@
     {
       "ticker": "TQQQ",
       "name_cn": "三倍做多纳指",
-      "aliases": ["三倍纳指", "三倍做多纳指"],
+      "aliases": [
+        "三倍纳指",
+        "三倍做多纳指"
+      ],
       "ambiguous": [],
       "sector": "ETF指数"
     },
     {
       "ticker": "SQQQ",
       "name_cn": "三倍做空纳指",
-      "aliases": ["三倍做空纳指"],
+      "aliases": [
+        "三倍做空纳指"
+      ],
       "ambiguous": [],
       "sector": "ETF指数"
     },
     {
       "ticker": "SOXL",
       "name_cn": "三倍做多半导体",
-      "aliases": ["三倍半导体"],
+      "aliases": [
+        "三倍半导体"
+      ],
       "ambiguous": [],
       "sector": "ETF指数"
     },
@@ -1217,7 +1692,9 @@
     {
       "ticker": "KWEB",
       "name_cn": "中概互联ETF",
-      "aliases": ["中概互联"],
+      "aliases": [
+        "中概互联"
+      ],
       "ambiguous": [],
       "sector": "ETF指数"
     },
@@ -1231,8 +1708,13 @@
     {
       "ticker": "ARKK",
       "name_cn": "方舟创新ETF",
-      "aliases": ["方舟基金", "木头姐"],
-      "ambiguous": ["cathie wood"],
+      "aliases": [
+        "方舟基金",
+        "木头姐"
+      ],
+      "ambiguous": [
+        "cathie wood"
+      ],
       "sector": "ETF指数"
     },
     {
@@ -1259,7 +1741,10 @@
     {
       "ticker": "IWM",
       "name_cn": "罗素2000 ETF",
-      "aliases": ["罗素2000", "罗素指数"],
+      "aliases": [
+        "罗素2000",
+        "罗素指数"
+      ],
       "ambiguous": [],
       "sector": "ETF指数"
     },
@@ -1274,14 +1759,18 @@
       "ticker": "GLD",
       "name_cn": "黄金ETF",
       "aliases": [],
-      "ambiguous": ["黄金etf"],
+      "ambiguous": [
+        "黄金etf"
+      ],
       "sector": "ETF指数"
     },
     {
       "ticker": "IBIT",
       "name_cn": "比特币ETF",
       "aliases": [],
-      "ambiguous": ["比特币etf"],
+      "ambiguous": [
+        "比特币etf"
+      ],
       "sector": "ETF指数"
     },
     {
@@ -1294,763 +1783,1045 @@
     {
       "ticker": "LRCX",
       "name_cn": "泛林",
-      "aliases": ["泛林", "lam research"],
+      "aliases": [
+        "泛林",
+        "lam research",
+        "拉姆研究"
+      ],
       "ambiguous": [],
       "sector": "半导体"
     },
     {
       "ticker": "AMAT",
       "name_cn": "应用材料",
-      "aliases": ["应用材料", "applied materials"],
+      "aliases": [
+        "应用材料",
+        "applied materials"
+      ],
       "ambiguous": [],
       "sector": "半导体"
     },
     {
       "ticker": "KLAC",
       "name_cn": "科天",
-      "aliases": ["科天", "kla"],
+      "aliases": [
+        "科天",
+        "kla",
+        "科磊"
+      ],
       "ambiguous": [],
       "sector": "半导体"
     },
     {
       "ticker": "MRVL",
       "name_cn": "迈威尔",
-      "aliases": ["迈威尔", "marvell"],
+      "aliases": [
+        "迈威尔",
+        "marvell",
+        "美满电子"
+      ],
       "ambiguous": [],
       "sector": "半导体"
     },
     {
       "ticker": "ADI",
       "name_cn": "亚德诺",
-      "aliases": ["亚德诺", "analog devices"],
+      "aliases": [
+        "亚德诺",
+        "analog devices"
+      ],
       "ambiguous": [],
       "sector": "半导体"
     },
     {
       "ticker": "NXPI",
       "name_cn": "恩智浦",
-      "aliases": ["恩智浦", "nxp"],
+      "aliases": [
+        "恩智浦",
+        "nxp"
+      ],
       "ambiguous": [],
       "sector": "半导体"
     },
     {
       "ticker": "MPWR",
       "name_cn": "芯源系统",
-      "aliases": ["monolithic power"],
+      "aliases": [
+        "monolithic power"
+      ],
       "ambiguous": [],
       "sector": "半导体"
     },
     {
       "ticker": "ALAB",
       "name_cn": "Astera Labs",
-      "aliases": ["astera"],
+      "aliases": [
+        "astera"
+      ],
       "ambiguous": [],
       "sector": "半导体"
     },
     {
       "ticker": "CRDO",
       "name_cn": "Credo",
-      "aliases": ["credo"],
+      "aliases": [
+        "credo"
+      ],
       "ambiguous": [],
       "sector": "半导体"
     },
     {
       "ticker": "TER",
       "name_cn": "泰瑞达",
-      "aliases": ["泰瑞达", "teradyne"],
+      "aliases": [
+        "泰瑞达",
+        "teradyne"
+      ],
       "ambiguous": [],
       "sector": "半导体"
     },
     {
       "ticker": "GFS",
       "name_cn": "格芯",
-      "aliases": ["格芯", "globalfoundries"],
+      "aliases": [
+        "格芯",
+        "globalfoundries"
+      ],
       "ambiguous": [],
       "sector": "半导体"
     },
     {
       "ticker": "WDC",
       "name_cn": "西部数据",
-      "aliases": ["西部数据", "western digital"],
-      "ambiguous": [],
+      "aliases": [
+        "西部数据",
+        "western digital"
+      ],
+      "ambiguous": [
+        "西数",
+        "威腾"
+      ],
       "sector": "半导体"
     },
     {
       "ticker": "STX",
       "name_cn": "希捷",
-      "aliases": ["希捷", "seagate"],
+      "aliases": [
+        "希捷",
+        "seagate"
+      ],
       "ambiguous": [],
       "sector": "半导体"
     },
     {
       "ticker": "INTU",
       "name_cn": "财捷",
-      "aliases": ["财捷", "intuit"],
+      "aliases": [
+        "财捷",
+        "intuit"
+      ],
       "ambiguous": [],
       "sector": "科技"
     },
     {
       "ticker": "ADSK",
       "name_cn": "欧特克",
-      "aliases": ["欧特克", "autodesk"],
+      "aliases": [
+        "欧特克",
+        "autodesk"
+      ],
       "ambiguous": [],
       "sector": "科技"
     },
     {
       "ticker": "WDAY",
       "name_cn": "Workday",
-      "aliases": ["workday"],
+      "aliases": [
+        "workday"
+      ],
       "ambiguous": [],
       "sector": "科技"
     },
     {
       "ticker": "MDB",
       "name_cn": "MongoDB",
-      "aliases": ["mongodb"],
+      "aliases": [
+        "mongodb"
+      ],
       "ambiguous": [],
       "sector": "科技"
     },
     {
       "ticker": "ZS",
       "name_cn": "Zscaler",
-      "aliases": ["zscaler"],
+      "aliases": [
+        "zscaler"
+      ],
       "ambiguous": [],
       "sector": "科技"
     },
     {
       "ticker": "OKTA",
       "name_cn": "Okta",
-      "aliases": ["okta"],
+      "aliases": [
+        "okta"
+      ],
       "ambiguous": [],
       "sector": "科技"
     },
     {
       "ticker": "TWLO",
       "name_cn": "Twilio",
-      "aliases": ["twilio"],
+      "aliases": [
+        "twilio"
+      ],
       "ambiguous": [],
       "sector": "科技"
     },
     {
       "ticker": "HUBS",
       "name_cn": "HubSpot",
-      "aliases": ["hubspot"],
+      "aliases": [
+        "hubspot"
+      ],
       "ambiguous": [],
       "sector": "科技"
     },
     {
       "ticker": "TTD",
       "name_cn": "Trade Desk",
-      "aliases": ["trade desk"],
+      "aliases": [
+        "trade desk"
+      ],
       "ambiguous": [],
       "sector": "科技"
     },
     {
       "ticker": "SNPS",
       "name_cn": "新思科技",
-      "aliases": ["新思", "synopsys"],
+      "aliases": [
+        "新思",
+        "synopsys"
+      ],
       "ambiguous": [],
       "sector": "半导体"
     },
     {
       "ticker": "CDNS",
       "name_cn": "楷登",
-      "aliases": ["楷登", "cadence"],
+      "aliases": [
+        "楷登",
+        "cadence"
+      ],
       "ambiguous": [],
       "sector": "半导体"
     },
     {
       "ticker": "PINS",
       "name_cn": "Pinterest",
-      "aliases": ["pinterest"],
+      "aliases": [
+        "pinterest"
+      ],
       "ambiguous": [],
       "sector": "科技"
     },
     {
       "ticker": "SNAP",
       "name_cn": "Snap",
-      "aliases": ["snapchat"],
+      "aliases": [
+        "snapchat"
+      ],
       "ambiguous": [],
       "sector": "科技"
     },
     {
       "ticker": "RDDT",
       "name_cn": "Reddit",
-      "aliases": ["reddit"],
+      "aliases": [
+        "reddit"
+      ],
       "ambiguous": [],
       "sector": "科技"
     },
     {
       "ticker": "ROKU",
       "name_cn": "Roku",
-      "aliases": ["roku"],
+      "aliases": [
+        "roku"
+      ],
       "ambiguous": [],
       "sector": "科技"
     },
     {
       "ticker": "EA",
       "name_cn": "艺电",
-      "aliases": ["艺电", "electronic arts"],
+      "aliases": [
+        "艺电",
+        "electronic arts"
+      ],
       "ambiguous": [],
       "sector": "科技"
     },
     {
       "ticker": "TTWO",
       "name_cn": "Take-Two",
-      "aliases": ["take-two", "2k"],
+      "aliases": [
+        "take-two",
+        "2k"
+      ],
       "ambiguous": [],
       "sector": "科技"
     },
     {
       "ticker": "DUOL",
       "name_cn": "多邻国",
-      "aliases": ["多邻国", "duolingo"],
+      "aliases": [
+        "多邻国",
+        "duolingo"
+      ],
       "ambiguous": [],
       "sector": "科技"
     },
     {
       "ticker": "U",
       "name_cn": "Unity",
-      "aliases": ["unity"],
+      "aliases": [
+        "unity"
+      ],
       "ambiguous": [],
       "sector": "科技"
     },
     {
       "ticker": "XYZ",
       "name_cn": "Block",
-      "aliases": ["block", "square"],
+      "aliases": [
+        "block",
+        "square"
+      ],
       "ambiguous": [],
       "sector": "金融"
     },
     {
       "ticker": "NU",
       "name_cn": "Nubank",
-      "aliases": ["nubank"],
+      "aliases": [
+        "nubank"
+      ],
       "ambiguous": [],
       "sector": "金融"
     },
     {
       "ticker": "UPST",
       "name_cn": "Upstart",
-      "aliases": ["upstart"],
+      "aliases": [
+        "upstart"
+      ],
       "ambiguous": [],
       "sector": "金融"
     },
     {
       "ticker": "TOST",
       "name_cn": "Toast",
-      "aliases": ["toast"],
+      "aliases": [
+        "toast"
+      ],
       "ambiguous": [],
       "sector": "金融"
     },
     {
       "ticker": "MRNA",
       "name_cn": "莫德纳",
-      "aliases": ["莫德纳", "moderna"],
+      "aliases": [
+        "莫德纳",
+        "moderna"
+      ],
       "ambiguous": [],
       "sector": "医药"
     },
     {
       "ticker": "AMGN",
       "name_cn": "安进",
-      "aliases": ["安进", "amgen"],
+      "aliases": [
+        "安进",
+        "amgen"
+      ],
       "ambiguous": [],
       "sector": "医药"
     },
     {
       "ticker": "GILD",
       "name_cn": "吉利德",
-      "aliases": ["吉利德", "gilead"],
+      "aliases": [
+        "吉利德",
+        "gilead"
+      ],
       "ambiguous": [],
       "sector": "医药"
     },
     {
       "ticker": "VRTX",
       "name_cn": "福泰",
-      "aliases": ["福泰", "vertex"],
+      "aliases": [
+        "福泰",
+        "vertex"
+      ],
       "ambiguous": [],
       "sector": "医药"
     },
     {
       "ticker": "REGN",
       "name_cn": "再生元",
-      "aliases": ["再生元", "regeneron"],
+      "aliases": [
+        "再生元",
+        "regeneron"
+      ],
       "ambiguous": [],
       "sector": "医药"
     },
     {
       "ticker": "ISRG",
       "name_cn": "直觉外科",
-      "aliases": ["直觉外科", "intuitive surgical"],
+      "aliases": [
+        "直觉外科",
+        "intuitive surgical"
+      ],
       "ambiguous": [],
       "sector": "医药"
     },
     {
       "ticker": "DXCM",
       "name_cn": "德康",
-      "aliases": ["dexcom"],
+      "aliases": [
+        "dexcom"
+      ],
       "ambiguous": [],
       "sector": "医药"
     },
     {
       "ticker": "CMG",
       "name_cn": "Chipotle",
-      "aliases": ["chipotle"],
+      "aliases": [
+        "chipotle"
+      ],
       "ambiguous": [],
       "sector": "消费"
     },
     {
       "ticker": "MNST",
       "name_cn": "怪物饮料",
-      "aliases": ["怪物饮料", "魔爪"],
+      "aliases": [
+        "怪物饮料",
+        "魔爪"
+      ],
       "ambiguous": [],
       "sector": "消费"
     },
     {
       "ticker": "CELH",
       "name_cn": "Celsius",
-      "aliases": ["celsius"],
+      "aliases": [
+        "celsius"
+      ],
       "ambiguous": [],
       "sector": "消费"
     },
     {
       "ticker": "ELF",
       "name_cn": "elf美妆",
-      "aliases": ["e.l.f."],
+      "aliases": [
+        "e.l.f."
+      ],
       "ambiguous": [],
       "sector": "消费"
     },
     {
       "ticker": "DECK",
       "name_cn": "Deckers",
-      "aliases": ["deckers", "ugg"],
+      "aliases": [
+        "deckers",
+        "ugg"
+      ],
       "ambiguous": [],
       "sector": "消费"
     },
     {
       "ticker": "ONON",
       "name_cn": "昂跑",
-      "aliases": ["昂跑", "on running"],
+      "aliases": [
+        "昂跑",
+        "on running"
+      ],
       "ambiguous": [],
       "sector": "消费"
     },
     {
       "ticker": "CROX",
       "name_cn": "卡骆驰",
-      "aliases": ["卡骆驰", "crocs"],
+      "aliases": [
+        "卡骆驰",
+        "crocs"
+      ],
       "ambiguous": [],
       "sector": "消费"
     },
     {
       "ticker": "PG",
       "name_cn": "宝洁",
-      "aliases": ["宝洁", "procter"],
+      "aliases": [
+        "宝洁",
+        "procter"
+      ],
       "ambiguous": [],
       "sector": "消费"
     },
     {
       "ticker": "MDLZ",
       "name_cn": "亿滋",
-      "aliases": ["亿滋", "mondelez"],
+      "aliases": [
+        "亿滋",
+        "mondelez"
+      ],
       "ambiguous": [],
       "sector": "消费"
     },
     {
       "ticker": "RTX",
       "name_cn": "雷神",
-      "aliases": ["雷神技术", "raytheon"],
+      "aliases": [
+        "雷神技术",
+        "raytheon"
+      ],
       "ambiguous": [],
       "sector": "工业军工"
     },
     {
       "ticker": "LMT",
       "name_cn": "洛克希德",
-      "aliases": ["洛克希德", "洛马", "lockheed"],
+      "aliases": [
+        "洛克希德",
+        "洛马",
+        "lockheed"
+      ],
       "ambiguous": [],
       "sector": "工业军工"
     },
     {
       "ticker": "NOC",
       "name_cn": "诺斯罗普",
-      "aliases": ["诺斯罗普", "northrop"],
+      "aliases": [
+        "诺斯罗普",
+        "northrop"
+      ],
       "ambiguous": [],
       "sector": "工业军工"
     },
     {
       "ticker": "GD",
       "name_cn": "通用动力",
-      "aliases": ["通用动力", "general dynamics"],
+      "aliases": [
+        "通用动力",
+        "general dynamics"
+      ],
       "ambiguous": [],
       "sector": "工业军工"
     },
     {
       "ticker": "HON",
       "name_cn": "霍尼韦尔",
-      "aliases": ["霍尼韦尔", "honeywell"],
+      "aliases": [
+        "霍尼韦尔",
+        "honeywell"
+      ],
       "ambiguous": [],
       "sector": "工业军工"
     },
     {
       "ticker": "DE",
       "name_cn": "迪尔",
-      "aliases": ["迪尔", "john deere"],
+      "aliases": [
+        "迪尔",
+        "john deere"
+      ],
       "ambiguous": [],
       "sector": "工业军工"
     },
     {
       "ticker": "UPS",
       "name_cn": "联合包裹",
-      "aliases": ["联合包裹", "ups快递"],
+      "aliases": [
+        "联合包裹",
+        "ups快递"
+      ],
       "ambiguous": [],
       "sector": "工业军工"
     },
     {
       "ticker": "FDX",
       "name_cn": "联邦快递",
-      "aliases": ["联邦快递", "fedex"],
+      "aliases": [
+        "联邦快递",
+        "fedex"
+      ],
       "ambiguous": [],
       "sector": "工业军工"
     },
     {
       "ticker": "KKR",
       "name_cn": "KKR",
-      "aliases": ["kkr"],
+      "aliases": [
+        "kkr"
+      ],
       "ambiguous": [],
       "sector": "金融"
     },
     {
       "ticker": "BX",
       "name_cn": "黑石",
-      "aliases": ["黑石集团", "blackstone"],
+      "aliases": [
+        "黑石集团",
+        "blackstone"
+      ],
       "ambiguous": [],
       "sector": "金融"
     },
     {
       "ticker": "PGR",
       "name_cn": "前进保险",
-      "aliases": ["progressive"],
+      "aliases": [
+        "progressive"
+      ],
       "ambiguous": [],
       "sector": "金融"
     },
     {
       "ticker": "BKNG",
       "name_cn": "Booking",
-      "aliases": ["booking"],
+      "aliases": [
+        "booking"
+      ],
       "ambiguous": [],
       "sector": "旅游航空"
     },
     {
       "ticker": "MAR",
       "name_cn": "万豪",
-      "aliases": ["万豪", "marriott"],
+      "aliases": [
+        "万豪",
+        "marriott"
+      ],
       "ambiguous": [],
       "sector": "旅游航空"
     },
     {
       "ticker": "HLT",
       "name_cn": "希尔顿",
-      "aliases": ["希尔顿", "hilton"],
+      "aliases": [
+        "希尔顿",
+        "hilton"
+      ],
       "ambiguous": [],
       "sector": "旅游航空"
     },
     {
       "ticker": "RCL",
       "name_cn": "皇家加勒比",
-      "aliases": ["皇家加勒比", "royal caribbean"],
+      "aliases": [
+        "皇家加勒比",
+        "royal caribbean"
+      ],
       "ambiguous": [],
       "sector": "旅游航空"
     },
     {
       "ticker": "CCL",
       "name_cn": "嘉年华邮轮",
-      "aliases": ["嘉年华邮轮", "carnival"],
+      "aliases": [
+        "嘉年华邮轮",
+        "carnival"
+      ],
       "ambiguous": [],
       "sector": "旅游航空"
     },
     {
       "ticker": "DAL",
       "name_cn": "达美航空",
-      "aliases": ["达美航空", "delta航空"],
+      "aliases": [
+        "达美航空",
+        "delta航空"
+      ],
       "ambiguous": [],
       "sector": "旅游航空"
     },
     {
       "ticker": "UAL",
       "name_cn": "美联航",
-      "aliases": ["美联航", "united airlines"],
+      "aliases": [
+        "美联航",
+        "united airlines"
+      ],
       "ambiguous": [],
       "sector": "旅游航空"
     },
     {
       "ticker": "VST",
       "name_cn": "Vistra",
-      "aliases": ["vistra"],
+      "aliases": [
+        "vistra"
+      ],
       "ambiguous": [],
       "sector": "能源电力"
     },
     {
       "ticker": "CEG",
       "name_cn": "星座能源",
-      "aliases": ["星座能源", "constellation energy"],
+      "aliases": [
+        "星座能源",
+        "constellation energy"
+      ],
       "ambiguous": [],
       "sector": "能源电力"
     },
     {
       "ticker": "TLN",
       "name_cn": "Talen",
-      "aliases": ["talen"],
+      "aliases": [
+        "talen"
+      ],
       "ambiguous": [],
       "sector": "能源电力"
     },
     {
       "ticker": "NRG",
       "name_cn": "NRG能源",
-      "aliases": ["nrg energy"],
+      "aliases": [
+        "nrg energy"
+      ],
       "ambiguous": [],
       "sector": "能源电力"
     },
     {
       "ticker": "GEV",
       "name_cn": "GE Vernova",
-      "aliases": ["ge vernova", "vernova"],
+      "aliases": [
+        "ge vernova",
+        "vernova"
+      ],
       "ambiguous": [],
       "sector": "能源电力"
     },
     {
       "ticker": "FSLR",
       "name_cn": "第一太阳能",
-      "aliases": ["第一太阳能", "first solar"],
+      "aliases": [
+        "第一太阳能",
+        "first solar"
+      ],
       "ambiguous": [],
       "sector": "能源电力"
     },
     {
       "ticker": "ENPH",
       "name_cn": "Enphase",
-      "aliases": ["enphase"],
+      "aliases": [
+        "enphase"
+      ],
       "ambiguous": [],
       "sector": "能源电力"
     },
     {
       "ticker": "CLSK",
       "name_cn": "CleanSpark",
-      "aliases": ["cleanspark"],
+      "aliases": [
+        "cleanspark"
+      ],
       "ambiguous": [],
       "sector": "加密"
     },
     {
       "ticker": "HUT",
       "name_cn": "Hut 8",
-      "aliases": ["hut 8"],
+      "aliases": [
+        "hut 8"
+      ],
       "ambiguous": [],
       "sector": "加密"
     },
     {
       "ticker": "BITF",
       "name_cn": "Bitfarms",
-      "aliases": ["bitfarms"],
+      "aliases": [
+        "bitfarms"
+      ],
       "ambiguous": [],
       "sector": "加密"
     },
     {
       "ticker": "QBTS",
       "name_cn": "D-Wave",
-      "aliases": ["d-wave", "dwave"],
+      "aliases": [
+        "d-wave",
+        "dwave"
+      ],
       "ambiguous": [],
       "sector": "科技"
     },
     {
       "ticker": "QUBT",
       "name_cn": "量子计算公司",
-      "aliases": ["quantum computing inc"],
+      "aliases": [
+        "quantum computing inc"
+      ],
       "ambiguous": [],
       "sector": "科技"
     },
     {
       "ticker": "LUNR",
       "name_cn": "Intuitive Machines",
-      "aliases": ["intuitive machines"],
+      "aliases": [
+        "intuitive machines"
+      ],
       "ambiguous": [],
       "sector": "工业军工"
     },
     {
       "ticker": "ASTS",
       "name_cn": "AST SpaceMobile",
-      "aliases": ["ast spacemobile"],
+      "aliases": [
+        "ast spacemobile"
+      ],
       "ambiguous": [],
       "sector": "工业军工"
     },
     {
       "ticker": "ATAT",
       "name_cn": "亚朵",
-      "aliases": ["亚朵"],
+      "aliases": [
+        "亚朵"
+      ],
       "ambiguous": [],
       "sector": "中概"
     },
     {
       "ticker": "ZTO",
       "name_cn": "中通快递",
-      "aliases": ["中通快递"],
+      "aliases": [
+        "中通快递"
+      ],
       "ambiguous": [],
       "sector": "中概"
     },
     {
       "ticker": "VIPS",
       "name_cn": "唯品会",
-      "aliases": ["唯品会"],
+      "aliases": [
+        "唯品会"
+      ],
       "ambiguous": [],
       "sector": "中概"
     },
     {
       "ticker": "HTHT",
       "name_cn": "华住",
-      "aliases": ["华住"],
+      "aliases": [
+        "华住"
+      ],
       "ambiguous": [],
       "sector": "中概"
     },
     {
       "ticker": "QFIN",
       "name_cn": "奇富科技",
-      "aliases": ["奇富"],
+      "aliases": [
+        "奇富"
+      ],
       "ambiguous": [],
       "sector": "中概"
     },
     {
       "ticker": "DIA",
       "name_cn": "道指ETF",
-      "aliases": ["道指etf", "道指", "道琼斯", "道琼斯指数"],
+      "aliases": [
+        "道指etf",
+        "道指",
+        "道琼斯",
+        "道琼斯指数"
+      ],
       "ambiguous": [],
       "sector": "ETF指数"
     },
     {
       "ticker": "SOXX",
       "name_cn": "半导体ETF",
-      "aliases": ["soxx", "费城半导体", "费半"],
+      "aliases": [
+        "soxx",
+        "费城半导体",
+        "费半"
+      ],
       "ambiguous": [],
       "sector": "ETF指数"
     },
     {
       "ticker": "XLK",
       "name_cn": "科技ETF",
-      "aliases": ["xlk"],
+      "aliases": [
+        "xlk"
+      ],
       "ambiguous": [],
       "sector": "ETF指数"
     },
     {
       "ticker": "XLF",
       "name_cn": "金融ETF",
-      "aliases": ["xlf"],
+      "aliases": [
+        "xlf"
+      ],
       "ambiguous": [],
       "sector": "ETF指数"
     },
     {
       "ticker": "XLE",
       "name_cn": "能源ETF",
-      "aliases": ["xle"],
+      "aliases": [
+        "xle"
+      ],
       "ambiguous": [],
       "sector": "ETF指数"
     },
     {
       "ticker": "XLV",
       "name_cn": "医疗ETF",
-      "aliases": ["xlv"],
+      "aliases": [
+        "xlv"
+      ],
       "ambiguous": [],
       "sector": "ETF指数"
     },
     {
       "ticker": "SLV",
       "name_cn": "白银ETF",
-      "aliases": ["白银etf"],
+      "aliases": [
+        "白银etf"
+      ],
       "ambiguous": [],
       "sector": "ETF指数"
     },
     {
       "ticker": "JEPI",
       "name_cn": "JEPI",
-      "aliases": ["jepi"],
+      "aliases": [
+        "jepi"
+      ],
       "ambiguous": [],
       "sector": "ETF指数"
     },
     {
       "ticker": "JEPQ",
       "name_cn": "JEPQ",
-      "aliases": ["jepq"],
+      "aliases": [
+        "jepq"
+      ],
       "ambiguous": [],
       "sector": "ETF指数"
     },
     {
       "ticker": "SCHD",
       "name_cn": "SCHD",
-      "aliases": ["schd"],
+      "aliases": [
+        "schd"
+      ],
       "ambiguous": [],
       "sector": "ETF指数"
     },
     {
       "ticker": "VXX",
       "name_cn": "波动率ETF",
-      "aliases": ["vxx"],
+      "aliases": [
+        "vxx"
+      ],
       "ambiguous": [],
       "sector": "ETF指数"
     },
     {
       "ticker": "MSTU",
       "name_cn": "MSTU",
-      "aliases": ["mstu"],
+      "aliases": [
+        "mstu"
+      ],
       "ambiguous": [],
       "sector": "ETF指数"
     },
     {
       "ticker": "NVDY",
       "name_cn": "NVDY",
-      "aliases": ["nvdy"],
+      "aliases": [
+        "nvdy"
+      ],
       "ambiguous": [],
       "sector": "ETF指数"
     },
     {
       "ticker": "TSLY",
       "name_cn": "TSLY",
-      "aliases": ["tsly"],
+      "aliases": [
+        "tsly"
+      ],
       "ambiguous": [],
       "sector": "ETF指数"
     },
     {
       "ticker": "SNDK",
       "name_cn": "闪迪",
-      "aliases": ["闪迪", "sandisk"],
+      "aliases": [
+        "闪迪",
+        "sandisk",
+        "晟碟"
+      ],
       "ambiguous": [],
       "sector": "半导体"
     },
     {
       "ticker": "TEM",
       "name_cn": "Tempus AI",
-      "aliases": ["tempus"],
+      "aliases": [
+        "tempus"
+      ],
       "ambiguous": [],
       "sector": "医药"
     },
     {
       "ticker": "VEEV",
       "name_cn": "Veeva",
-      "aliases": ["veeva"],
+      "aliases": [
+        "veeva"
+      ],
       "ambiguous": [],
       "sector": "医药"
     },
     {
       "ticker": "CVS",
       "name_cn": "CVS健康",
-      "aliases": ["cvs健康"],
+      "aliases": [
+        "cvs健康"
+      ],
       "ambiguous": [],
       "sector": "医药"
     },
     {
       "ticker": "CRNX",
       "name_cn": "Crinetics",
-      "aliases": ["crinetics"],
+      "aliases": [
+        "crinetics"
+      ],
       "ambiguous": [],
       "sector": "医药"
     },
     {
       "ticker": "XBI",
       "name_cn": "生物科技ETF",
-      "aliases": ["xbi", "生物科技etf"],
+      "aliases": [
+        "xbi",
+        "生物科技etf"
+      ],
       "ambiguous": [],
       "sector": "ETF指数"
     }
