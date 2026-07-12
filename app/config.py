@@ -22,9 +22,18 @@ class Settings(BaseSettings):
     CRAWL_TIMEOUT_MIN: int = 30
     ENABLE_SUB_COMMENTS: bool = False
     ENABLE_CDP_MODE: bool = True
-    # Paste a logged-in browser's XHS cookie string to crawl with that session instead
-    # of a QR-login one. XHS risk-control often permits the search API only for sessions
-    # that look organically browsed; a fresh QR session gets 您当前登录的账号没有权限访问.
+    # Accounts registered on rednote.com (the international app) are not valid against
+    # mainland xiaohongshu.com: the API host and cookie domain differ, and the search API
+    # answers 您当前登录的账号没有权限访问. Switches to webapi.rednote.com / .rednote.com.
+    XHS_INTERNATIONAL: bool = False
+    # MediaCrawler hardcodes a macOS Chrome 126 UA, which mismatches the real client on a
+    # Windows box (XHS logs the session as an "unknown" device) — send a truthful one.
+    BROWSER_USER_AGENT: str = (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+        "(KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36"
+    )
+    # Paste a logged-in browser's cookie string to crawl with that session instead of a
+    # QR-login one. Must come from the same site the account lives on (see XHS_INTERNATIONAL).
     XHS_COOKIES: str = ""
 
     FRESH_WINDOW_HOURS: int = 24

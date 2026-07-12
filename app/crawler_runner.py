@@ -32,13 +32,16 @@ CODE_PATCHES = [
 LOGIN_HINTS = ["扫码", "二维码", "请扫码", "未登录", "登录已过期", "login expired", "login failed"]
 
 
+def _bool(v) -> str:
+    return "True" if v else "False"
+
+
 def patch_config(mc_dir: Path, settings=None) -> None:
     if settings is None:
         from .config import settings
-    # XHS risk-control blocks the search API for Playwright's stock Chromium
-    # fingerprint even after a successful login; a real Chrome/Edge binary passes
     patches = PATCHES + [
-        ("config/base_config.py", "ENABLE_CDP_MODE", "True" if settings.ENABLE_CDP_MODE else "False"),
+        ("config/base_config.py", "ENABLE_CDP_MODE", _bool(settings.ENABLE_CDP_MODE)),
+        ("config/base_config.py", "XHS_INTERNATIONAL", _bool(settings.XHS_INTERNATIONAL)),
     ]
     for rel, var, value in patches:
         path = mc_dir / rel
@@ -69,6 +72,26 @@ def patch_config(mc_dir: Path, settings=None) -> None:
             )
         path.write_text(text.replace(anchor, replacement, 1), encoding="utf-8")
         log.info("patched %s: extended page timeouts to 120s", rel)
+    _patch_user_agent(mc_dir, settings.BROWSER_USER_AGENT)
+
+
+# Regex rather than an anchor swap so re-running with a different UA re-patches cleanly.
+# Only matches the hardcoded string assignment, not the commented-out get_user_agent() line.
+UA_RE = re.compile(r'^(\s*self\.user_agent\s*=\s*)".*"$', re.MULTILINE)
+
+
+def _patch_user_agent(mc_dir: Path, user_agent: str) -> None:
+    path = mc_dir / "media_platform/xhs/core.py"
+    text = path.read_text(encoding="utf-8")
+    if not UA_RE.search(text):
+        raise RuntimeError(
+            "MediaCrawler xhs core.py no longer assigns a literal self.user_agent — "
+            "upstream layout changed; update _patch_user_agent or re-pin the vendor commit"
+        )
+    new_text = UA_RE.sub(lambda m: f'{m.group(1)}"{user_agent}"', text, count=1)
+    if new_text != text:
+        path.write_text(new_text, encoding="utf-8")
+        log.info("patched xhs core.py: user_agent = %s", user_agent)
 
 
 def run_crawl(keywords: list[str], run_dir: Path, settings) -> dict:

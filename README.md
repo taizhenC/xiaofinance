@@ -44,11 +44,12 @@ Freshness gate #2: every API query re-filters to the trailing 24h window, so ite
 ## Notes & troubleshooting
 
 - **Login expired**: red banner appears → run `scripts\login_xhs.ps1` again.
-- **Login works but every search fails** with `您当前登录的账号没有权限访问` (see `data\raw\run_*\crawler.log`): XHS risk-control is refusing the *session*, not the login. First check whether the same account can search on xiaohongshu.com in your normal browser:
-  - **It can** → the QR-minted session is the problem, not the account. Copy that browser's cookie string into `XHS_COOKIES` in `.env` (see `.env.example` for how) so the crawler reuses the session XHS already trusts. Verify with `scripts\smoke_crawl.ps1`.
-  - **It can't** → the account itself is gated (common for new/unverified accounts and overseas IPs). Verify the phone number, use the account normally for a few days, and stop retrying — repeated failed logins raise the risk score.
+- **Login works but every search fails** with `您当前登录的账号没有权限访问` (see `data\raw\run_*\crawler.log`). In order:
+  1. **Is your account on rednote.com?** The international app is a *separate backend* from mainland xiaohongshu.com — different API host, different cookie domain — so a RedNote account is genuinely unauthorized against xiaohongshu.com. Set `XHS_INTERNATIONAL=true` in `.env`. This is the most common cause of the error for overseas users.
+  2. **Does the same account search fine in your normal browser?** If yes, the account is healthy and it's the QR-minted session being refused: paste that browser's cookie string into `XHS_COOKIES` (see `.env.example`) to reuse a session the platform already trusts. If no, the account itself is gated — verify the phone number, use it normally for a few days, and stop retrying, since repeated failed logins raise the risk score.
 
-  Note that switching browsers does *not* address this: the crawler signs and sends API calls over httpx, so `ENABLE_CDP_MODE` only changes how login and rendering happen, never how the search request looks to XHS.
+  Test any change cheaply with `scripts\smoke_crawl.ps1` (3 notes, one keyword) instead of a full cycle. Note that `ENABLE_CDP_MODE` is *not* a lever here: API calls go out over httpx, so the browser choice only affects login and rendering, never how the search request looks.
+- **"Unknown device" in your XHS login history**: MediaCrawler hardcodes a macOS user-agent. `BROWSER_USER_AGENT` overrides it (defaults to a Windows Chrome UA) so the session doesn't contradict the machine it runs on.
 - **Trend badges** (🔥 新上榜 / ↑ 升温 / ↓ 降温) compare popularity against the previous fetch cycle, so they appear once two cycles of history exist. Amber/gray on purpose — green/red are reserved for sentiment.
 - **Price reality check**: daily closes from Yahoo Finance's public chart API (free, no key, delayed). The 🔀 badge flags sentiment/price divergence (e.g. crowd bullish while the stock fell ≥2%). This is the app's only non-XHS external request; set `ENABLE_PRICE_QUOTES=false` to stay fully offline.
 - **Tracked tickers** always render (targeted search: ticker symbol + finance-qualified keywords). Sub-floor tickers appear in the "On the radar" strip.
