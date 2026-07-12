@@ -106,7 +106,7 @@ def _patch_user_agent(mc_dir: Path, user_agent: str) -> None:
         log.info("patched xhs core.py: user_agent = %s", user_agent)
 
 
-def run_crawl(keywords: list[str], run_dir: Path, settings) -> dict:
+def run_crawl(keywords: list[str], run_dir: Path, settings, get_comments: bool = True) -> dict:
     mc_dir = Path(settings.MEDIACRAWLER_DIR)
     patch_config(mc_dir, settings)
     run_dir.mkdir(parents=True, exist_ok=True)
@@ -121,8 +121,8 @@ def run_crawl(keywords: list[str], run_dir: Path, settings) -> dict:
         "--keywords", ",".join(keywords),
         "--save_data_option", "jsonl",
         "--save_data_path", str(run_dir),
-        "--get_comment", "yes",
-        "--get_sub_comment", "yes" if settings.ENABLE_SUB_COMMENTS else "no",
+        "--get_comment", "yes" if get_comments else "no",
+        "--get_sub_comment", "yes" if get_comments and settings.ENABLE_SUB_COMMENTS else "no",
         "--crawler_max_notes_count", str(settings.MAX_NOTES_PER_KEYWORD),
         "--max_comments_count_singlenotes", str(settings.MAX_COMMENTS_PER_NOTE),
         "--start", "1", "--headless", "no", "--max_concurrency_num", "1",
