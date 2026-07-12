@@ -266,6 +266,44 @@ talks about.
   profile and Chromium allows one owner, so a running crawl makes `login_xhs.ps1` and
   "Fetch now" fail with `exit code 1`.
 
+## v1.4 evidence quality and crawl visibility (implemented 2026-07-11)
+
+Driven by reading the rendered cards: the heat numbers were right and the *evidence* under
+them was not.
+
+- **Noise floor** (`util.substance`): an XHS image post whose desc is nothing but #话题#
+  tags reduces to its title, and titles like "Is That True？" say nothing — yet it was
+  reaching the model as input and, keyless, being printed as what the crowd thinks about
+  美光. Same for "@问一问 …" (a question put to XHS's own AI bot) and one-word reactions
+  ("有"). substance() measures what survives hashtags, @handles, emoji tags and URLs,
+  counting CJK double because 一个汉字 carries about what an English word does — without
+  that, "Is That True？" and "海力士暴涨13%，美股创新高！" look equally informative.
+  Three bars, because they are different questions: enough prose to read at all, more than
+  a bare agreement, and enough to stand alone as a quote. "我咋感觉股价到头了" clears the
+  second and not the third — a bearish datum to count, not a verdict to display.
+  **Mentions are untouched**: someone did post about the ticker, the post just carries no
+  evidence. Heat stays honest; the evidence gets filtered.
+- **Structural vs semantic noise.** The filter only removes text nothing could read. Posts
+  that mention a ticker as a *figure of speech* ("让我们一起找到下一个英伟达") or as celebrity
+  gossip (巴菲特 photo posts) still need reading comprehension to reject — that is step 1 of
+  the DeepSeek prompt (`irrelevant_item_count`), and it is exactly what the keyless cards
+  cannot do. Not a bug to fix in code.
+- **`--force`**: the analysis cache is keyed on *which* items came in, so changing how they
+  are ranked, quoted or prompted was invisible until new data arrived.
+- **Risk control is the top operational problem.** 4 of the last 6 runs died to it. XHS
+  answers a flagged account with a CAPTCHA (461, Verifytype 216) and tenacity retries each
+  walled request — run 13 fired 192 times at an endpoint that had already refused it, which
+  can only deepen the flag. Now: CRAWL_SLEEP_SEC=8 (was 3; verified real — applied after
+  every note detail and comment fetch, not per page, unlike MAX_NOTES_PER_KEYWORD which was
+  a no-op), and abort after CAPTCHA_ABORT_COUNT=10 keeping what was already fetched.
+  If crawls keep getting walled, the next levers are dropping comments from discovery runs
+  (halves the API calls; 62% of comment fetches are on notes that name no stock) or resting
+  the account.
+- **Diagnosability**: `failure_reason()` reads the log instead of reporting "exit code 1",
+  which MediaCrawler returns for rate-limiting, network failure and bugs alike.
+  `crawl_progress()` reads the JSONL rows and per-keyword log line the crawler already
+  writes, so a 60-minute crawl no longer looks identical to a hung one.
+
 ## Deliberately deferred (v2 candidates)
 
 - **Organic hidden-gem discovery**: discovery ranks what's loud by design; the tracked list + radar strip are the levers for quiet names. No embedding/cluster mining in v1.
