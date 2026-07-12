@@ -99,7 +99,8 @@ def _with_progress(row) -> dict:
     r = dict(row)
     if r.get("status") == "running" and r.get("raw_dir"):
         r["progress"] = crawler_runner.crawl_progress(
-            Path(r["raw_dir"]), [k for k in (r.get("keywords") or "").split(",") if k]
+            Path(r["raw_dir"]), [k for k in (r.get("keywords") or "").split(",") if k],
+            settings.MAX_NOTES_PER_KEYWORD,
         )
     return r
 

@@ -33,17 +33,59 @@ async function api(path, opts) {
 }
 
 /* ---------- status + polling ---------- */
+const PHASE_CN = {
+  search: "搜索帖子", note_details: "抓帖子详情", comments: "抓评论",
+  login: "等待登录", starting: "启动中",
+};
+
+// The crawl throttles itself to one request per 8s on purpose (account risk), so raw
+// counts move slowly and a keyword's note count freezes entirely while its comments
+// fetch. Estimate within-keyword progress as 35% notes + 65% comment coverage, and show
+// a heartbeat off the log file so "slow by design" stays distinguishable from "hung".
+function crawlFraction(p) {
+  const total = p.keyword_total || 1;
+  const kIdx = p.keyword_index || 0;
+  if (!kIdx) return 0;
+  const cur = (p.per_keyword || [])[kIdx - 1];
+  const notes = cur ? cur.notes : 0;
+  const noteFrac = Math.min(1, notes / (p.target_per_keyword || 20));
+  const cmtFrac = notes ? Math.min(1, (p.kw_comment_notes_done || 0) / notes) : 0;
+  return Math.min(1, (kIdx - 1 + 0.35 * noteFrac + 0.65 * cmtFrac) / total);
+}
+function renderCrawlProgress(s, p) {
+  const kIdx = p.keyword_index || 0;
+  const pct = Math.round(crawlFraction(p) * 100);
+  const mins = s.last_run.started_at_ms ? Math.round((s.now_ms - s.last_run.started_at_ms) / 60000) : null;
+  const kw = p.keyword ? ` · ${kIdx || "?"}/${p.keyword_total}「${esc(p.keyword)}」` : "";
+  const phase = PHASE_CN[p.phase] ? ` · ${PHASE_CN[p.phase]}` : "";
+  const idle = p.last_activity_ms != null ? Math.max(0, s.now_ms - p.last_activity_ms) : null;
+  const heart = idle == null ? ""
+    : idle > 90000 ? ` · <b class="warn">无活动 ${Math.round(idle / 60000)}分钟</b>`
+    : ` · <span class="pulse-dot"></span>${idle < 8000 ? "刚刚" : Math.round(idle / 1000) + "秒前"}`;
+  const risk = p.captchas ? ` · <b class="warn">⚠ 风控验证码×${p.captchas}</b>` : "";
+  $("#lastFetch").innerHTML =
+    `抓取中 ${pct}%${mins != null ? `（已${mins}分）` : ""} · ${p.notes}帖/${p.comments}评${kw}${phase}${heart}${risk}`;
+
+  const bar = $("#crawlBar");
+  bar.hidden = false;
+  bar.innerHTML = (p.per_keyword || []).map((k, i) => {
+    const n = i + 1;
+    const fill = kIdx && n < kIdx ? 100
+      : n === kIdx ? Math.round((0.35 * Math.min(1, k.notes / (p.target_per_keyword || 20))
+        + 0.65 * (k.notes ? Math.min(1, (p.kw_comment_notes_done || 0) / k.notes) : 0)) * 100)
+      : 0;
+    return `<span class="crawl-seg${n === kIdx ? " active" : ""}" title="${esc(k.keyword)}: ${k.notes}帖/${k.comments}评"><i style="width:${fill}%"></i></span>`;
+  }).join("");
+}
+
 async function loadStatus() {
   const { data: s } = await api("/api/status");
   $("#windowBadge").textContent = `window: last ${s.window_hours}h`;
   const p = s.running && s.last_run ? s.last_run.progress : null;
   if (p) {
-    // A discovery cycle takes ~5 min per keyword; without this the whole half hour looks
-    // the same as a hang.
-    const kw = p.keyword ? ` · 关键词 ${p.keyword_index || "?"}/${p.keyword_total}「${p.keyword}」` : "";
-    const risk = p.captchas ? ` · ⚠ 风控验证码 ×${p.captchas}` : "";
-    $("#lastFetch").textContent = `抓取中: ${p.notes}帖/${p.comments}评${kw}${risk}`;
+    renderCrawlProgress(s, p);
   } else {
+    $("#crawlBar").hidden = true;
     $("#lastFetch").textContent = s.last_run
       ? `last fetch: ${localTime(s.last_run.finished_at_ms || s.last_run.started_at_ms)} (${s.last_run.status})`
       : "last fetch: never";
@@ -439,9 +481,11 @@ async function loadScoreboard() {
 function progressNote(p) {
   const bits = [];
   if (p.keyword) bits.push(`关键词 ${p.keyword_index || "?"}/${p.keyword_total}「${esc(p.keyword)}」`);
+  if (PHASE_CN[p.phase]) bits.push(PHASE_CN[p.phase]);
   // A crawl that is being CAPTCHA'd still returns rows, just slower and slower — say so
   // while it happens instead of only in the post-mortem error column.
   if (p.captchas) bits.push(`<b class="warn">⚠ 风控验证码 ×${p.captchas}</b>`);
+  if (p.last_error) bits.push(`<span class="muted" title="${esc(p.last_error)}">${esc(p.last_error.slice(0, 60))}…</span>`);
   return bits.join(" · ");
 }
 

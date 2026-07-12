@@ -84,3 +84,50 @@ def test_progress_reads_the_crawler_own_artifacts(tmp_path):
 def test_progress_survives_a_run_that_has_not_written_anything_yet(tmp_path):
     p = crawl_progress(tmp_path, ["美股"])
     assert p["notes"] == 0 and p["keyword"] is None and p["keyword_index"] is None
+    assert p["phase"] == "starting" and p["last_activity_ms"] is None
+    assert [k["notes"] for k in p["per_keyword"]] == [0]
+
+
+def test_progress_attributes_counts_to_keywords_and_names_the_phase(tmp_path):
+    """Totals alone can't say where a 30-minute crawl is; the keyword segments can."""
+    jsonl = tmp_path / "xhs" / "jsonl"
+    jsonl.mkdir(parents=True)
+    (jsonl / "search_contents_2026-07-12.jsonl").write_text(
+        '{"note_id": "n1", "source_keyword": "美股"}\n'
+        '{"note_id": "n2", "source_keyword": "美股"}\n'
+        '{"note_id": "n3", "source_keyword": "美股财报"}\n',
+        encoding="utf-8",
+    )
+    # comments carry no keyword of their own — they must inherit the note's
+    (jsonl / "search_comments_2026-07-12.jsonl").write_text(
+        '{"comment_id": "c1", "note_id": "n1"}\n'
+        '{"comment_id": "c2", "note_id": "n1"}\n'
+        '{"comment_id": "c3", "note_id": "n3"}\n',
+        encoding="utf-8",
+    )
+    (tmp_path / "crawler.log").write_text(
+        "x INFO (core.py:140) - [XiaoHongShuCrawler.search] Current search keyword: 美股\n"
+        "x INFO (__init__.py:130) - [store.xhs.update_xhs_note] xhs note: {}\n"
+        "x INFO (core.py:140) - [XiaoHongShuCrawler.search] Current search keyword: 美股财报\n"
+        "x INFO (core.py:348) - [XiaoHongShuCrawler.get_comments] Begin get note id comments n3\n",
+        encoding="utf-8",
+    )
+    p = crawl_progress(tmp_path, ["美股", "美股财报", "中概股"])
+    per = {k["keyword"]: k for k in p["per_keyword"]}
+    assert per["美股"]["notes"] == 2 and per["美股"]["comments"] == 2
+    assert per["美股财报"]["notes"] == 1 and per["美股财报"]["comments"] == 1
+    assert per["中概股"]["notes"] == 0 and per["中概股"]["comments"] == 0
+    assert p["phase"] == "comments"
+    assert p["kw_comment_notes_done"] == 1  # one note of the current keyword reached comments
+    assert p["last_activity_ms"] is not None
+
+
+def test_progress_surfaces_the_last_error_line(tmp_path):
+    (tmp_path / "crawler.log").write_text(
+        "2026-07-12 01:00:00 MediaCrawler ERROR (client.py:140) - first error\n"
+        "2026-07-12 01:05:00 MediaCrawler INFO (core.py:1) - fine\n"
+        "2026-07-12 01:10:00 MediaCrawler ERROR (core.py:355) - comments failed for note n9, skipping: KeyError\n",
+        encoding="utf-8",
+    )
+    p = crawl_progress(tmp_path, ["美股"])
+    assert p["last_error"].startswith("comments failed for note n9")

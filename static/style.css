@@ -36,6 +36,21 @@ code { font-family: var(--mono); background: var(--panel-2); padding: 1px 5px; b
 .brand { display: flex; align-items: center; gap: 10px; }
 .topbar-status { display: flex; align-items: center; gap: 14px; font-size: 12px; }
 
+.fetch-status { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
+.crawl-bar { display: flex; gap: 3px; width: 260px; height: 6px; }
+.crawl-seg {
+  flex: 1; background: var(--panel-2); border: 1px solid var(--border);
+  border-radius: 3px; overflow: hidden;
+}
+.crawl-seg i { display: block; height: 100%; background: var(--accent); }
+.crawl-seg.active i { animation: crawl-pulse 1.6s ease-in-out infinite; }
+@keyframes crawl-pulse { 50% { opacity: .45; } }
+.pulse-dot {
+  display: inline-block; width: 7px; height: 7px; border-radius: 50%;
+  background: var(--bull); margin-right: 3px; vertical-align: 0;
+  animation: crawl-pulse 1.6s ease-in-out infinite;
+}
+
 .badge {
   font-size: 11px; padding: 2px 8px; border-radius: 999px;
   background: var(--panel-2); color: var(--ink-2); border: 1px solid var(--border);

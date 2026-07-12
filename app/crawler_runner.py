@@ -1,3 +1,4 @@
+import json
 import logging
 import os
 import re
@@ -303,14 +304,87 @@ def _count_lines(paths) -> int:
     return total
 
 
-def crawl_progress(run_dir: Path, keywords: list[str]) -> dict:
+def _iter_jsonl(path: Path):
+    try:
+        with open(path, encoding="utf-8", errors="replace") as f:
+            for line in f:
+                try:
+                    yield json.loads(line)
+                except ValueError:
+                    continue
+    except OSError:
+        return
+
+
+def keyword_counts(run_dir: Path) -> tuple[dict[str, int], dict[str, int]]:
+    """Per-keyword note/comment counts. Notes carry source_keyword; comments only carry
+    note_id, so they inherit their note's keyword."""
+    jsonl = Path(run_dir) / "xhs" / "jsonl"
+    note_kw: dict[str, str] = {}
+    notes: dict[str, int] = {}
+    for p in sorted(jsonl.glob("search_contents_*.jsonl")):
+        for row in _iter_jsonl(p):
+            kw = row.get("source_keyword") or "?"
+            if row.get("note_id"):
+                note_kw[row["note_id"]] = kw
+            notes[kw] = notes.get(kw, 0) + 1
+    comments: dict[str, int] = {}
+    for p in sorted(jsonl.glob("search_comments_*.jsonl")):
+        for row in _iter_jsonl(p):
+            kw = note_kw.get(row.get("note_id"))
+            if kw:
+                comments[kw] = comments.get(kw, 0) + 1
+    return notes, comments
+
+
+# Positionally last marker wins: comment-store lines always follow their keyword's
+# "Begin get note id comments", so rfind order reflects what the crawler is doing now.
+PHASE_MARKERS = [
+    ("Begin get note id comments", "comments"),
+    ("update_xhs_note]", "note_details"),
+    ("Note details:", "note_details"),
+    ("Current search keyword", "search"),
+]
+ERROR_LINE_RE = re.compile(r"^.* ERROR \([^)]+\) - (.*)$", re.MULTILINE)
+
+
+def _phase(text: str) -> str:
+    best, pos = "starting", -1
+    for marker, name in PHASE_MARKERS:
+        p = text.rfind(marker)
+        if p > pos:
+            best, pos = name, p
+    if pos < 0 and any(h in text for h in LOGIN_HINTS):
+        return "login"
+    return best
+
+
+def _last_error(text: str) -> str | None:
+    last = None
+    for m in ERROR_LINE_RE.finditer(text):
+        last = m.group(1)
+    return last[:200] if last else None
+
+
+def crawl_progress(run_dir: Path, keywords: list[str], target_per_keyword: int = 20) -> dict:
     """Where a running crawl has got to. MediaCrawler reports nothing to us until it
     exits, but it writes JSONL rows and a per-keyword log line as it goes — so read those
     rather than leave a 30-minute crawl looking identical to a hung one."""
     jsonl = Path(run_dir) / "xhs" / "jsonl"
-    text = _log_text(Path(run_dir) / "crawler.log", tail_bytes=1_000_000)
+    log_path = Path(run_dir) / "crawler.log"
+    text = _log_text(log_path, tail_bytes=1_000_000)
     seen = KEYWORD_RE.findall(text)
     current = seen[-1].strip() if seen else None
+    kw_notes, kw_comments = keyword_counts(run_dir)
+    planned = keywords + [k for k in kw_notes if k not in keywords]
+    # comments have no per-keyword target, so within-keyword progress needs to know how
+    # many of the current keyword's notes have entered their comment fetch
+    last_kw_pos = text.rfind("Current search keyword")
+    comment_notes_done = text[last_kw_pos:].count("Begin get note id comments") if last_kw_pos >= 0 else 0
+    try:
+        last_activity_ms = int(log_path.stat().st_mtime * 1000)
+    except OSError:
+        last_activity_ms = None
     return {
         "notes": _count_lines(jsonl.glob("search_contents_*.jsonl")),
         "comments": _count_lines(jsonl.glob("search_comments_*.jsonl")),
@@ -318,6 +392,15 @@ def crawl_progress(run_dir: Path, keywords: list[str]) -> dict:
         "keyword_index": keywords.index(current) + 1 if current in keywords else None,
         "keyword_total": len(keywords),
         "captchas": text.count(CAPTCHA_MARKER),
+        "per_keyword": [
+            {"keyword": k, "notes": kw_notes.get(k, 0), "comments": kw_comments.get(k, 0)}
+            for k in planned
+        ],
+        "target_per_keyword": target_per_keyword,
+        "phase": _phase(text),
+        "kw_comment_notes_done": comment_notes_done,
+        "last_activity_ms": last_activity_ms,
+        "last_error": _last_error(text),
     }
 
 

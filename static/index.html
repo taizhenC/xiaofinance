@@ -14,7 +14,10 @@
     <span class="badge badge-window" id="windowBadge">window: last 24h</span>
   </div>
   <div class="topbar-status">
-    <span id="lastFetch" class="muted">last fetch: —</span>
+    <div class="fetch-status">
+      <span id="lastFetch" class="muted">last fetch: —</span>
+      <div id="crawlBar" class="crawl-bar" hidden></div>
+    </div>
     <span id="nextRun" class="muted"></span>
     <button id="fetchBtn" class="btn btn-primary">
       <span class="spinner" id="fetchSpinner" hidden></span>
