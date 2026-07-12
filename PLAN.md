@@ -222,6 +222,50 @@ Observed on the first live crawls: one 财报日历 post fanned out to 12 ticker
 - **Prices**: Yahoo symbol overrides (BRK→BRK-B, SKHY→SKHYV while the ADR trades when-issued); single-session IPOs store a price without a change badge.
 - **Dict**: SKHY (SK海力士, listed Nasdaq 2026-07-10) added. Note: dict updates require a `--skip-crawl` reprocess (or the next cycle) to re-extract mentions from already-ingested notes.
 
+## v1.3 sampling (implemented — driven by the "board is all tech" observation, 2026-07-11)
+
+The board looked like a semiconductor board. It turned out only ~25% of the crawl could
+ever produce a ranking at all — the skew was mostly in how we sampled, not in what XHS
+talks about.
+
+- **The crawl was searching index terms.** 3 of the 5 keywords actually crawled (纳指,
+  纳斯达克, 标普500) are index terms, and on XHS those return 定投/ETF diaries — "定投纳指，你
+  瞎纠结什么？" — which name no company. 73 of the first 98 notes matched nothing.
+- **Keyword probe** (`python -m app.probe --keywords "..."`): crawls a few notes per
+  candidate, skips comments, reports the share of notes that name a US stock. Measured:
+  巴菲特 92%, 美股财报 67%, 中概股 62%, 美股银行 33%, 纳指 29%, 美股 11%. Rejected: 电动车 0%
+  (XHS returns scooter rentals), 减肥药 0% (diet pills), 黄金股 17% (A-share gold), 能源股
+  (A-share 新能源). **Rule: 美股-prefixed terms return US-stock content, bare Chinese sector
+  terms don't.** Probe before adding a keyword — intuition failed on 电动车 and 减肥药.
+- **Keyword rotation** (`app/keywords.py`): DISCOVERY_CORE every cycle + DISCOVERY_POOL
+  rotated KEYWORDS_PER_CYCLE at a time via a cursor in `meta`, which only advances when a
+  run actually returned notes (a failed login must not skip a sector). The crawl budget is
+  capped by account risk, so coverage grows over time rather than per-cycle.
+- **Cycle sizing**: MediaCrawler rounds any note cap below 20 up to a full XHS page
+  (`core.py`: `if CRAWLER_MAX_NOTES_COUNT < xhs_limit_count`), so MAX_NOTES_PER_KEYWORD=12
+  always fetched 20 — a 10-keyword cycle was 200 notes / ~47 min against a 30-min timeout,
+  and every cycle was being killed with its tail keywords never searched. Now 6 keywords ×
+  20 notes, 35-min timeout.
+- **Two windows**: ingest was dropping every note older than 24h *at the door*, which
+  structurally decided that slow sectors don't exist (美股医药 returned 20 notes; exactly 1
+  was from the last day, the rest spanning ten). Notes are now kept and mention-scanned
+  over CONTEXT_WINDOW_HOURS (72), while the board still scores FRESH_WINDOW_HOURS (24) so
+  "hot today" still means today. The sector strip and radar read the wider window.
+  Effect: semiconductors 57% → 32% of measured discussion, 12 sectors with real leaders.
+- **Sectors**: every dict entry carries a `sector` (13 buckets; Chinese ADRs go to 中概,
+  which is how XHS discusses them). The board stays a pure score ranking — promoting a
+  2-mention healthcare name beside a 30-mention NVDA would invent heat nobody expressed —
+  and instead `sector_breakdown` reports each sector's share of weighted score plus its
+  leader, so concentration is a number rather than an impression. Leaders carried only by
+  roundup/hashtag mentions render dimmed.
+- **Crawler navigation**: `page.goto()` waited for the full `load` event; the XHS index
+  page needs ~23s just to deliver HTML on this connection, so `load` never fired inside
+  120s and the crawler died before searching. Now waits for `domcontentloaded` — the signed
+  API calls go out over httpx and only need cookies + JS context.
+- **Operational**: only one crawler at a time. MediaCrawler holds a persistent Chromium
+  profile and Chromium allows one owner, so a running crawl makes `login_xhs.ps1` and
+  "Fetch now" fail with `exit code 1`.
+
 ## Deliberately deferred (v2 candidates)
 
 - **Organic hidden-gem discovery**: discovery ranks what's loud by design; the tracked list + radar strip are the levers for quiet names. No embedding/cluster mining in v1.
