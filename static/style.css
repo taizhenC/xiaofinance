@@ -187,4 +187,30 @@ td.err.live { color: var(--ink-3); }
 .st-success { color: var(--bull); } .st-failed { color: var(--bear); }
 .st-partial { color: var(--amber); } .st-running { color: var(--accent); }
 
+tr.run-row { cursor: pointer; }
+tr.run-row:hover td { background: var(--panel-2); }
+.run-detail-row td { white-space: normal; background: color-mix(in srgb, var(--panel-2) 60%, transparent); }
+.run-detail { display: grid; gap: 8px; padding: 4px 2px; }
+.kw-chip {
+  display: inline-flex; align-items: center; gap: 5px;
+  background: var(--panel); border: 1px solid var(--border);
+  border-radius: 6px; padding: 2px 9px; font-size: 12px;
+}
+.kw-done { color: var(--bull); }
+.kw-current { color: var(--accent); }
+.kw-died_here { color: var(--bear); border-color: color-mix(in srgb, var(--bear) 45%, transparent); }
+.kw-not_reached { color: var(--ink-3); }
+.exc-block { display: grid; gap: 3px; }
+.exc-line {
+  font-family: var(--mono); font-size: 11px; color: var(--bear);
+  white-space: normal; overflow-wrap: anywhere;
+}
+.log-tail summary { cursor: pointer; }
+.log-tail pre {
+  max-height: 320px; overflow: auto; margin: 6px 0 0;
+  background: var(--bg); border: 1px solid var(--border); border-radius: 6px;
+  padding: 10px; font-size: 11px; line-height: 1.5;
+  white-space: pre-wrap; overflow-wrap: anywhere;
+}
+
 footer { text-align: center; padding: 18px; }

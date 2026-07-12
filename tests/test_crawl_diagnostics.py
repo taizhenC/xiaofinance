@@ -1,4 +1,4 @@
-from app.crawler_runner import _CaptchaWatcher, crawl_progress, failure_reason
+from app.crawler_runner import _CaptchaWatcher, crawl_detail, crawl_progress, failure_reason
 
 CAPTCHA = (
     "2026-07-11 21:11:09 MediaCrawler ERROR (client.py:140) - CAPTCHA appeared, request "
@@ -131,3 +131,60 @@ def test_progress_surfaces_the_last_error_line(tmp_path):
     )
     p = crawl_progress(tmp_path, ["美股"])
     assert p["last_error"].startswith("comments failed for note n9")
+
+
+def run16_like(tmp_path):
+    """A miniature of run 16: two keywords finished, the third died mid-comments, three
+    never started."""
+    jsonl = tmp_path / "xhs" / "jsonl"
+    jsonl.mkdir(parents=True)
+    (jsonl / "search_contents_2026-07-12.jsonl").write_text(
+        '{"note_id": "n1", "source_keyword": "美股"}\n'
+        '{"note_id": "n2", "source_keyword": "美股财报"}\n'
+        '{"note_id": "n3", "source_keyword": "美股打新"}\n',
+        encoding="utf-8",
+    )
+    (jsonl / "search_comments_2026-07-12.jsonl").write_text(
+        '{"comment_id": "c1", "note_id": "n1"}\n{"comment_id": "c2", "note_id": "n3"}\n',
+        encoding="utf-8",
+    )
+    (tmp_path / "crawler.log").write_text(
+        "2026-07-12 00:54:25 MediaCrawler INFO (core.py:140) - Current search keyword: 美股\n"
+        "2026-07-12 01:03:18 MediaCrawler INFO (core.py:140) - Current search keyword: 美股财报\n"
+        "2026-07-12 01:12:03 MediaCrawler INFO (core.py:140) - Current search keyword: 美股打新\n"
+        "Traceback (most recent call last):\n"
+        '  File "client.py", line 137, in request\n'
+        '    verify_type = response.headers["Verifytype"]\n'
+        "KeyError: 'Verifytype'\n"
+        "tenacity.RetryError: RetryError[<Future at 0x1 state=finished raised KeyError>]\n",
+        encoding="utf-8",
+    )
+    return ["美股", "美股财报", "美股打新", "中概股", "美股医药", "美股银行"]
+
+
+def test_detail_reconstructs_where_a_dead_run_died(tmp_path):
+    keywords = run16_like(tmp_path)
+    d = crawl_detail(tmp_path, keywords, "partial")
+    states = {k["keyword"]: k["state"] for k in d["keywords"]}
+    assert states["美股"] == "done" and states["美股财报"] == "done"
+    assert states["美股打新"] == "died_here"
+    assert states["中概股"] == states["美股银行"] == "not_reached"
+    by_kw = {k["keyword"]: k for k in d["keywords"]}
+    assert by_kw["美股"]["started_at"] == "2026-07-12 00:54:25"
+    assert by_kw["美股打新"]["notes"] == 1 and by_kw["美股打新"]["comments"] == 1
+    # the traceback's cause lines, not just "exit code 1"
+    assert any("KeyError: 'Verifytype'" in e for e in d["exceptions"])
+    assert any("tenacity.RetryError" in e for e in d["exceptions"])
+    assert "Current search keyword" in d["log_tail"]
+
+
+def test_detail_last_keyword_of_a_clean_run_is_done_not_died_here(tmp_path):
+    keywords = run16_like(tmp_path)
+    d = crawl_detail(tmp_path, keywords, "success")
+    assert {k["state"] for k in d["keywords"][:3]} == {"done"}
+
+
+def test_detail_last_keyword_of_a_running_run_is_current(tmp_path):
+    keywords = run16_like(tmp_path)
+    d = crawl_detail(tmp_path, keywords, "running")
+    assert {k["keyword"]: k["state"] for k in d["keywords"]}["美股打新"] == "current"

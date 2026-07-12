@@ -69,11 +69,21 @@ def run_fetch(conn, mode: str, dict_data: dict, settings) -> int | None:
         error = str(e)[:500]
         log.exception("fetch run %d failed", run_id)
 
+    # Snapshotted now because the raw dir it is computed from outlives the run by only
+    # RETAIN_CONTENT_DAYS, while the run row lives RETAIN_RUNS_DAYS.
+    detail = None
+    try:
+        detail = json.dumps(
+            crawler_runner.crawl_detail(run_dir, keywords, status), ensure_ascii=False
+        )
+    except Exception:
+        log.exception("run %d: could not build the run detail", run_id)
+
     conn.execute(
         """UPDATE fetch_runs SET status=?, finished_at_ms=?, notes_fetched=?, notes_fresh=?,
-           comments_fresh=?, raw_dir=?, error=? WHERE id=?""",
+           comments_fresh=?, raw_dir=?, error=?, detail=? WHERE id=?""",
         (status, now_ms(), stats["notes_fetched"], stats["notes_fresh"],
-         stats["comments_fresh"], str(run_dir), error, run_id),
+         stats["comments_fresh"], str(run_dir), error, detail, run_id),
     )
     # A login failure must not consume a rotation slot: those sectors would go unsampled
     # until the pool wraps around again.

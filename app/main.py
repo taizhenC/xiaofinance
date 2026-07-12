@@ -97,6 +97,7 @@ def _latest_analysis(conn, ticker: str):
 def _with_progress(row) -> dict:
     """A running crawl gets its live counts attached; a finished one already has them."""
     r = dict(row)
+    r.pop("detail", None)  # multi-KB blob; served by /api/runs/{id}/detail on demand
     if r.get("status") == "running" and r.get("raw_dir"):
         r["progress"] = crawler_runner.crawl_progress(
             Path(r["raw_dir"]), [k for k in (r.get("keywords") or "").split(",") if k],
@@ -374,6 +375,32 @@ def api_runs(limit: int = 20):
                 "SELECT * FROM fetch_runs ORDER BY id DESC LIMIT ?", (min(limit, 100),)
             )
         ]
+    finally:
+        conn.close()
+
+
+@app.get("/api/runs/{run_id}/detail")
+def api_run_detail(run_id: int):
+    """Per-keyword timeline and failure anatomy. Live from the raw dir while it exists,
+    else the snapshot stored when the run finished."""
+    conn = connect()
+    try:
+        row = conn.execute("SELECT * FROM fetch_runs WHERE id=?", (run_id,)).fetchone()
+        if not row:
+            raise HTTPException(404, "no such run")
+        r = dict(row)
+        kws = [k for k in (r.get("keywords") or "").split(",") if k]
+        detail = None
+        if r.get("raw_dir") and Path(r["raw_dir"]).exists():
+            detail = crawler_runner.crawl_detail(Path(r["raw_dir"]), kws, r["status"])
+        elif r.get("detail"):
+            detail = json.loads(r["detail"])
+        return {
+            "id": r["id"], "mode": r["mode"], "status": r["status"], "error": r["error"],
+            "started_at_ms": r["started_at_ms"], "finished_at_ms": r["finished_at_ms"],
+            "notes_fresh": r["notes_fresh"], "comments_fresh": r["comments_fresh"],
+            "detail": detail,
+        }
     finally:
         conn.close()
 

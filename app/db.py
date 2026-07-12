@@ -15,7 +15,8 @@ CREATE TABLE IF NOT EXISTS fetch_runs(
   notes_fresh INTEGER NOT NULL DEFAULT 0,
   comments_fresh INTEGER NOT NULL DEFAULT 0,
   raw_dir TEXT,
-  error TEXT
+  error TEXT,
+  detail TEXT
 );
 
 CREATE TABLE IF NOT EXISTS notes(
@@ -159,6 +160,10 @@ def connect(db_path: Path | str | None = None) -> sqlite3.Connection:
     conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("PRAGMA foreign_keys=ON")
     conn.executescript(SCHEMA)
+    # CREATE TABLE IF NOT EXISTS never evolves an existing table
+    cols = {r[1] for r in conn.execute("PRAGMA table_info(fetch_runs)")}
+    if "detail" not in cols:
+        conn.execute("ALTER TABLE fetch_runs ADD COLUMN detail TEXT")
     return conn
 
 

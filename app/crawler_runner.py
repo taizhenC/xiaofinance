@@ -362,7 +362,7 @@ def _phase(text: str) -> str:
 def _last_error(text: str) -> str | None:
     last = None
     for m in ERROR_LINE_RE.finditer(text):
-        last = m.group(1)
+        last = m.group(1).rstrip()
     return last[:200] if last else None
 
 
@@ -401,6 +401,63 @@ def crawl_progress(run_dir: Path, keywords: list[str], target_per_keyword: int =
         "kw_comment_notes_done": comment_notes_done,
         "last_activity_ms": last_activity_ms,
         "last_error": _last_error(text),
+    }
+
+
+KEYWORD_TS_RE = re.compile(
+    r"^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}) .*Current search keyword: (.+)$", re.MULTILINE
+)
+# Exception summary lines sit at column 0 in a traceback; log lines start with a timestamp
+# and frame lines with spaces, so the anchor alone separates them.
+EXC_LINE_RE = re.compile(r"^[A-Za-z_][\w.]*(?:Error|Exception|Interrupt)\b.*$", re.MULTILINE)
+
+
+def _last_distinct(matches: list[str], n: int) -> list[str]:
+    seen: set[str] = set()
+    out: list[str] = []
+    for x in reversed(matches):
+        if x not in seen:
+            seen.add(x)
+            out.append(x)
+        if len(out) == n:
+            break
+    return out[::-1]
+
+
+def crawl_detail(run_dir: Path, keywords: list[str], status: str) -> dict:
+    """The anatomy of one run: which keywords ran and with what yield, where it died, and
+    what the crawler actually said. Computed from the run dir's artifacts on demand, and
+    stored on the run row at finish because raw dirs are cleaned up after a week."""
+    text = _log_text(Path(run_dir) / "crawler.log")
+    kw_notes, kw_comments = keyword_counts(run_dir)
+
+    reached: dict[str, str] = {}
+    for m in KEYWORD_TS_RE.finditer(text):
+        reached.setdefault(m.group(2).strip(), m.group(1))
+    order = [k for k in keywords if k in reached] + [k for k in reached if k not in keywords]
+    last = order[-1] if order else None
+
+    per = []
+    for k in keywords + [k for k in reached if k not in keywords]:
+        if k not in reached:
+            state = "not_reached"
+        elif k != last or status == "success":
+            state = "done"
+        elif status == "running":
+            state = "current"
+        else:
+            state = "died_here"
+        per.append({
+            "keyword": k, "state": state, "started_at": reached.get(k),
+            "notes": kw_notes.get(k, 0), "comments": kw_comments.get(k, 0),
+        })
+
+    return {
+        "keywords": per,
+        "captchas": text.count(CAPTCHA_MARKER),
+        "errors": _last_distinct([m.group(1).rstrip()[:200] for m in ERROR_LINE_RE.finditer(text)], 5),
+        "exceptions": _last_distinct([m.group(0).rstrip()[:200] for m in EXC_LINE_RE.finditer(text)], 4),
+        "log_tail": text[-4000:],
     }
 
 

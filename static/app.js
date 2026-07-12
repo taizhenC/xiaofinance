@@ -489,6 +489,59 @@ function progressNote(p) {
   return bits.join(" · ");
 }
 
+/* Run rows expand on click into the run's anatomy: which keyword each count came from,
+   where a dead run died, and the crawler's own last words. */
+const openRuns = new Set();
+const runDetailCache = new Map();
+
+const KW_STATE = {
+  done: ["✓", ""], current: ["▶", ""],
+  died_here: ["✖", " — 死在这里"], not_reached: ["·", " 未开始"],
+};
+function runDetailHtml(d) {
+  if (!d?.detail) return '<span class="muted small">原始文件已清理，没有留下更多细节。</span>';
+  const det = d.detail;
+  const kws = det.keywords.map((k) => {
+    const [icon, suffix] = KW_STATE[k.state] || ["·", ""];
+    const counts = k.state === "not_reached" ? "" : ` ${k.notes}帖/${k.comments}评`;
+    return `<span class="kw-chip kw-${k.state}" title="${k.started_at ? `开始于 ${esc(k.started_at)}` : "未开始"}">${icon} ${esc(k.keyword)}${counts}${suffix}</span>`;
+  }).join("");
+  const cap = det.captchas ? `<div class="warn small">⚠ 风控验证码 ×${det.captchas}</div>` : "";
+  const excs = (det.exceptions || []).map((e) => `<div class="exc-line">${esc(e)}</div>`).join("");
+  const errs = (det.errors || []).map((e) => `<div class="exc-line muted">${esc(e)}</div>`).join("");
+  const tail = det.log_tail
+    ? `<details class="log-tail"><summary class="muted small">crawler.log 末尾</summary><pre>${esc(det.log_tail)}</pre></details>`
+    : "";
+  return `<div class="run-detail"><div class="chip-row">${kws}</div>${cap}${excs || errs ? `<div class="exc-block">${excs}${errs}</div>` : ""}${tail}</div>`;
+}
+
+function insertRunDetailRow(tr, id, html) {
+  const row = document.createElement("tr");
+  row.id = `run-detail-${id}`;
+  row.className = "run-detail-row";
+  row.innerHTML = `<td colspan="7">${html}</td>`;
+  tr.after(row);
+}
+function fillRunDetail(id, refresh) {
+  if (runDetailCache.has(id) && !refresh) return;
+  api(`/api/runs/${id}/detail`).then(({ data }) => {
+    const html = runDetailHtml(data);
+    runDetailCache.set(id, html);
+    const cell = document.querySelector(`#run-detail-${id} td`);
+    if (cell) cell.innerHTML = html;
+  }).catch(console.error);
+}
+function toggleRunDetail(id, tr) {
+  if (openRuns.has(id)) {
+    openRuns.delete(id);
+    document.getElementById(`run-detail-${id}`)?.remove();
+    return;
+  }
+  openRuns.add(id);
+  insertRunDetailRow(tr, id, runDetailCache.get(id) || '<span class="muted small">加载中…</span>');
+  fillRunDetail(id, true);
+}
+
 async function loadRuns() {
   const { data } = await api("/api/runs?limit=20");
   $("#runsTable tbody").innerHTML = data.map((r) => {
@@ -497,7 +550,7 @@ async function loadRuns() {
     const dur = r.finished_at_ms || r.status === "running" ? `${mins}min` : "—";
     const fresh = p ? `${p.notes}帖/${p.comments}评` : `${r.notes_fresh}帖/${r.comments_fresh}评`;
     const last = p ? progressNote(p) : esc(r.error || "");
-    return `<tr>
+    return `<tr class="run-row" data-run="${r.id}" title="点击展开细节">
       <td>${r.id}</td><td>${r.mode}</td>
       <td class="st-${r.status}">${r.status}</td>
       <td>${fresh}</td>
@@ -505,6 +558,14 @@ async function loadRuns() {
       <td class="err${p ? " live" : ""}" title="${esc(r.error || "")}">${last}</td>
     </tr>`;
   }).join("");
+  // the poll rebuilds the tbody; put open detail rows back, refreshing live ones
+  for (const id of [...openRuns]) {
+    const tr = document.querySelector(`tr.run-row[data-run="${id}"]`);
+    if (!tr) { openRuns.delete(id); continue; }
+    insertRunDetailRow(tr, id, runDetailCache.get(id) || "");
+    const run = data.find((r) => r.id === id);
+    fillRunDetail(id, run?.status === "running");
+  }
 }
 
 /* ---------- actions ---------- */
@@ -520,6 +581,9 @@ document.addEventListener("click", async (ev) => {
     const id = t.dataset.accept || t.dataset.reject;
     await api(`/api/alias_suggestions/${id}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: t.dataset.accept ? "accept" : "reject" }) });
     loadSuggestions();
+  } else {
+    const rr = t.closest?.("tr.run-row");
+    if (rr) toggleRunDetail(Number(rr.dataset.run), rr);
   }
 });
 $("#trackForm").addEventListener("submit", async (ev) => {
