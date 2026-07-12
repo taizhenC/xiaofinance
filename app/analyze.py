@@ -108,67 +108,123 @@ def gather_items(conn, ticker: str, fresh_window_ms: int, now: int | None = None
         subs = substance(text)
         if subs < MIN_NOTE_SUBSTANCE:
             continue
-        items.append({"type": "note", "id": r["id"], "text": text, "likes": r["likes"],
-                      "ts": r["ts"], "url": r["note_url"], "substance": subs,
-                      "aside": is_aside(full, hits),
+        items.append({"type": "note", "id": r["id"], "text": text, "prompt_text": text,
+                      "likes": r["likes"], "ts": r["ts"], "url": r["note_url"],
+                      "substance": subs, "aside": is_aside(full, hits),
                       "cluster_size": note_sizes.get(r["id"], 1),
-                      "fanout": note_fanout.get(r["id"], 1)})
-    mention_cids = set()
+                      "fanout": note_fanout.get(r["id"], 1),
+                      "unit": r["id"], "unit_likes": r["likes"], "depth": 0})
+    picked: dict[str, dict] = {}
     for r in conn.execute(
         """SELECT c.comment_id AS id, c.content, c.like_count AS likes, c.create_time_ms AS ts,
-                  p.content AS parent_content
+                  c.note_id, c.parent_comment_id
            FROM stock_mentions m JOIN comments c ON c.comment_id = m.source_id
-           LEFT JOIN comments p ON p.comment_id = c.parent_comment_id
            WHERE m.ticker=? AND m.source_type='comment' AND m.content_time_ms>=?
              AND c.dup_group_id IS NULL""",
         (ticker, cutoff),
     ):
-        mention_cids.add(r["id"])
-        text = " ".join((r["content"] or "").split())
-        subs = substance(text)
-        if is_bot_prompt(text) or subs < MIN_COMMENT_SUBSTANCE:
-            continue
-        if r["parent_content"]:
-            # a bare reply ("同意楼上") is meaningless without its thread
-            parent = " ".join((r["parent_content"] or "").split())[:30]
-            text = f"回复「{parent}」: {text}"
-        items.append({"type": "comment", "id": r["id"], "text": text[:COMMENT_TRUNC],
-                      "likes": r["likes"], "ts": r["ts"], "url": None, "substance": subs,
-                      "cluster_size": comment_sizes.get(r["id"], 1),
-                      "fanout": comment_fanout.get(r["id"], 1)})
+        picked[r["id"]] = dict(r, head=None)
 
     by_note: dict[str, list] = {}
     for r in conn.execute(
         """SELECT c.comment_id AS id, c.content, c.like_count AS likes, c.create_time_ms AS ts,
-                  c.note_id, n.title, n.note_desc
+                  c.note_id, c.parent_comment_id, n.title, n.note_desc
            FROM stock_mentions m JOIN notes n ON n.note_id = m.source_id
            JOIN comments c ON c.note_id = n.note_id
            WHERE m.ticker=? AND m.source_type='note' AND m.content_time_ms>=?
              AND c.create_time_ms>=? AND c.dup_group_id IS NULL""",
         (ticker, cutoff, cutoff),
     ):
-        if r["id"] in mention_cids or note_fanout.get(r["note_id"], 1) > THREAD_FANOUT_MAX:
+        if r["id"] in picked or note_fanout.get(r["note_id"], 1) > THREAD_FANOUT_MAX:
             continue
         by_note.setdefault(r["note_id"], []).append(r)
     for rows in by_note.values():
         rows.sort(key=lambda r: r["likes"], reverse=True)
         for r in rows[:THREAD_PER_NOTE]:
-            text = " ".join((r["content"] or "").split())
-            subs = substance(text)
-            if is_bot_prompt(text) or subs < MIN_COMMENT_SUBSTANCE:
-                continue
             # The reaction still counts when the post it reacts to is an unreadable image
             # ("Is That True？"); quoting that title back as context does not.
             body = clean_tags(note_text(r["title"], r["note_desc"]))
             title = clean_tags(" ".join((r["title"] or "").split()))[:20]
             head = f"主帖「{title}」下的评论" if substance(body) >= MIN_NOTE_SUBSTANCE else "主帖下的评论"
-            items.append({"type": "comment", "id": r["id"],
-                          "text": f"{head}: {text}"[:COMMENT_TRUNC],
-                          "likes": r["likes"], "ts": r["ts"], "url": None, "substance": subs,
-                          "cluster_size": comment_sizes.get(r["id"], 1), "fanout": 1})
+            picked[r["id"]] = dict(r, head=head)
 
-    items.sort(key=lambda i: i["likes"], reverse=True)
+    items += thread_items(conn, picked, comment_sizes, comment_fanout)
+    # Units (a note, or a whole comment thread) are ranked by their best line, and a unit's
+    # lines stay together in reading order — a reply must never be separated from the comment
+    # it answers, least of all by the MAX_ITEMS cut.
+    items.sort(key=lambda i: (-i["unit_likes"], i["unit"], i["depth"], i["ts"]))
     return items[:MAX_ITEMS]
+
+
+def _comment_row(conn, comment_id: str) -> dict | None:
+    r = conn.execute(
+        """SELECT comment_id AS id, content, like_count AS likes, create_time_ms AS ts,
+                  note_id, parent_comment_id FROM comments WHERE comment_id=?""",
+        (comment_id,),
+    ).fetchone()
+    return dict(r, head=None) if r else None
+
+
+def thread_items(conn, picked: dict[str, dict], sizes: dict, fanouts: dict) -> list[dict]:
+    """Turn the selected comments into conversations rather than a pile of lines.
+
+    A reply is close to worthless on its own — 别追，我出货了 says nothing until you know it
+    answers 海力士还能上车吗. So each root is emitted immediately followed by its replies, and
+    the reply's prompt text drops the parent quote entirely (the parent is the line above it),
+    which reads better *and* costs fewer tokens than repeating it.
+
+    A parent that wasn't selected on its own merits is pulled in anyway, as context for the
+    reply that was."""
+    for cid in list(picked):
+        pid = picked[cid].get("parent_comment_id")
+        if pid and pid not in picked:
+            parent = _comment_row(conn, pid)
+            if parent:
+                parent["context_only"] = True
+                picked[pid] = parent
+
+    threads: dict[str, list[dict]] = {}
+    for r in picked.values():
+        root = r.get("parent_comment_id") or r["id"]
+        threads.setdefault(root, []).append(r)
+
+    out: list[dict] = []
+    for root_id, rows in threads.items():
+        rows.sort(key=lambda r: (r["id"] != root_id, r["ts"]))  # root first, then replies in time
+        built: list[dict] = []
+        for r in rows:
+            text = " ".join((r["content"] or "").split())
+            subs = substance(text)
+            if is_bot_prompt(text) or subs < MIN_COMMENT_SUBSTANCE:
+                continue
+            is_reply = bool(r.get("parent_comment_id"))
+            parent_shown = is_reply and any(b["id"] == r["parent_comment_id"] for b in built)
+            if is_reply and not parent_shown:
+                # orphaned: its parent was dropped, so it has to carry its own context
+                p = picked.get(r["parent_comment_id"], {})
+                snippet = " ".join((p.get("content") or "").split())[:30]
+                card = f"回复「{snippet}」: {text}" if snippet else text
+                prompt = card
+            elif is_reply:
+                card = f"回复「{' '.join((picked[r['parent_comment_id']]['content'] or '').split())[:30]}」: {text}"
+                prompt = f"↳ {text}"  # the parent is the previous line; do not pay to repeat it
+            else:
+                card = prompt = f"{r['head']}: {text}" if r.get("head") else text
+            built.append({
+                "type": "comment", "id": r["id"], "text": card[:COMMENT_TRUNC],
+                "prompt_text": prompt[:COMMENT_TRUNC], "likes": r["likes"], "ts": r["ts"],
+                "url": None, "substance": subs, "cluster_size": sizes.get(r["id"], 1),
+                "fanout": fanouts.get(r["id"], 1), "depth": 1 if is_reply else 0,
+                "unit": root_id,
+            })
+        if not built:
+            continue
+        # a thread rides on its best line, so a sharp reply can carry a dull root onto the board
+        top = max(b["likes"] for b in built)
+        for b in built:
+            b["unit_likes"] = top
+        out += built
+    return out
 
 
 def pick_quotes(items: list[dict], k: int = 3) -> list[str]:
@@ -201,7 +257,8 @@ def build_prompt(ticker: str, name_cn: str, items: list[dict], lang: str, now: i
         dup = f" [×{i['cluster_size']}相似]" if i["cluster_size"] > 1 else ""
         roundup = f" [盘点·提及{i['fanout']}股]" if i.get("fanout", 1) >= FANOUT_ROUNDUP else ""
         aside = " [顺带提及]" if i.get("aside") else ""
-        lines.append(f"[{n}] [{i['type']}] [{age_h}小时前] [赞:{i['likes']}]{dup}{roundup}{aside} {i['text']}")
+        body = i.get("prompt_text") or i["text"]
+        lines.append(f"[{n}] [{i['type']}] [{age_h}小时前] [赞:{i['likes']}]{dup}{roundup}{aside} {body}")
     lang_name = "英文(English)" if lang == "en" else "中文"
     name = f"{ticker}（{name_cn}）" if name_cn else ticker
     prev_block = ""
@@ -224,6 +281,7 @@ def build_prompt(ticker: str, name_cn: str, items: list[dict], lang: str, now: i
 - [盘点·提及N股]：该帖同时罗列了N只股票（财报日历、涨幅盘点等）。被罗列本身不构成观点。
 - [顺带提及]：全文只出现一次 {ticker}，帖子主题多半不是它——期权教学拿它举例、持仓表里的一行、求职或开户经历里的公司名。
 - 正文过长时，只截取到提及 {ticker} 的那一段，省略处用 … 标出。
+- 以 ↳ 开头的是上一条的回复，按对话顺序排列。回复要结合它上面那一条来读：「别追，我出货了」单独看没有信息，接在「还能上车吗」后面才是明确看空。一问一答只是一次交流，不要当成两个独立观点。
 
 {chr(10).join(lines)}
 {prev_block}
