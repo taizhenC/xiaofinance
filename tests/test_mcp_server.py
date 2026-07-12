@@ -113,3 +113,40 @@ def test_search_corpus_reports_the_true_count_not_the_sample(corpus):
     assert out["note_hits"] == 1
     assert out["showing"]["notes"] == 1
     assert M.search_corpus("完全不存在的词")["note_hits"] == 0
+
+
+def test_the_two_hashes_answer_different_questions():
+    """input_hash asks "is there new material to read?" — reshuffling the same posts is not new
+    material, and re-paying DeepSeek to read them again would be waste, so it ignores order.
+
+    evidence_hash asks "does item [3] still mean what it meant?" — and it does not, the moment
+    the list reorders. Using input_hash for that was the bug this test exists to prevent."""
+    from app.analyze import evidence_hash, input_hash
+
+    a = [{"type": "note", "id": "A"}, {"type": "note", "id": "B"}, {"type": "note", "id": "C"}]
+    reshuffled = [a[2], a[0], a[1]]  # C went viral; same three posts, new ranking
+
+    assert input_hash(a) == input_hash(reshuffled)        # correctly: nothing new to read
+    assert evidence_hash(a) != evidence_hash(reshuffled)  # correctly: [3] now means something else
+
+
+def test_a_reshuffle_that_keeps_every_item_is_still_refused(corpus):
+    """The hole in the first version of this guard. A note going viral between the agent reading
+    the evidence and submitting reorders the list without changing the *set* of items — so a
+    set-based hash matched, the guard passed, and quote [3] resolved to a different post than
+    the agent had read. Silently."""
+    ev = M.evidence("SKHY")
+    assert [i["n"] for i in ev["items"]] == [1, 2, 3]
+    top_before = ev["items"][0]["text"]
+
+    # the least-liked comment goes viral; no item enters or leaves, only the order changes
+    corpus.execute("UPDATE comments SET like_count = 9999 WHERE comment_id = 'c2'")
+    corpus.commit()
+
+    after = M.evidence("SKHY")
+    assert after["items"][0]["text"] != top_before          # the list really did reorder
+    assert after["evidence_hash"] != ev["evidence_hash"]    # and the guard sees it
+
+    out = M.submit_rating("SKHY", ev["evidence_hash"], "x", 1, 0, 0, [], [], [3])
+    assert out["status"] == "stale_evidence"
+    assert corpus.execute("SELECT COUNT(*) FROM stock_analyses").fetchone()[0] == 0

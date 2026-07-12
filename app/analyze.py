@@ -246,7 +246,23 @@ def pick_quotes(items: list[dict], k: int = 3) -> list[str]:
 
 
 def input_hash(items: list[dict]) -> str:
+    """WHICH items came in — deliberately order-insensitive.
+
+    This drives the analysis cache, and the question it answers is "is there new material to
+    read?". A re-crawl that only bumps like counts reshuffles the list without changing a word
+    of it, and re-paying DeepSeek to read the same posts in a different order would be waste."""
     return sha256_hex("|".join(sorted(f"{i['type']}:{i['id']}" for i in items)))
+
+
+def evidence_hash(items: list[dict]) -> str:
+    """WHICH items, IN WHAT ORDER — the contract for anything that cites items by number.
+
+    Not the same question as input_hash, and the difference is not academic. Quote ids are
+    positions in this list, and the list is ranked by likes. A note going viral between an
+    agent reading the evidence and submitting its rating reorders it *without changing the
+    set* — so input_hash matches, the staleness guard passes, and quote [3] silently resolves
+    to a different post than the one the agent actually read."""
+    return sha256_hex("|".join(f"{i['type']}:{i['id']}" for i in items))
 
 
 def build_prompt(ticker: str, name_cn: str, items: list[dict], lang: str, now: int,

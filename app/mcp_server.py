@@ -28,6 +28,7 @@ from .analyze import (
     input_hash,
     store_result,
 )
+from .analyze import evidence_hash as compute_evidence_hash
 from .config import settings
 from .db import connect
 from .mentions import Matcher, index_tickers, load_stock_dict
@@ -138,7 +139,7 @@ def evidence(ticker: str) -> dict:
         )
         return {
             "ticker": ticker,
-            "evidence_hash": input_hash(items),
+            "evidence_hash": compute_evidence_hash(items),
             "item_count": len(items),
             "instructions": rubric,
             "items": [
@@ -160,9 +161,9 @@ def submit_rating(ticker: str, evidence_hash: str, summary: str,
                   notable_quote_ids: list[int], irrelevant_item_count: int = 0) -> dict:
     """File a rating. It lands in the same table the DeepSeek path writes, and shows on the card.
 
-    `evidence_hash` must be the one evidence() returned. If the crawl window has moved since,
-    the rating is rejected rather than pinned to items it was never shown — call evidence()
-    again and re-rate.
+    `evidence_hash` must be the one evidence() returned. If the evidence has moved since — an
+    item aged out, a crawl landed, or a post went viral and the ranking reshuffled — the rating
+    is rejected rather than pinned to items it was never shown. Call evidence() again and re-rate.
     """
     conn = connect()
     try:
@@ -170,7 +171,7 @@ def submit_rating(ticker: str, evidence_hash: str, summary: str,
         items = gather_items(conn, ticker, settings.fresh_window_ms, now)
         if not items:
             return {"status": "error", "error": f"no fresh items for {ticker}"}
-        current = input_hash(items)
+        current = compute_evidence_hash(items)
         if evidence_hash != current:
             return {
                 "status": "stale_evidence",

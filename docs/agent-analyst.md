@@ -38,10 +38,26 @@ Say: **"rate the pending tickers"**. The loop is:
 3. `submit_rating(...)` — cite quotes by **item number** (`notable_quote_ids`), never by
    retyping the text. Pass back the `evidence_hash` you were given.
 
-The hash is not ceremony. Item numbers are positions in a list, and that list changes as the
-24h window slides. A rating written against yesterday's list would pin its quotes to whatever
-now sits at those positions, so `submit_rating` refuses a stale hash instead of quietly
-mis-attributing them. If you are refused, call `evidence()` again and re-rate.
+The hash is not ceremony. Item numbers are **positions in a list**, and the list is a live
+query — "posts about this ticker in the last 24 hours, ranked by likes" — not a snapshot. It
+moves under you in two different ways:
+
+- an item **ages out** of the window, or a crawl lands new ones, so the set changes
+- a post **goes viral** and the ranking reshuffles, so the set is identical but `[3]` is now a
+  different post
+
+The second one is the subtle one, and the first version of this guard missed it: it hashed the
+*sorted* item ids, so a pure reorder produced an identical hash, the check passed, and quote
+`[3]` silently resolved to a post the agent had never read. Hence two hashes, answering two
+different questions:
+
+| | question | order matters? |
+| --- | --- | --- |
+| `input_hash` | is there new material to read? | no — a reshuffle is not new material, and re-paying DeepSeek to re-read it would be waste |
+| `evidence_hash` | does item `[3]` still mean what it meant? | **yes** — that is the entire question |
+
+`submit_rating` refuses a stale `evidence_hash` and stores nothing. If you are refused, call
+`evidence()` again and re-rate against the current list.
 
 ## Mine the dictionary's blind spots
 
