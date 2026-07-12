@@ -209,6 +209,19 @@ Discovery ranking shows tickers with ≥ MIN_MENTIONS_FOR_ANALYSIS (2); tracked 
 - **Crowd hit-rate scoreboard** (`app/scoreboard.py`): clear daily leans (|bullish−bearish| ≥ 2) scored against 1d/7d realized moves.
 - **Reply threads**: `ENABLE_SUB_COMMENTS` opt-in (off by default for account safety); replies reach the LLM prefixed with their parent snippet.
 
+## v1.2 signal-quality refinements (implemented — driven by first real-data cycles, 2026-07-11)
+
+Observed on the first live crawls: one 财报日历 post fanned out to 12 tickers and put every big bank on the board as "🔥 新上榜"; the same 3 mega-posts were every card's quotes; GS ranked off a `#高盛观察` hashtag; 17/98 notes duplicated their title inside the desc; 206 fresh comments were invisible to analysis (only 3 named a ticker); trend badges showed "+409%" off tiny score bases; and the day's dominant entity (SK海力士 ADR) wasn't in the dict, so its coverage bled into name-dropped neighbors. Fixes:
+
+- **Fan-out weighting**: a source mentioning k tickers contributes weight 1/k to each ticker's score — roundup/calendar posts no longer count like dedicated posts.
+- **Focus gate**: main-board ranking (and LLM spend) requires ≥1 *focused* source — a ≤3-ticker item where the alias appears in the prose, not just a `#话题#` tag block. Roundup-only/hashtag-only tickers stay on the radar strip. Mentions of every ticker are still extracted and fed to the LLM (cross-stock signals like "英伟达、谷歌入股海力士产线" stay visible) — the gate only governs heat and ranking.
+- **Roundup marker for the LLM**: items naming ≥4 tickers carry `[盘点·提及N股]` plus a prompt instruction not to read being-listed as a viewpoint.
+- **Thread comments**: `gather_items` pulls top-liked comments from mentioning notes with fanout ≤ 2 (prefixed `主帖「…」下的评论:`) — most comments never name the ticker but are reactions to it.
+- **Text hygiene**: `note_text()` drops descs' repeated title; `clean_tags()` strips `[话题]#` markup; fallback quotes prefer focused sources over globally-hot roundups.
+- **Trend badges**: percentage suppressed when the previous score base < 5 (direction-only badge).
+- **Prices**: Yahoo symbol overrides (BRK→BRK-B, SKHY→SKHYV while the ADR trades when-issued); single-session IPOs store a price without a change badge.
+- **Dict**: SKHY (SK海力士, listed Nasdaq 2026-07-10) added. Note: dict updates require a `--skip-crawl` reprocess (or the next cycle) to re-extract mentions from already-ingested notes.
+
 ## Deliberately deferred (v2 candidates)
 
 - **Organic hidden-gem discovery**: discovery ranks what's loud by design; the tracked list + radar strip are the levers for quiet names. No embedding/cluster mining in v1.
