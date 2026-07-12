@@ -455,6 +455,28 @@
       "ambiguous": []
     },
     {
+      "ticker": "SKHY",
+      "name_cn": "SK海力士",
+      "aliases": [
+        "海力士",
+        "hynix"
+      ],
+      "ambiguous": []
+    },
+    {
+      "ticker": "SPCX",
+      "name_cn": "SpaceX",
+      "aliases": [
+        "spacex"
+      ],
+      "ambiguous": [
+        "星舰",
+        "星链",
+        "马斯克",
+        "musk"
+      ]
+    },
+    {
       "ticker": "ARM",
       "name_cn": "安谋",
       "aliases": [
