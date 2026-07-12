@@ -2,7 +2,7 @@
 
 A local personal dashboard that answers: **which US stocks are hot on Xiaohongshu right now, and what do people think of them?**
 
-Data comes from your own XHS account via [MediaCrawler](https://github.com/NanmiCoder/MediaCrawler) (QR login, no API key). A local dictionary detects stock mentions (~145 tickers with Chinese aliases and an ambiguity gate), repost spam is collapsed via simhash clustering, and DeepSeek summarizes per-stock sentiment. Only content from the **last 24 hours** is analyzed and shown.
+Data comes from your own XHS account via [MediaCrawler](https://github.com/NanmiCoder/MediaCrawler) (QR login, no API key). A local dictionary detects stock mentions (~250 tickers with Chinese aliases, retail 黑话 like 老黄/苏妈/牙膏厂, and an ambiguity gate), repost spam is collapsed via simhash clustering, and DeepSeek summarizes per-stock sentiment. Only content from the **last 24 hours** is analyzed and shown.
 
 ## Setup (once)
 
@@ -34,7 +34,7 @@ CLI equivalent: `uv run python -m app.pipeline --mode both` (`--skip-crawl` re-a
 | Crawl | `app/crawler_runner.py` | Runs MediaCrawler as a subprocess (time-sorted search, JSONL output, per-run log, kill-tree timeout) |
 | Ingest | `app/ingest.py` | Freshness gate #1: only notes/comments ≤ 24h old enter the DB (`data/infinance.db`) |
 | Dedup | `app/dedup.py` | Simhash clustering of reposted notes + exact-dup comments; clusters count once in scoring and reach the LLM as one item tagged `[×N相似]` |
-| Mentions | `app/mentions.py` | Dictionary matching: safe aliases (特斯拉), ambiguous aliases need a finance context word (苹果 + 股价), collision tickers (LI/MS/KO…) need context too |
+| Mentions | `app/mentions.py` | Dictionary matching in three strengths: safe aliases fire alone (特斯拉, 巨硬, 皮衣黄), ambiguous ones need a finance context word nearby (苹果 + 股价; 老黄, 马斯克, 谷歌 — a person fronts several ventures and a brand names products), and collision tickers (LI/MS/KO…) need context too |
 | Score | `app/scoring.py` | `3·notes + 1·comments + 2·Σlog₁₀(1+note likes) + 0.5·Σlog₁₀(1+comment likes)` over clusters |
 | Analyze | `app/analyze.py` | DeepSeek JSON-mode per stock: discards off-topic items, weighs distinct arguments (not repetition), outputs summary/bull/bear/quotes; sees the previous cycle's summary as compare-only background (≤48h, never overrides current data) so it can call out sentiment shifts; skips when inputs unchanged |
 | Slang scan | `app/slang_scan.py` | Every N cycles: mines unmatched finance posts for new 谐音/黑话 nicknames → review panel, accept merges into `data/stock_dict_local.json` |

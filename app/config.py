@@ -15,8 +15,10 @@ class Settings(BaseSettings):
     LLM_BASE_URL: str = "https://api.deepseek.com"
     SUMMARY_LANG: str = "en"
 
-    DISCOVERY_KEYWORDS: str = "美股,纳斯达克,纳指,标普500,美股投资"
-    MAX_NOTES_PER_KEYWORD: int = 20
+    DISCOVERY_KEYWORDS: str = (
+        "美股,纳斯达克,纳指,标普500,美股投资,美股分析,美股日记,美股小白,中概股,美股财报"
+    )
+    MAX_NOTES_PER_KEYWORD: int = 12
     MAX_COMMENTS_PER_NOTE: int = 20
     FETCH_INTERVAL_HOURS: float = 5
     CRAWL_TIMEOUT_MIN: int = 30

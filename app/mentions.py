@@ -86,7 +86,11 @@ def _compile_alias(alias: str):
 class Matcher:
     def __init__(self, dict_data: dict, tracked: dict[str, list[str]] | None = None):
         tracked = tracked or {}
-        self.context_words = [w.lower() for w in dict_data.get("context_words", [])]
+        # Same boundary rule as aliases: a latin context word like "pe" or "put" must not
+        # match inside "people"/"input", or any English text would satisfy the context gate.
+        self._context_matchers = [
+            _compile_alias(w.lower()) for w in dict_data.get("context_words", [])
+        ]
         self.collision = set(dict_data.get("collision_tickers", []))
         self.stocks: dict[str, dict] = {}
         for s in dict_data.get("stocks", []):
@@ -114,7 +118,7 @@ class Matcher:
                 self._alias_matchers.append((t, alias, False, _compile_alias(alias)))
 
     def has_context(self, lower_text: str) -> bool:
-        return any(w in lower_text for w in self.context_words)
+        return any(fn(lower_text) for fn in self._context_matchers)
 
     def extract(self, text: str, targeted_ticker: str | None = None) -> dict[str, tuple[str, str]]:
         """text unit -> {ticker: (matched_alias, match_basis)}, strongest basis per ticker."""
