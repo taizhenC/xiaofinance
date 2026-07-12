@@ -8,13 +8,19 @@ from pydantic import BaseModel, Field, ValidationError
 from .config import settings as default_settings
 from .db import connect
 from .dedup import comment_cluster_sizes, note_cluster_sizes
-from .util import now_ms, sha256_hex
+from .scoring import is_rankable, source_fanout
+from .util import clean_tags, note_text, now_ms, sha256_hex
 
 log = logging.getLogger(__name__)
 
 MAX_ITEMS = 60
 NOTE_TRUNC = 300
 COMMENT_TRUNC = 150
+# thread comments are only pulled from notes focused enough that "a comment
+# here" plausibly reacts to this ticker, not one of a dozen listed names
+THREAD_FANOUT_MAX = 2
+THREAD_PER_NOTE = 5
+FANOUT_ROUNDUP = 4
 # previous-cycle summary is offered as compare-only context; older than this it's
 # no longer "上一周期" and gets dropped rather than mislead
 PREV_SUMMARY_MAX_AGE_MS = 48 * 3_600_000
@@ -40,11 +46,16 @@ class AnalysisResult(BaseModel):
 
 
 def gather_items(conn, ticker: str, fresh_window_ms: int, now: int | None = None) -> list[dict]:
-    """Canonical fresh items mentioning ticker, most-liked first, capped at MAX_ITEMS."""
+    """Canonical fresh items mentioning ticker, most-liked first, capped at MAX_ITEMS.
+    Also pulls thread comments from focused mentioning notes (fanout ≤ 2): most
+    comments never name the ticker, but under a dedicated note they are reactions
+    to it — without this, nearly all crawled comments are invisible to analysis."""
     now = now or now_ms()
     cutoff = now - fresh_window_ms
     note_sizes = note_cluster_sizes(conn, fresh_window_ms, now)
     comment_sizes = comment_cluster_sizes(conn, fresh_window_ms, now)
+    note_fanout = source_fanout(conn, "note", cutoff)
+    comment_fanout = source_fanout(conn, "comment", cutoff)
     items = []
     for r in conn.execute(
         """SELECT n.note_id AS id, n.title, n.note_desc, n.liked_count AS likes,
@@ -54,10 +65,12 @@ def gather_items(conn, ticker: str, fresh_window_ms: int, now: int | None = None
              AND n.dup_group_id IS NULL""",
         (ticker, cutoff),
     ):
-        text = f"{r['title'] or ''} {r['note_desc'] or ''}".strip()[:NOTE_TRUNC]
+        text = clean_tags(note_text(r["title"], r["note_desc"]))[:NOTE_TRUNC]
         items.append({"type": "note", "id": r["id"], "text": text, "likes": r["likes"],
                       "ts": r["ts"], "url": r["note_url"],
-                      "cluster_size": note_sizes.get(r["id"], 1)})
+                      "cluster_size": note_sizes.get(r["id"], 1),
+                      "fanout": note_fanout.get(r["id"], 1)})
+    mention_cids = set()
     for r in conn.execute(
         """SELECT c.comment_id AS id, c.content, c.like_count AS likes, c.create_time_ms AS ts,
                   p.content AS parent_content
@@ -67,14 +80,40 @@ def gather_items(conn, ticker: str, fresh_window_ms: int, now: int | None = None
              AND c.dup_group_id IS NULL""",
         (ticker, cutoff),
     ):
-        text = (r["content"] or "").strip()
+        mention_cids.add(r["id"])
+        text = " ".join((r["content"] or "").split())
         if r["parent_content"]:
             # a bare reply ("同意楼上") is meaningless without its thread
             parent = " ".join((r["parent_content"] or "").split())[:30]
             text = f"回复「{parent}」: {text}"
         items.append({"type": "comment", "id": r["id"], "text": text[:COMMENT_TRUNC],
                       "likes": r["likes"], "ts": r["ts"], "url": None,
-                      "cluster_size": comment_sizes.get(r["id"], 1)})
+                      "cluster_size": comment_sizes.get(r["id"], 1),
+                      "fanout": comment_fanout.get(r["id"], 1)})
+
+    by_note: dict[str, list] = {}
+    for r in conn.execute(
+        """SELECT c.comment_id AS id, c.content, c.like_count AS likes, c.create_time_ms AS ts,
+                  c.note_id, n.title
+           FROM stock_mentions m JOIN notes n ON n.note_id = m.source_id
+           JOIN comments c ON c.note_id = n.note_id
+           WHERE m.ticker=? AND m.source_type='note' AND m.content_time_ms>=?
+             AND c.create_time_ms>=? AND c.dup_group_id IS NULL""",
+        (ticker, cutoff, cutoff),
+    ):
+        if r["id"] in mention_cids or note_fanout.get(r["note_id"], 1) > THREAD_FANOUT_MAX:
+            continue
+        by_note.setdefault(r["note_id"], []).append(r)
+    for rows in by_note.values():
+        rows.sort(key=lambda r: r["likes"], reverse=True)
+        for r in rows[:THREAD_PER_NOTE]:
+            t20 = " ".join((r["title"] or "").split())[:20]
+            text = " ".join((r["content"] or "").split())
+            items.append({"type": "comment", "id": r["id"],
+                          "text": f"主帖「{t20}」下的评论: {text}"[:COMMENT_TRUNC],
+                          "likes": r["likes"], "ts": r["ts"], "url": None,
+                          "cluster_size": comment_sizes.get(r["id"], 1), "fanout": 1})
+
     items.sort(key=lambda i: i["likes"], reverse=True)
     return items[:MAX_ITEMS]
 
@@ -89,7 +128,8 @@ def build_prompt(ticker: str, name_cn: str, items: list[dict], lang: str, now: i
     for i in items:
         age_h = max(0, (now - i["ts"]) // 3_600_000)
         dup = f" [×{i['cluster_size']}相似]" if i["cluster_size"] > 1 else ""
-        lines.append(f"[{i['type']}] [{age_h}小时前] [赞:{i['likes']}]{dup} {i['text']}")
+        roundup = f" [盘点·提及{i['fanout']}股]" if i.get("fanout", 1) >= FANOUT_ROUNDUP else ""
+        lines.append(f"[{i['type']}] [{age_h}小时前] [赞:{i['likes']}]{dup}{roundup} {i['text']}")
     lang_name = "英文(English)" if lang == "en" else "中文"
     name = f"{ticker}（{name_cn}）" if name_cn else ticker
     prev_block = ""
@@ -103,6 +143,7 @@ def build_prompt(ticker: str, name_cn: str, items: list[dict], lang: str, now: i
     system = "你是一位资深美股分析师，负责从小红书帖子和评论中提炼散户对某只股票的真实看法。"
     user = f"""以下是过去24小时内小红书上提及 {name} 的帖子和评论，每行格式：[类型] [发布时间] [点赞数] 内容。
 标注 [×N相似] 表示有N条相似的转发/复制内容已合并为一条——重复转发不代表更多独立观点。
+标注 [盘点·提及N股] 表示该帖同时罗列了N只股票（如财报日历、涨幅盘点）——只把其中与 {ticker} 直接相关的信息作为依据，被罗列本身不构成观点。
 
 {chr(10).join(lines)}
 {prev_block}
@@ -166,7 +207,10 @@ def analyze_ticker(conn, ticker: str, settings=None, name_cn: str = "", score: f
         conn.commit()
 
     if not settings.DEEPSEEK_API_KEY:
-        quotes = [i["text"] for i in items if i["type"] == "comment"][:3] or [i["text"] for i in items[:3]]
+        # focused sources first: a dedicated post beats a 12-ticker roundup as
+        # this ticker's quote, even when the roundup has far more likes
+        ranked_items = sorted(items, key=lambda i: (i.get("fanout", 1), -i["likes"]))
+        quotes = [i["text"] for i in ranked_items[:3]]
         insert("no_api_key", notable_quotes=json.dumps(quotes, ensure_ascii=False))
         return "no_api_key"
 
@@ -213,7 +257,7 @@ def analyze_all(conn, settings, dict_data: dict, stats: dict[str, dict],
                 run_id: int | None = None, now: int | None = None) -> dict[str, str]:
     names = {s["ticker"]: s.get("name_cn", "") for s in dict_data.get("stocks", [])}
     ranked = sorted(
-        (e for e in stats.values() if e["mentions"] >= min_mentions),
+        (e for e in stats.values() if is_rankable(e, min_mentions)),
         key=lambda e: e["score"], reverse=True,
     )[:max_stocks]
     candidates = [e["ticker"] for e in ranked]
