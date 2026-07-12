@@ -304,6 +304,41 @@ them was not.
   `crawl_progress()` reads the JSONL rows and per-keyword log line the crawler already
   writes, so a 60-minute crawl no longer looks identical to a hung one.
 
+## v1.5 aboutness (implemented 2026-07-11)
+
+A post can contain a ticker without being about it. Fan-out caught one half of that (a post
+naming a dozen tickers); nothing caught the other half.
+
+- **The truncation bug.** Notes were cut at 300 chars *from the start*, which assumes the
+  ticker is named up front. In 23% of note-mentions it is not — the 高盛 one sits at char
+  1176 of 1243. Those posts reached DeepSeek as 300 characters that never name the ticker
+  it was being asked to judge, and reached the keyless card as a quote that does not mention
+  the stock it is filed under (QQQ's top quote was a manifesto whose first "QQQ" is at char
+  330). `excerpt()` now windows around the first mention and keeps the opening line.
+- **Aboutness = repetition** (`mentions.is_aside`). Posts genuinely arguing about a stock
+  come back to its name (SK海力士 11×, BIDU 9×, 高盛研报 8×). Half of all note-mentions name
+  theirs exactly once in a 300+ char post: an options tutorial using QQQ as an example, a
+  story about a Goldman Sachs *job interview*, a portfolio update on META that lists GOOGL
+  in a table. Those score at ASIDE_WEIGHT=0.3, are marked `[顺带提及]` for the model, and
+  sink in the quote ranking.
+  Effect: GOOGL 6th → 14th (all six of its posts were name-drops, none about Google); NVDA
+  rises above GS; AAPL/MSFT sink — their only mentions are "苹果、微软、英伟达 are S&P
+  constituents", which is index trivia, not a view on Apple. BRK/SKHY unmoved.
+  **Deliberately kept on the board rather than gated off it** (the alternative was a hard
+  focus gate): a name everybody lists and nobody argues about is worth seeing as exactly
+  that, and mentions are never dropped — consistent with keeping cross-stock mentions for
+  relationship signal.
+- **Prompt** (`build_prompt`): the window is no longer hardcoded to "24小时"; step 1 now
+  tests *aboutness* ("有没有对 {ticker} 表达看法", not "有没有出现 {ticker}") and names the
+  real failure modes (teaching examples, 引流, 晒单, background name-drops); the model is told
+  what `[顺带提及]` and the `…` excerpt markers mean; it is told to report zero rather than
+  infer a stance from discarded items; and `notable_quotes` became `notable_quote_ids` —
+  the model picks item numbers and cannot misquote what it was shown, which also stops it
+  paying output tokens to copy Chinese back.
+- **Cost is not the constraint.** Measured on the real corpus: ~26k input + ~6k output
+  tokens per cycle across 15 tickers = **~$0.014/cycle, ~$2/month** at a 5h interval.
+  MAX_ITEMS=60 is never approached (the largest real card is 15 items). Optimise for quality.
+
 ## Deliberately deferred (v2 candidates)
 
 - **Organic hidden-gem discovery**: discovery ranks what's loud by design; the tracked list + radar strip are the levers for quiet names. No embedding/cluster mining in v1.
