@@ -7,9 +7,11 @@ from pathlib import Path
 log = logging.getLogger(__name__)
 
 # The only MediaCrawler internals we touch. Patcher hard-fails if upstream renames them.
+# CDP_CONNECT_EXISTING=False: launch a fresh real-Chrome/Edge instance with an isolated
+# profile rather than waiting 60s for the user's own browser to expose a debug port.
 PATCHES = [
     ("config/xhs_config.py", "SORT_TYPE", '"time_descending"'),
-    ("config/base_config.py", "ENABLE_CDP_MODE", "False"),
+    ("config/base_config.py", "CDP_CONNECT_EXISTING", "False"),
     ("config/base_config.py", "CRAWLER_MAX_SLEEP_SEC", "3"),
 ]
 
@@ -30,8 +32,15 @@ CODE_PATCHES = [
 LOGIN_HINTS = ["扫码", "二维码", "请扫码", "未登录", "登录已过期", "login expired", "login failed"]
 
 
-def patch_config(mc_dir: Path) -> None:
-    for rel, var, value in PATCHES:
+def patch_config(mc_dir: Path, settings=None) -> None:
+    if settings is None:
+        from .config import settings
+    # XHS risk-control blocks the search API for Playwright's stock Chromium
+    # fingerprint even after a successful login; a real Chrome/Edge binary passes
+    patches = PATCHES + [
+        ("config/base_config.py", "ENABLE_CDP_MODE", "True" if settings.ENABLE_CDP_MODE else "False"),
+    ]
+    for rel, var, value in patches:
         path = mc_dir / rel
         if not path.exists():
             raise RuntimeError(f"MediaCrawler file missing: {path} — run scripts\\setup.ps1")
@@ -64,7 +73,7 @@ def patch_config(mc_dir: Path) -> None:
 
 def run_crawl(keywords: list[str], run_dir: Path, settings) -> dict:
     mc_dir = Path(settings.MEDIACRAWLER_DIR)
-    patch_config(mc_dir)
+    patch_config(mc_dir, settings)
     run_dir.mkdir(parents=True, exist_ok=True)
     log_path = run_dir / "crawler.log"
 

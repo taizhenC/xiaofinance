@@ -21,6 +21,7 @@ class Settings(BaseSettings):
     FETCH_INTERVAL_HOURS: float = 5
     CRAWL_TIMEOUT_MIN: int = 30
     ENABLE_SUB_COMMENTS: bool = False
+    ENABLE_CDP_MODE: bool = True
 
     FRESH_WINDOW_HOURS: int = 24
     MIN_MENTIONS_FOR_ANALYSIS: int = 2
