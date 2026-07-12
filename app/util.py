@@ -49,6 +49,31 @@ def norm_text(s: str) -> str:
     return unicodedata.normalize("NFKC", s or "")
 
 
+_TOPIC_TAG_RE = re.compile(r"#[^#\n]{0,40}\[话题\]#")
+_TAG_MARK_RE = re.compile(r"\[话题\]#")
+
+
+def note_text(title: str | None, desc: str | None) -> str:
+    """Title + desc as one line; XHS descs often repeat the title verbatim at
+    the start, which would double it in quotes and LLM input."""
+    title = " ".join((title or "").split())
+    desc = " ".join((desc or "").split())
+    if title and desc.startswith(title):
+        return desc
+    return f"{title} {desc}".strip()
+
+
+def clean_tags(s: str) -> str:
+    """'#闪迪[话题]#' → '#闪迪' — keeps the topic signal, drops the markup."""
+    return " ".join(_TAG_MARK_RE.sub(" ", s or "").split())
+
+
+def strip_hashtags(s: str) -> str:
+    """Remove whole #xxx[话题]# spans — for checking whether a term appears in
+    the prose rather than only in the tag block."""
+    return _TOPIC_TAG_RE.sub(" ", s or "")
+
+
 _KEEP_RE = re.compile(r"[^0-9a-z一-鿿]+")
 
 
