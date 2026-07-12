@@ -7,11 +7,11 @@ from pathlib import Path
 log = logging.getLogger(__name__)
 
 # The only MediaCrawler internals we touch. Patcher hard-fails if upstream renames them.
-# CDP_CONNECT_EXISTING=False: launch a fresh real-Chrome/Edge instance with an isolated
-# profile rather than waiting 60s for the user's own browser to expose a debug port.
+# CDP mode stays off: it only changes how login/rendering happen, while the API calls the
+# platform actually judges go out over httpx — so it buys nothing and costs a Chrome launch.
 PATCHES = [
     ("config/xhs_config.py", "SORT_TYPE", '"time_descending"'),
-    ("config/base_config.py", "CDP_CONNECT_EXISTING", "False"),
+    ("config/base_config.py", "ENABLE_CDP_MODE", "False"),
     ("config/base_config.py", "CRAWLER_MAX_SLEEP_SEC", "3"),
 ]
 
@@ -40,7 +40,6 @@ def patch_config(mc_dir: Path, settings=None) -> None:
     if settings is None:
         from .config import settings
     patches = PATCHES + [
-        ("config/base_config.py", "ENABLE_CDP_MODE", _bool(settings.ENABLE_CDP_MODE)),
         ("config/base_config.py", "XHS_INTERNATIONAL", _bool(settings.XHS_INTERNATIONAL)),
     ]
     for rel, var, value in patches:

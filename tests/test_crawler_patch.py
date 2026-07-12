@@ -29,8 +29,8 @@ def fake_vendor(tmp_path):
     return tmp_path
 
 
-def settings(cdp=True, intl=False, ua=WIN_UA):
-    return SimpleNamespace(ENABLE_CDP_MODE=cdp, XHS_INTERNATIONAL=intl, BROWSER_USER_AGENT=ua)
+def settings(intl=False, ua=WIN_UA):
+    return SimpleNamespace(XHS_INTERNATIONAL=intl, BROWSER_USER_AGENT=ua)
 
 
 def test_patch_config_switches_to_rednote_backend(tmp_path):
@@ -57,22 +57,21 @@ def test_user_agent_repatches_when_changed(tmp_path):
     assert core.count("self.user_agent = ") == 2  # the commented line + the real one
 
 
-def test_patch_config_enables_cdp_and_launch_new(tmp_path):
+def test_patch_config_applies_base_patches(tmp_path):
     mc = fake_vendor(tmp_path)
-    patch_config(mc, settings(cdp=True))
+    patch_config(mc, settings())
     base = (mc / "config" / "base_config.py").read_text(encoding="utf-8")
-    assert "ENABLE_CDP_MODE = True" in base
-    assert "CDP_CONNECT_EXISTING = False" in base
+    assert "ENABLE_CDP_MODE = False" in base
+    assert "CRAWLER_MAX_SLEEP_SEC = 3" in base
     assert 'SORT_TYPE = "time_descending"' in (mc / "config" / "xhs_config.py").read_text(encoding="utf-8")
     assert "set_default_timeout(120_000)" in (mc / "media_platform" / "xhs" / "core.py").read_text(encoding="utf-8")
 
 
-def test_patch_config_respects_cdp_disabled_and_is_idempotent(tmp_path):
+def test_patch_config_is_idempotent(tmp_path):
     mc = fake_vendor(tmp_path)
-    patch_config(mc, settings(cdp=False))
-    patch_config(mc, settings(cdp=False))
+    patch_config(mc, settings())
+    patch_config(mc, settings())
     base = (mc / "config" / "base_config.py").read_text(encoding="utf-8")
-    assert "ENABLE_CDP_MODE = False" in base
     assert base.count("ENABLE_CDP_MODE") == 1
     core = (mc / "media_platform" / "xhs" / "core.py").read_text(encoding="utf-8")
     assert core.count("set_default_timeout(120_000)") == 1

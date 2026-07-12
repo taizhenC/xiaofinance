@@ -21,7 +21,6 @@ class Settings(BaseSettings):
     FETCH_INTERVAL_HOURS: float = 5
     CRAWL_TIMEOUT_MIN: int = 30
     ENABLE_SUB_COMMENTS: bool = False
-    ENABLE_CDP_MODE: bool = True
     # Accounts registered on rednote.com (the international app) are not valid against
     # mainland xiaohongshu.com: the API host and cookie domain differ, and the search API
     # answers 您当前登录的账号没有权限访问. Switches to webapi.rednote.com / .rednote.com.

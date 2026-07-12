@@ -8,7 +8,7 @@ from app.crawler_runner import run_crawl
 def fake_settings(tmp_path, cookies=""):
     return SimpleNamespace(
         MEDIACRAWLER_DIR=tmp_path, UV_EXE="uv", XHS_COOKIES=cookies,
-        ENABLE_CDP_MODE=False, ENABLE_SUB_COMMENTS=False,
+        ENABLE_SUB_COMMENTS=False,
         MAX_NOTES_PER_KEYWORD=20, MAX_COMMENTS_PER_NOTE=20, CRAWL_TIMEOUT_MIN=1,
     )
 
