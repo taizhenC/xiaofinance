@@ -31,6 +31,14 @@ def test_small_absolute_change_damped_to_flat(conn):
     assert compute_trends(conn)["XYZ"]["dir"] == "flat"
 
 
+def test_tiny_base_keeps_direction_but_hides_percentage(conn):
+    snapshot_scores(conn, _stats(XYZ=2.0), 1, now=1_000)
+    snapshot_scores(conn, _stats(XYZ=10.0), 2, now=2_000)
+    tr = compute_trends(conn)["XYZ"]
+    assert tr["dir"] == "up"
+    assert tr["delta_pct"] is None
+
+
 def test_score_history_zero_fills_gaps(conn):
     snapshot_scores(conn, _stats(NVDA=10.0, TSLA=5.0), 1, now=1_000)
     snapshot_scores(conn, _stats(NVDA=12.0), 2, now=2_000)

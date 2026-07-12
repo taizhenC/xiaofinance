@@ -1,6 +1,10 @@
 import math
 
-from .util import now_ms
+from .mentions import _compile_alias
+from .util import clean_tags, norm_text, note_text, now_ms, strip_hashtags
+
+# a source naming more tickers than this is a roundup (财报日历/涨幅盘点), not discussion
+FOCUS_MAX_FANOUT = 3
 
 
 def _entry(stats: dict, ticker: str) -> dict:
@@ -8,22 +12,53 @@ def _entry(stats: dict, ticker: str) -> dict:
         "ticker": ticker,
         "note_count": 0, "comment_count": 0,
         "note_count_raw": 0, "comment_count_raw": 0,
+        "focused_mentions": 0,
+        "_note_w": 0.0, "_comment_w": 0.0,
         "_note_like_sum": 0.0, "_comment_like_sum": 0.0,
         "latest_item_ms": 0,
-        "top_quote": None, "_top_quote_likes": -1,
+        "top_quote": None, "_top_quote_key": (-1, -1),
     })
+
+
+def source_fanout(conn, source_type: str, cutoff: int) -> dict[str, int]:
+    """source_id -> number of distinct tickers that source mentions."""
+    return {
+        r[0]: r[1]
+        for r in conn.execute(
+            "SELECT source_id, COUNT(DISTINCT ticker) FROM stock_mentions"
+            " WHERE source_type=? AND content_time_ms>=? GROUP BY source_id",
+            (source_type, cutoff),
+        )
+    }
 
 
 def compute_stats(conn, fresh_window_ms: int, now: int | None = None) -> dict[str, dict]:
     """Per-ticker fresh-window stats. Counts and like-sums are over dup clusters
-    (canonical items only); *_raw counts include repost duplicates."""
+    (canonical items only); *_raw counts include repost duplicates.
+
+    A source mentioning k tickers contributes weight 1/k to each, so a calendar
+    post name-dropping a dozen tickers no longer counts like a dedicated post.
+    focused_mentions counts canonical sources where the ticker appears in the
+    prose of a low-fanout item — a match living only inside a #话题# tag block
+    (or a 12-ticker roundup) keeps the ticker off the main ranking by itself."""
     now = now or now_ms()
     cutoff = now - fresh_window_ms
     stats: dict[str, dict] = {}
+    note_fanout = source_fanout(conn, "note", cutoff)
+    comment_fanout = source_fanout(conn, "comment", cutoff)
+    alias_fns: dict[str, object] = {}
+
+    def in_prose(alias: str | None, title, desc) -> bool:
+        if not alias:
+            return False
+        fn = alias_fns.get(alias)
+        if fn is None:
+            fn = alias_fns[alias] = _compile_alias(alias)
+        return fn(strip_hashtags(norm_text(f"{title or ''}\n{desc or ''}")).lower())
 
     for r in conn.execute(
-        """SELECT m.ticker, m.content_time_ms, n.liked_count AS likes, n.title, n.note_desc,
-                  n.dup_group_id
+        """SELECT m.ticker, m.content_time_ms, m.source_id, m.matched_alias,
+                  n.liked_count AS likes, n.title, n.note_desc, n.dup_group_id
            FROM stock_mentions m JOIN notes n ON n.note_id = m.source_id
            WHERE m.source_type='note' AND m.content_time_ms >= ?""",
         (cutoff,),
@@ -32,14 +67,22 @@ def compute_stats(conn, fresh_window_ms: int, now: int | None = None) -> dict[st
         e["note_count_raw"] += 1
         e["latest_item_ms"] = max(e["latest_item_ms"], r["content_time_ms"])
         if r["dup_group_id"] is None:
+            k = note_fanout.get(r["source_id"], 1)
+            w = 1.0 / k
+            focused = k <= FOCUS_MAX_FANOUT and in_prose(r["matched_alias"], r["title"], r["note_desc"])
             e["note_count"] += 1
-            e["_note_like_sum"] += math.log10(1 + max(0, r["likes"]))
-            if r["likes"] > e["_top_quote_likes"]:
-                e["_top_quote_likes"] = r["likes"]
-                e["top_quote"] = (r["title"] or r["note_desc"] or "").strip()[:100]
+            e["_note_w"] += w
+            e["_note_like_sum"] += w * math.log10(1 + max(0, r["likes"]))
+            if focused:
+                e["focused_mentions"] += 1
+            key = (1 if focused else 0, r["likes"])
+            if key > e["_top_quote_key"]:
+                e["_top_quote_key"] = key
+                e["top_quote"] = clean_tags(note_text(r["title"], r["note_desc"]))[:100]
 
     for r in conn.execute(
-        """SELECT m.ticker, m.content_time_ms, c.like_count AS likes, c.content, c.dup_group_id
+        """SELECT m.ticker, m.content_time_ms, m.source_id, c.like_count AS likes, c.content,
+                  c.dup_group_id
            FROM stock_mentions m JOIN comments c ON c.comment_id = m.source_id
            WHERE m.source_type='comment' AND m.content_time_ms >= ?""",
         (cutoff,),
@@ -48,15 +91,22 @@ def compute_stats(conn, fresh_window_ms: int, now: int | None = None) -> dict[st
         e["comment_count_raw"] += 1
         e["latest_item_ms"] = max(e["latest_item_ms"], r["content_time_ms"])
         if r["dup_group_id"] is None:
+            k = comment_fanout.get(r["source_id"], 1)
+            w = 1.0 / k
             e["comment_count"] += 1
-            e["_comment_like_sum"] += math.log10(1 + max(0, r["likes"]))
-            if r["likes"] > e["_top_quote_likes"]:
-                e["_top_quote_likes"] = r["likes"]
-                e["top_quote"] = (r["content"] or "").strip()[:100]
+            e["_comment_w"] += w
+            e["_comment_like_sum"] += w * math.log10(1 + max(0, r["likes"]))
+            focused = k <= FOCUS_MAX_FANOUT
+            if focused:
+                e["focused_mentions"] += 1
+            key = (1 if focused else 0, r["likes"])
+            if key > e["_top_quote_key"]:
+                e["_top_quote_key"] = key
+                e["top_quote"] = " ".join((r["content"] or "").split())[:100]
 
     for e in stats.values():
         e["score"] = round(
-            3 * e["note_count"] + e["comment_count"]
+            3 * e["_note_w"] + e["_comment_w"]
             + 2 * e["_note_like_sum"] + 0.5 * e["_comment_like_sum"],
             2,
         )
@@ -66,6 +116,9 @@ def compute_stats(conn, fresh_window_ms: int, now: int | None = None) -> dict[st
 
 TREND_PCT = 25
 TREND_MIN_ABS_DELTA = 2.0
+# below this base score, percentages read as noise (+409% off a 2-point base);
+# the badge keeps its direction but drops the number
+TREND_PCT_BASE_MIN = 5.0
 
 
 def snapshot_scores(conn, stats: dict[str, dict], run_id: int | None, now: int | None = None) -> int:
@@ -107,13 +160,14 @@ def compute_trends(conn) -> dict[str, dict]:
             trends[ticker] = {"dir": "new", "delta_pct": None, "prev_score": 0.0}
             continue
         delta = score - p
-        pct = round(delta / p * 100) if p > 0 else None
-        if pct is not None and pct >= TREND_PCT and delta >= TREND_MIN_ABS_DELTA:
+        pct_raw = delta / p * 100 if p > 0 else None
+        if pct_raw is not None and pct_raw >= TREND_PCT and delta >= TREND_MIN_ABS_DELTA:
             d = "up"
-        elif pct is not None and pct <= -TREND_PCT and -delta >= TREND_MIN_ABS_DELTA:
+        elif pct_raw is not None and pct_raw <= -TREND_PCT and -delta >= TREND_MIN_ABS_DELTA:
             d = "down"
         else:
             d = "flat"
+        pct = round(pct_raw) if pct_raw is not None and p >= TREND_PCT_BASE_MIN else None
         trends[ticker] = {"dir": d, "delta_pct": pct, "prev_score": p}
     return trends
 
@@ -144,13 +198,19 @@ def score_history(conn, tickers: list[str], limit_cycles: int = 30) -> dict[str,
     }
 
 
+def is_rankable(e: dict, min_mentions: int) -> bool:
+    """Main-board eligibility: enough mentions AND at least one focused source —
+    tickers carried only by roundup posts or tag blocks stay on the radar."""
+    return e.get("mentions", 0) >= min_mentions and e.get("focused_mentions", 0) >= 1
+
+
 def ranking_and_radar(stats: dict[str, dict], min_mentions: int) -> tuple[list[dict], list[dict]]:
     ranking = sorted(
-        (e for e in stats.values() if e["mentions"] >= min_mentions),
+        (e for e in stats.values() if is_rankable(e, min_mentions)),
         key=lambda e: e["score"], reverse=True,
     )
     radar = sorted(
-        (e for e in stats.values() if 1 <= e["mentions"] < min_mentions),
+        (e for e in stats.values() if e["mentions"] >= 1 and not is_rankable(e, min_mentions)),
         key=lambda e: (e["mentions"], e["score"]), reverse=True,
     )
     return ranking, radar

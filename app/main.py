@@ -171,6 +171,7 @@ def api_ranking():
                     "ticker": t, "score": 0.0, "mentions": 0,
                     "note_count": 0, "comment_count": 0,
                     "note_count_raw": 0, "comment_count_raw": 0,
+                    "focused_mentions": 0,
                     "latest_item_ms": 0, "top_quote": None,
                 }
                 ranking.append(e)
@@ -203,6 +204,7 @@ def api_ranking():
                 "note_count_raw": e["note_count_raw"],
                 "comment_count_raw": e["comment_count_raw"],
                 "mentions": e.get("mentions", 0),
+                "focused_mentions": e.get("focused_mentions", 0),
                 "tracked": t in tracked,
                 "sentiment_counts": sc,
                 "quote": {
