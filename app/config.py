@@ -27,25 +27,40 @@ class Settings(BaseSettings):
     # sector terms return A-share or consumer posts — 电动车 returns scooter rentals, 黄金股
     # returns 紫金/老铺黄金, 减肥药 returns diet pills. Probe before adding, never guess.
     DISCOVERY_POOL: str = "中概股,美股医药,美股银行,巴菲特,美股打新"
-    # A keyword costs ~5 min (20 notes + their comments), so 6 is what fits inside
-    # CRAWL_TIMEOUT_MIN. Overshoot and the crawler is killed mid-list, silently dropping
-    # the cycle's tail keywords.
+    # Each keyword is its own crawler process now, so the cycle is no longer racing
+    # CRAWL_TIMEOUT_MIN — the budget is requests per day against the account flag.
+    # 6 keywords × ~21 requests ≈ what two keywords cost before the detail slice.
     KEYWORDS_PER_CYCLE: int = 6
-    # XHS search pages hold 20 notes and MediaCrawler rounds anything smaller up to a full
-    # page (core.py: `if CRAWLER_MAX_NOTES_COUNT < xhs_limit_count`), so values below 20
-    # buy nothing — the old 12 always fetched 20.
-    MAX_NOTES_PER_KEYWORD: int = 20
-    MAX_COMMENTS_PER_NOTE: int = 20
+    # XHS search pages hold a fixed 20 notes, but the search call is 1 request — the
+    # per-note details and comments behind it are the other ~97%. The detail-slice patch
+    # (crawler_runner) caps details+comments at the newest N of the page, which is what
+    # makes values below 20 mean something. Run 21 walled at ~120 requests in 24 min;
+    # 10 notes/keyword keeps a whole 6-keyword cycle near that budget.
+    MAX_NOTES_PER_KEYWORD: int = 10
+    # One comment page holds ~10, so 10 costs a single request per note; the old 20 paid
+    # a second page per note for tail comments that rarely name a stock.
+    MAX_COMMENTS_PER_NOTE: int = 10
     FETCH_INTERVAL_HOURS: float = 5
     # MediaCrawler sleeps this long after every note detail and every comment fetch — not
     # just once per page — so it is the real request rate. Its default of 3s walled the
     # account partway through a 6-keyword cycle; 8s costs ~10 min per keyword.
     CRAWL_SLEEP_SEC: int = 8
-    CRAWL_TIMEOUT_MIN: int = 70
+    # Per crawler process, which is now a single keyword (~3-4 min at the sliced volume);
+    # this is a hung-browser backstop, not the cycle budget.
+    CRAWL_TIMEOUT_MIN: int = 15
+    # Pause between per-keyword crawler processes. The wall triggers on session volume
+    # (runs 16-21: ~100-130 continuous requests), so the same cycle spent as short spaced
+    # bursts stays under it. 6 keywords × (~4 min crawl + gap) must fit FETCH_INTERVAL_HOURS.
+    KEYWORD_GAP_MIN: float = 12
     # Once XHS decides the account is a crawler it answers with a CAPTCHA (461) and tenacity
     # retries each walled request — one run ground through 192 of them, which can only
     # deepen the flag. Stop instead: whatever was fetched before the wall is already ingested.
     CAPTCHA_ABORT_COUNT: int = 10
+    # After a walled run, scheduled cycles hold off this long. The run-16 flag persisted
+    # 12+ hours, and every 5-hourly retry (runs 17-20) burned another dozen 461s that kept
+    # it warm. Manual "Fetch now" bypasses the cooldown on purpose: someone who has just
+    # cleared the CAPTCHA in the browser needs to test immediately. 0 disables.
+    RISK_COOLDOWN_HOURS: float = 24
     # Replies to comments. XHS ships the first few of them inside the parent comment's own
     # response, so collecting them adds no requests and no risk — the crawler was fetching
     # and discarding them. The paging loop that would chase the rest is patched out

@@ -9,11 +9,17 @@ from pathlib import Path
 log = logging.getLogger(__name__)
 
 # The only MediaCrawler internals we touch. Patcher hard-fails if upstream renames them.
-# CDP mode stays off: it only changes how login/rendering happen, while the API calls the
-# platform actually judges go out over httpx — so it buys nothing and costs a Chrome launch.
+# CDP mode drives the user's real installed Chrome (a visible window, persistent profile
+# under browser_data/cdp_xhs_user_data_dir) instead of Playwright's bundled Chromium.
+# That window is one the user can actually operate: log in once, and when XHS walls the
+# account (runs 17-20) solve the slider CAPTCHA right there — the Playwright profile
+# offered no way to do either. The signed API calls still go out over httpx, but with the
+# CDP context's cookies, so the session crawling is the one the user can see and repair.
 PATCHES = [
     ("config/xhs_config.py", "SORT_TYPE", '"time_descending"'),
-    ("config/base_config.py", "ENABLE_CDP_MODE", "False"),
+    ("config/base_config.py", "ENABLE_CDP_MODE", "True"),
+    # headless would take away the window that is the whole point of CDP mode here
+    ("config/base_config.py", "CDP_HEADLESS", "False"),
 ]
 
 # Line patches for things that aren't config variables. Same contract as PATCHES:
@@ -135,6 +141,7 @@ def patch_config(mc_dir: Path, settings=None) -> None:
         path.write_text(text.replace(anchor, replacement, 1), encoding="utf-8")
         log.info("patched %s: %s", rel, replacement.strip().splitlines()[0])
     _patch_user_agent(mc_dir, settings.BROWSER_USER_AGENT)
+    _patch_detail_slice(mc_dir, settings.MAX_NOTES_PER_KEYWORD)
 
 
 # Regex rather than an anchor swap so re-running with a different UA re-patches cleanly.
@@ -156,12 +163,48 @@ def _patch_user_agent(mc_dir: Path, user_agent: str) -> None:
         log.info("patched xhs core.py: user_agent = %s", user_agent)
 
 
+# The search page is 1 request for a fixed 20 notes; the details and comments behind it
+# are ~97% of a keyword's cost (a request per note plus one per comment page). Slicing
+# the page to its newest N — sort is time_descending — is what makes
+# MAX_NOTES_PER_KEYWORD below 20 actually cut traffic; MediaCrawler itself rounds the
+# count cap up to a full page. Sliced at the comprehension source, not at the gather,
+# so no coroutine is created only to go un-awaited. Regex so a changed N re-patches
+# cleanly (same contract as the UA patch).
+DETAIL_SLICE_RE = re.compile(
+    r'for post_item in notes_res\.get\("items", \{\}\)(?:\[:\d+\])?'
+)
+
+
+def _patch_detail_slice(mc_dir: Path, max_notes: int) -> None:
+    path = mc_dir / "media_platform/xhs/core.py"
+    text = path.read_text(encoding="utf-8")
+    if not DETAIL_SLICE_RE.search(text):
+        raise RuntimeError(
+            "MediaCrawler xhs core.py no longer iterates search items where expected — "
+            "upstream layout changed; update _patch_detail_slice or re-pin the vendor commit"
+        )
+    new_text = DETAIL_SLICE_RE.sub(
+        f'for post_item in notes_res.get("items", {{}})[:{max_notes}]', text, count=1
+    )
+    if new_text != text:
+        path.write_text(new_text, encoding="utf-8")
+        log.info("patched xhs core.py: detail slice = newest %d notes per page", max_notes)
+
+
 class _CaptchaWatcher:
-    """Counts CAPTCHA lines as the log grows, reading only what is new each poll."""
+    """Counts CAPTCHA lines as the log grows, reading only what is new each poll.
+
+    Starts at the log's current end: the file accumulates one cycle's per-keyword
+    crawler processes, and an earlier keyword's wall must not abort a later keyword
+    that is doing fine."""
 
     def __init__(self, log_path: Path):
         self.path = Path(log_path)
-        self.pos = 0
+        try:
+            self.pos = self.path.stat().st_size
+        except OSError:
+            self.pos = 0
+        self.start = self.pos  # where this invocation's slice of the shared log begins
         self.carry = ""
         self.count = 0
 
@@ -221,7 +264,9 @@ def run_crawl(keywords: list[str], run_dir: Path, settings, get_comments: bool =
     timed_out = risk_controlled = False
     watcher = _CaptchaWatcher(log_path)
     deadline = time.monotonic() + settings.CRAWL_TIMEOUT_MIN * 60
-    with open(log_path, "wb") as logf:
+    # append, not truncate: a cycle is now several per-keyword processes sharing one log,
+    # which is what keeps the progress/detail readers working across the whole cycle
+    with open(log_path, "ab") as logf:
         proc = subprocess.Popen(
             cmd, cwd=mc_dir, stdout=logf, stderr=subprocess.STDOUT,
             stdin=subprocess.DEVNULL, env=env,
@@ -246,7 +291,8 @@ def run_crawl(keywords: list[str], run_dir: Path, settings, get_comments: bool =
                 break
 
     return {"exit_code": proc.returncode, "timed_out": timed_out, "log_path": log_path,
-            "risk_controlled": risk_controlled, "captchas": watcher.poll()}
+            "risk_controlled": risk_controlled, "captchas": watcher.poll(),
+            "log_start": watcher.start}
 
 
 CAPTCHA_MARKER = "CAPTCHA appeared"
@@ -254,26 +300,27 @@ NETWORK_MARKERS = ["ConnectError", "ConnectTimeout", "ReadTimeout", "ProxyError"
 KEYWORD_RE = re.compile(r"Current search keyword: (.+)")
 
 
-def _log_text(log_path: Path, tail_bytes: int | None = None) -> str:
+def _log_text(log_path: Path, tail_bytes: int | None = None, start: int = 0) -> str:
     """Reads the tail by default: a risk-controlled run writes an error line per retry and
-    a full note dump per result, so these logs run to megabytes."""
+    a full note dump per result, so these logs run to megabytes. `start` scopes the read
+    to one keyword's slice of the cycle's shared log."""
     path = Path(log_path)
     if not path.exists():
         return ""
     try:
         with open(path, "rb") as f:
-            if tail_bytes:
-                f.seek(0, 2)
-                f.seek(max(0, f.tell() - tail_bytes))
+            f.seek(0, 2)
+            lo = max(start, f.tell() - tail_bytes) if tail_bytes else start
+            f.seek(max(0, lo))
             return f.read().decode("utf-8", errors="replace")
     except OSError:
         return ""
 
 
-def failure_reason(log_path: Path, exit_code: int) -> str:
+def failure_reason(log_path: Path, exit_code: int, start: int = 0) -> str:
     """MediaCrawler exits 1 for every unhandled error alike, so the exit code on its own
     tells you nothing about whether to retry, re-login, or back off. Name the cause."""
-    text = _log_text(log_path)
+    text = _log_text(log_path, start=start)
     captchas = text.count(CAPTCHA_MARKER)
     if captchas:
         return (
@@ -337,6 +384,21 @@ def keyword_counts(run_dir: Path) -> tuple[dict[str, int], dict[str, int]]:
     return notes, comments
 
 
+PAUSE_MARKER = "xiaofinance INFO - pausing"
+
+
+def append_log_line(log_path: Path, message: str) -> None:
+    """Pipeline-side notes written into the crawler's own log, so the run dir stays the
+    single artifact the progress/detail readers parse. Same timestamp shape as
+    MediaCrawler's lines; 'INFO' keeps it out of the ERROR harvesters."""
+    line = f"{time.strftime('%Y-%m-%d %H:%M:%S')} xiaofinance INFO - {message}\n"
+    try:
+        with open(log_path, "ab") as f:
+            f.write(line.encode("utf-8"))
+    except OSError:
+        pass
+
+
 # Positionally last marker wins: comment-store lines always follow their keyword's
 # "Begin get note id comments", so rfind order reflects what the crawler is doing now.
 PHASE_MARKERS = [
@@ -344,6 +406,7 @@ PHASE_MARKERS = [
     ("update_xhs_note]", "note_details"),
     ("Note details:", "note_details"),
     ("Current search keyword", "search"),
+    (PAUSE_MARKER, "paused"),
 ]
 ERROR_LINE_RE = re.compile(r"^.* ERROR \([^)]+\) - (.*)$", re.MULTILINE)
 
@@ -461,13 +524,10 @@ def crawl_detail(run_dir: Path, keywords: list[str], status: str) -> dict:
     }
 
 
-def login_looks_required(log_path: Path, notes_fresh: int) -> bool:
+def login_looks_required(log_path: Path, notes_fresh: int, start: int = 0) -> bool:
     """True if the log says the session expired, or the crawl got nothing and mentions login."""
-    if not Path(log_path).exists():
-        return False
-    try:
-        text = Path(log_path).read_text(encoding="utf-8", errors="replace")
-    except OSError:
+    text = _log_text(log_path, start=start)
+    if not text:
         return False
     if any(m in text for m in EXPIRED_MARKERS):
         return True

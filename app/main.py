@@ -58,6 +58,21 @@ def _run_cycle_locked(mode: str) -> bool:
     return True
 
 
+def _scheduled_cycle() -> None:
+    conn = connect()
+    try:
+        until = pipeline.risk_cooldown_until(conn, settings)
+    finally:
+        conn.close()
+    if until and now_ms() < until:
+        log.warning(
+            "scheduled fetch skipped: XHS risk-control cooldown for another %.1f h",
+            (until - now_ms()) / 3_600_000,
+        )
+        return
+    _run_cycle_locked("both")
+
+
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     conn = connect()
@@ -70,7 +85,7 @@ async def lifespan(_app: FastAPI):
     if settings.FETCH_INTERVAL_HOURS > 0:
         scheduler = BackgroundScheduler()
         scheduler.add_job(
-            lambda: _run_cycle_locked("both"),
+            _scheduled_cycle,
             IntervalTrigger(hours=settings.FETCH_INTERVAL_HOURS),
             id="fetch_cycle",
         )
@@ -128,6 +143,9 @@ def api_status():
             job = scheduler.get_job("fetch_cycle")
             if job and job.next_run_time:
                 next_run_ms = int(job.next_run_time.timestamp() * 1000)
+        cooldown_ms = pipeline.risk_cooldown_until(conn, settings)
+        if cooldown_ms and cooldown_ms <= now_ms():
+            cooldown_ms = None
         return {
             "last_run": _with_progress(last) if last else None,
             "running": fetch_lock.locked(),
@@ -136,6 +154,7 @@ def api_status():
                 "enabled": settings.FETCH_INTERVAL_HOURS > 0,
                 "interval_hours": settings.FETCH_INTERVAL_HOURS,
                 "next_run_at_ms": next_run_ms,
+                "cooldown_until_ms": cooldown_ms,
             },
             "now_ms": now_ms(),
             "window_hours": settings.FRESH_WINDOW_HOURS,

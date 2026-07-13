@@ -2,9 +2,11 @@
 
 The crawl budget is fixed (account risk, not compute), so widening coverage means
 spending the same ~10 keywords on different topics over time rather than crawling more
-at once. Core keywords run every cycle; the rest are drawn from a pool by a cursor that
-advances only when a run actually brought notes back, so a failed login doesn't silently
-skip a sector until the pool wraps.
+at once. Pool picks run BEFORE core: core runs every cycle and can afford the tail,
+while a pool keyword gets one shot per wrap — behind core it never survived to run,
+because the CAPTCHA wall lands mid-cycle. The cursor advances only past the leading
+pool picks that were actually sampled, so a keyword the wall ate leads the next cycle
+instead of waiting a full wrap.
 """
 
 from .db import meta_get, meta_set
@@ -17,8 +19,8 @@ def rotation_candidates(settings) -> list[str]:
     return [k for k in settings.discovery_pool_list if k not in core]
 
 
-def select_keywords(conn, settings) -> tuple[list[str], int | None]:
-    """Returns (keywords for this cycle, cursor to persist if the crawl succeeds)."""
+def select_keywords(conn, settings) -> tuple[list[str], dict | None]:
+    """Returns (keywords for this cycle, rotation state for advance_rotation)."""
     candidates = rotation_candidates(settings)
     if not candidates:  # rotation is opt-in: no pool means the old static list
         return settings.discovery_keywords_list[: settings.KEYWORDS_PER_CYCLE], None
@@ -31,12 +33,22 @@ def select_keywords(conn, settings) -> tuple[list[str], int | None]:
 
     cursor = int(meta_get(conn, KEYWORD_CURSOR, "0") or 0) % len(candidates)
     picked = [candidates[(cursor + i) % len(candidates)] for i in range(take)]
-    return core + picked, (cursor + take) % len(candidates)
+    return picked + core, {"picked": picked, "cursor": cursor, "pool_size": len(candidates)}
 
 
-def advance_rotation(conn, cursor: int | None) -> None:
-    if cursor is not None:
-        meta_set(conn, KEYWORD_CURSOR, str(cursor))
+def advance_rotation(conn, rotation: dict | None, sampled: set[str]) -> None:
+    """Move the cursor past the leading pool picks that were sampled. Prefix, not count:
+    the cursor is positional, so an unsampled pick mid-list must stop the advance or the
+    picks after it would be skipped for a full wrap."""
+    if not rotation:
+        return
+    n = 0
+    for kw in rotation["picked"]:
+        if kw not in sampled:
+            break
+        n += 1
+    if n:
+        meta_set(conn, KEYWORD_CURSOR, str((rotation["cursor"] + n) % rotation["pool_size"]))
 
 
 def yield_stats(conn, run_id: int | None = None, since_ms: int | None = None) -> list[dict]:

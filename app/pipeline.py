@@ -2,6 +2,7 @@ import argparse
 import json
 import logging
 import shutil
+import time
 from pathlib import Path
 
 from . import analyze, crawler_runner, dedup, ingest, mentions, prices, scoring, slang_scan
@@ -21,9 +22,9 @@ def _tracked_rows(conn):
 
 
 def run_fetch(conn, mode: str, dict_data: dict, settings) -> int | None:
-    cursor_next = None
+    rotation = None
     if mode == "discovery":
-        keywords, cursor_next = keywords_mod.select_keywords(conn, settings)
+        keywords, rotation = keywords_mod.select_keywords(conn, settings)
     else:
         keywords, _ = mentions.build_tracked_keywords(dict_data, _tracked_rows(conn))
         if not keywords:
@@ -44,23 +45,59 @@ def run_fetch(conn, mode: str, dict_data: dict, settings) -> int | None:
 
     status, error = "failed", None
     stats = {"notes_fetched": 0, "notes_fresh": 0, "comments_fresh": 0, "malformed": 0}
+    # One crawler process per keyword, with a pause in between. The wall triggers on
+    # session volume (runs 16-21 died at ~100-130 continuous requests), which a
+    # multi-keyword marathon crosses at keyword 2-3 every time — so the tail keywords
+    # never ran. Spaced single-keyword bursts stay under it, and a wall now costs the
+    # rest of the list instead of poisoning what was already fetched.
+    sampled: set[str] = set()
+    failures: list[str] = []
+    walled = login_needed = False
+    captchas = 0
     try:
-        result = crawler_runner.run_crawl(keywords, run_dir, settings)
+        log_path = run_dir / "crawler.log"
+        for i, kw in enumerate(keywords):
+            if i and settings.KEYWORD_GAP_MIN > 0:
+                crawler_runner.append_log_line(
+                    log_path, f"pausing {settings.KEYWORD_GAP_MIN:g} min before {kw}"
+                )
+                time.sleep(settings.KEYWORD_GAP_MIN * 60)
+            result = crawler_runner.run_crawl([kw], run_dir, settings)
+            captchas += result["captchas"]
+            kw_notes = crawler_runner.keyword_counts(run_dir)[0].get(kw, 0)
+            if crawler_runner.login_looks_required(
+                result["log_path"], kw_notes, start=result["log_start"]
+            ):
+                login_needed = True
+                break
+            # Sampled means "don't spend budget here again next cycle": its notes are in,
+            # even if the wall then ate the comments.
+            if result["exit_code"] == 0 or kw_notes > 0:
+                sampled.add(kw)
+            # risk_controlled is the watcher's kill at CAPTCHA_ABORT_COUNT; the second
+            # arm catches the crawler dying on its own after fewer 461s — either way the
+            # wall is up, and the keywords behind it are better spent after the cooldown.
+            if result["risk_controlled"] or (result["exit_code"] != 0 and result["captchas"] > 0):
+                walled = True
+                break
+            if result["timed_out"]:
+                failures.append(f"{kw}: timeout after {settings.CRAWL_TIMEOUT_MIN} min")
+            elif result["exit_code"] != 0:
+                failures.append(f"{kw}: " + crawler_runner.failure_reason(
+                    result["log_path"], result["exit_code"], start=result["log_start"]
+                ))
         stats = ingest.ingest_run_dir(conn, run_dir, run_id, settings.context_window_ms)
-        if crawler_runner.login_looks_required(result["log_path"], stats["notes_fresh"]):
+        if login_needed:
             status, error = "failed", "login_required"
-        elif result.get("risk_controlled"):
+        elif walled:
             status = "partial" if stats["notes_fresh"] > 0 else "failed"
             error = (
-                f"stopped after {result['captchas']} CAPTCHAs — XHS is rate-limiting the "
+                f"stopped after {captchas} CAPTCHAs — XHS is rate-limiting the "
                 "account; what was fetched before the wall is kept"
             )
-        elif result["timed_out"]:
+        elif failures:
             status = "partial" if stats["notes_fresh"] > 0 else "failed"
-            error = f"timeout after {settings.CRAWL_TIMEOUT_MIN} min"
-        elif result["exit_code"] != 0:
-            status = "partial" if stats["notes_fresh"] > 0 else "failed"
-            error = crawler_runner.failure_reason(result["log_path"], result["exit_code"])
+            error = "; ".join(failures)[:500]
         elif stats["malformed"] > 0:
             status, error = "partial", f"{stats['malformed']} malformed lines skipped"
         else:
@@ -85,13 +122,27 @@ def run_fetch(conn, mode: str, dict_data: dict, settings) -> int | None:
         (status, now_ms(), stats["notes_fetched"], stats["notes_fresh"],
          stats["comments_fresh"], str(run_dir), error, detail, run_id),
     )
-    # A login failure must not consume a rotation slot: those sectors would go unsampled
-    # until the pool wraps around again.
-    if stats["notes_fetched"] > 0:
-        keywords_mod.advance_rotation(conn, cursor_next)
+    # Advances only past the pool picks that were actually sampled: a keyword the wall
+    # (or a login failure) ate leads the next cycle instead of waiting out a full wrap.
+    keywords_mod.advance_rotation(conn, rotation, sampled)
     conn.commit()
     log.info("run %d (%s): %s %s", run_id, mode, status, error or "")
     return run_id
+
+
+def risk_cooldown_until(conn, settings) -> int | None:
+    """When the newest finished run hit the CAPTCHA wall, scheduled cycles pause until the
+    cooldown lapses — retrying against the wall burns another dozen walled requests per
+    attempt and keeps the account flagged. Any later run, clean or not, supersedes it."""
+    if settings.RISK_COOLDOWN_HOURS <= 0:
+        return None
+    row = conn.execute(
+        "SELECT finished_at_ms, error FROM fetch_runs WHERE finished_at_ms IS NOT NULL "
+        "ORDER BY id DESC LIMIT 1"
+    ).fetchone()
+    if not row or "CAPTCHA" not in (row["error"] or ""):
+        return None
+    return row["finished_at_ms"] + int(settings.RISK_COOLDOWN_HOURS * 3_600_000)
 
 
 def cleanup(conn, settings, now: int | None = None) -> None:
@@ -124,6 +175,18 @@ def run_cycle(mode: str = "both", skip_crawl: bool = False, settings=None,
         if not skip_crawl:
             modes = {"both": ["discovery", "tracked"], "discovery": ["discovery"], "tracked": ["tracked"]}[mode]
             for m in modes:
+                if run_ids:
+                    # the previous run in this cycle just failed for account reasons —
+                    # a second run right now only burns requests into the same wall
+                    prev = conn.execute(
+                        "SELECT error FROM fetch_runs WHERE id=?", (run_ids[-1],)
+                    ).fetchone()
+                    prev_error = (prev["error"] if prev else None) or ""
+                    if "CAPTCHA" in prev_error or prev_error == "login_required":
+                        log.warning("skipping %s run: previous run ended with %r", m, prev_error)
+                        break
+                    if settings.KEYWORD_GAP_MIN > 0:
+                        time.sleep(settings.KEYWORD_GAP_MIN * 60)
                 rid = run_fetch(conn, m, dict_data, settings)
                 if rid is not None:
                     run_ids.append(rid)

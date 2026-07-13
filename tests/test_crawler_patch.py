@@ -14,6 +14,7 @@ def fake_vendor(tmp_path):
     (cfg / "base_config.py").write_text(
         "XHS_INTERNATIONAL = False\n"
         "ENABLE_CDP_MODE = False\n"
+        "CDP_HEADLESS = True\n"
         "CDP_CONNECT_EXISTING = True\n"
         "CRAWLER_MAX_SLEEP_SEC = 2\n",
         encoding="utf-8",
@@ -25,6 +26,8 @@ def fake_vendor(tmp_path):
         f'        self.user_agent = "{MAC_UA}"\n'
         "            self.context_page = await self.browser_context.new_page()\n"
         "            await self.context_page.goto(self.index_url)\n"
+        '                        ) for post_item in notes_res.get("items", {}) '
+        'if post_item.get("model_type") not in ("rec_query", "hot_query")\n'
         "            await self.xhs_client.get_note_all_comments(\n"
         "                note_id=note_id,\n"
         "                xsec_token=xsec_token,\n"
@@ -58,8 +61,11 @@ def fake_vendor(tmp_path):
     return tmp_path
 
 
-def settings(intl=False, ua=WIN_UA, sleep=8):
-    return SimpleNamespace(XHS_INTERNATIONAL=intl, BROWSER_USER_AGENT=ua, CRAWL_SLEEP_SEC=sleep)
+def settings(intl=False, ua=WIN_UA, sleep=8, max_notes=10):
+    return SimpleNamespace(
+        XHS_INTERNATIONAL=intl, BROWSER_USER_AGENT=ua, CRAWL_SLEEP_SEC=sleep,
+        MAX_NOTES_PER_KEYWORD=max_notes,
+    )
 
 
 def test_patch_config_switches_to_rednote_backend(tmp_path):
@@ -87,10 +93,13 @@ def test_user_agent_repatches_when_changed(tmp_path):
 
 
 def test_patch_config_applies_base_patches(tmp_path):
+    """CDP mode is on so the crawl runs in the user's real Chrome — a visible, persistent
+    window they can log into and clear a slider CAPTCHA in, unlike the Playwright profile."""
     mc = fake_vendor(tmp_path)
     patch_config(mc, settings())
     base = (mc / "config" / "base_config.py").read_text(encoding="utf-8")
-    assert "ENABLE_CDP_MODE = False" in base
+    assert "ENABLE_CDP_MODE = True" in base
+    assert "CDP_HEADLESS = False" in base
     assert 'SORT_TYPE = "time_descending"' in (mc / "config" / "xhs_config.py").read_text(encoding="utf-8")
     assert "set_default_timeout(120_000)" in (mc / "media_platform" / "xhs" / "core.py").read_text(encoding="utf-8")
 
@@ -118,8 +127,28 @@ def test_patch_config_is_idempotent(tmp_path):
     core = (mc / "media_platform" / "xhs" / "core.py").read_text(encoding="utf-8")
     assert core.count("set_default_timeout(120_000)") == 1
     assert core.count("domcontentloaded") == 1
+    assert core.count("[:10]") == 1
     client = (mc / "media_platform" / "xhs" / "client.py").read_text(encoding="utf-8")
     assert client.count("inline replies only") == 1
+
+
+def test_details_and_comments_are_sliced_to_the_newest_n_notes(tmp_path):
+    """The search page is 1 request for a fixed 20 notes; the details and comments behind
+    it are the other ~97%. Slicing there is what lets MAX_NOTES_PER_KEYWORD < 20 cut a
+    keyword's cost — MediaCrawler itself rounds the count cap up to a full page."""
+    mc = fake_vendor(tmp_path)
+    patch_config(mc, settings(max_notes=10))
+    core = (mc / "media_platform" / "xhs" / "core.py").read_text(encoding="utf-8")
+    assert 'for post_item in notes_res.get("items", {})[:10] if' in core
+
+
+def test_detail_slice_repatches_when_n_changes(tmp_path):
+    mc = fake_vendor(tmp_path)
+    patch_config(mc, settings(max_notes=10))
+    patch_config(mc, settings(max_notes=8))
+    core = (mc / "media_platform" / "xhs" / "core.py").read_text(encoding="utf-8")
+    assert '[:8]' in core and '[:10]' not in core
+    assert core.count("for post_item in notes_res") == 1
 
 
 def test_inline_replies_are_kept_but_never_paged_for(tmp_path):

@@ -35,7 +35,7 @@ async function api(path, opts) {
 /* ---------- status + polling ---------- */
 const PHASE_CN = {
   search: "搜索帖子", note_details: "抓帖子详情", comments: "抓评论",
-  login: "等待登录", starting: "启动中",
+  login: "等待登录", starting: "启动中", paused: "关键词间歇（防风控）",
 };
 
 // The crawl throttles itself to one request per 8s on purpose (account risk), so raw
@@ -59,7 +59,8 @@ function renderCrawlProgress(s, p) {
   const kw = p.keyword ? ` · ${kIdx || "?"}/${p.keyword_total}「${esc(p.keyword)}」` : "";
   const phase = PHASE_CN[p.phase] ? ` · ${PHASE_CN[p.phase]}` : "";
   const idle = p.last_activity_ms != null ? Math.max(0, s.now_ms - p.last_activity_ms) : null;
-  const heart = idle == null ? ""
+  // silence during the between-keyword pause is by design, not a hang
+  const heart = idle == null || p.phase === "paused" ? ""
     : idle > 90000 ? ` · <b class="warn">无活动 ${Math.round(idle / 60000)}分钟</b>`
     : ` · <span class="pulse-dot"></span>${idle < 8000 ? "刚刚" : Math.round(idle / 1000) + "秒前"}`;
   const risk = p.captchas ? ` · <b class="warn">⚠ 风控验证码×${p.captchas}</b>` : "";
@@ -90,8 +91,9 @@ async function loadStatus() {
       ? `last fetch: ${localTime(s.last_run.finished_at_ms || s.last_run.started_at_ms)} (${s.last_run.status})`
       : "last fetch: never";
   }
-  $("#nextRun").textContent =
-    s.scheduler.enabled && s.scheduler.next_run_at_ms
+  $("#nextRun").textContent = s.scheduler.cooldown_until_ms
+    ? `auto-runs paused until ${localTime(s.scheduler.cooldown_until_ms)} — CAPTCHA cooldown (Fetch now still works)`
+    : s.scheduler.enabled && s.scheduler.next_run_at_ms
       ? `next auto-run: ${localTime(s.scheduler.next_run_at_ms)}`
       : "";
   $("#loginBanner").hidden = !s.login_required;

@@ -1,4 +1,6 @@
-from app.crawler_runner import _CaptchaWatcher, crawl_detail, crawl_progress, failure_reason
+from app.crawler_runner import (
+    _CaptchaWatcher, append_log_line, crawl_detail, crawl_progress, failure_reason,
+)
 
 CAPTCHA = (
     "2026-07-11 21:11:09 MediaCrawler ERROR (client.py:140) - CAPTCHA appeared, request "
@@ -43,8 +45,8 @@ def test_unrecognised_failure_still_says_something(tmp_path):
 
 def test_watcher_counts_only_what_is_new(tmp_path):
     log = tmp_path / "crawler.log"
+    w = _CaptchaWatcher(log)  # constructed before the crawler writes anything
     log.write_text(CAPTCHA * 3, encoding="utf-8")
-    w = _CaptchaWatcher(log)
     assert w.poll() == 3
     assert w.poll() == 3  # nothing new — no double counting
     with open(log, "a", encoding="utf-8") as f:
@@ -52,16 +54,40 @@ def test_watcher_counts_only_what_is_new(tmp_path):
     assert w.poll() == 5
 
 
+def test_watcher_ignores_what_a_previous_keyword_already_wrote(tmp_path):
+    """The cycle's per-keyword processes share one log. A keyword that walled yesterday's
+    slice must not trip the abort for the keyword running now."""
+    log = tmp_path / "crawler.log"
+    log.write_text(CAPTCHA * 12, encoding="utf-8")
+    w = _CaptchaWatcher(log)
+    assert w.start == log.stat().st_size
+    assert w.poll() == 0
+    with open(log, "a", encoding="utf-8") as f:
+        f.write(CAPTCHA)
+    assert w.poll() == 1
+
+
 def test_watcher_catches_a_marker_split_across_two_reads(tmp_path):
     """The log is read while the crawler writes it, so a marker lands astride a boundary."""
     log = tmp_path / "crawler.log"
+    w = _CaptchaWatcher(log)
     head, tail = CAPTCHA[:70], CAPTCHA[70:]
     log.write_text(head, encoding="utf-8")
-    w = _CaptchaWatcher(log)
     w.poll()
     with open(log, "a", encoding="utf-8") as f:
         f.write(tail)
     assert w.poll() == 1
+
+
+def test_failure_reason_reads_only_this_keywords_slice(tmp_path):
+    """With the shared log, an earlier keyword's CAPTCHA storm must not relabel a later
+    keyword's plain network error as risk control."""
+    log = tmp_path / "crawler.log"
+    prev = CAPTCHA * 12
+    log.write_text(prev + "httpx.ConnectError: connection refused\n", encoding="utf-8")
+    reason = failure_reason(log, 1, start=len(prev.encode("utf-8")))
+    assert "ConnectError" in reason
+    assert "CAPTCHA" not in reason
 
 
 def test_progress_reads_the_crawler_own_artifacts(tmp_path):
@@ -120,6 +146,21 @@ def test_progress_attributes_counts_to_keywords_and_names_the_phase(tmp_path):
     assert p["phase"] == "comments"
     assert p["kw_comment_notes_done"] == 1  # one note of the current keyword reached comments
     assert p["last_activity_ms"] is not None
+
+
+def test_progress_names_the_between_keyword_pause(tmp_path):
+    """During the anti-risk gap the log goes silent by design; the phase must say so, or
+    the dashboard's heartbeat reads a 12-minute pause as a hung crawl."""
+    log = tmp_path / "crawler.log"
+    log.write_text(
+        "2026-07-12 16:00:00 INFO (core.py:140) - [XiaoHongShuCrawler.search] "
+        "Current search keyword: 美股\n",
+        encoding="utf-8",
+    )
+    append_log_line(log, "pausing 12 min before 美股财报")
+    p = crawl_progress(tmp_path, ["美股", "美股财报"])
+    assert p["phase"] == "paused"
+    assert p["keyword"] == "美股"  # the pause line is not mistaken for a keyword
 
 
 def test_progress_surfaces_the_last_error_line(tmp_path):
