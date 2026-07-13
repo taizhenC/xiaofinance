@@ -246,7 +246,23 @@ def pick_quotes(items: list[dict], k: int = 3) -> list[str]:
 
 
 def input_hash(items: list[dict]) -> str:
+    """WHICH items came in — deliberately order-insensitive.
+
+    This drives the analysis cache, and the question it answers is "is there new material to
+    read?". A re-crawl that only bumps like counts reshuffles the list without changing a word
+    of it, and re-paying DeepSeek to read the same posts in a different order would be waste."""
     return sha256_hex("|".join(sorted(f"{i['type']}:{i['id']}" for i in items)))
+
+
+def evidence_hash(items: list[dict]) -> str:
+    """WHICH items, IN WHAT ORDER — the contract for anything that cites items by number.
+
+    Not the same question as input_hash, and the difference is not academic. Quote ids are
+    positions in this list, and the list is ranked by likes. A note going viral between an
+    agent reading the evidence and submitting its rating reorders it *without changing the
+    set* — so input_hash matches, the staleness guard passes, and quote [3] silently resolves
+    to a different post than the one the agent actually read."""
+    return sha256_hex("|".join(f"{i['type']}:{i['id']}" for i in items))
 
 
 def build_prompt(ticker: str, name_cn: str, items: list[dict], lang: str, now: int,
@@ -318,6 +334,65 @@ def _call_llm(settings, system: str, user: str):
     )
 
 
+def analysis_cols(ticker: str, items: list[dict], settings, score: float,
+                  run_id: int | None, now: int, model: str) -> dict:
+    note_count = sum(1 for i in items if i["type"] == "note")
+    return dict(
+        ticker=ticker, run_id=run_id, generated_at_ms=now,
+        window_start_ms=now - settings.fresh_window_ms, window_end_ms=now,
+        note_count=note_count, comment_count=len(items) - note_count, popularity_score=score,
+        input_item_count=len(items), input_hash=input_hash(items), model=model,
+    )
+
+
+def insert_analysis(conn, base_cols: dict, status: str, **extra) -> None:
+    cols = {**base_cols, **extra, "status": status}
+    keys = ",".join(cols)
+    conn.execute(
+        f"INSERT INTO stock_analyses({keys}) VALUES({','.join('?' * len(cols))})",
+        tuple(cols.values()),
+    )
+    conn.commit()
+
+
+def store_result(conn, ticker: str, items: list[dict], result: "AnalysisResult",
+                 base_cols: dict, **extra) -> list[str]:
+    """Persist a rating, whichever brain produced it — DeepSeek over HTTP, or an agent over
+    MCP. Both go through the same validation and the same row, so the two are comparable and
+    the dashboard cannot tell them apart except by the `model` column."""
+    summary = result.summary.strip()
+    if not summary.upper().startswith(f"{ticker}:"):
+        summary = f"{ticker}: {summary}"
+    quotes = quotes_from_ids(items, result.notable_quote_ids)
+    insert_analysis(
+        conn, base_cols, "ok",
+        sentiment_counts=json.dumps(result.sentiment_counts.model_dump()),
+        summary=summary,
+        bull_points=json.dumps(result.bull_points[:4], ensure_ascii=False),
+        bear_points=json.dumps(result.bear_points[:4], ensure_ascii=False),
+        notable_quotes=json.dumps(quotes, ensure_ascii=False),
+        irrelevant_item_count=result.irrelevant_item_count,
+        **extra,
+    )
+    return quotes
+
+
+def analysis_is_current(conn, ticker: str, ihash: str,
+                        statuses: tuple[str, ...] = ("ok", "no_api_key")) -> bool:
+    """Has this ticker already been analysed on exactly this evidence?
+
+    `statuses` is the caller's definition of "analysed". The DeepSeek path counts a
+    `no_api_key` row, because without a key it has nothing better to write and re-running would
+    only duplicate it. An agent asking what still needs rating must NOT count it: that row holds
+    fallback quotes and no judgement at all, which is precisely the gap the agent is there to
+    fill."""
+    last = conn.execute(
+        "SELECT input_hash, status FROM stock_analyses WHERE ticker=? ORDER BY generated_at_ms DESC LIMIT 1",
+        (ticker,),
+    ).fetchone()
+    return bool(last and last["input_hash"] == ihash and last["status"] in statuses)
+
+
 def analyze_ticker(conn, ticker: str, settings=None, name_cn: str = "", score: float = 0.0,
                    run_id: int | None = None, now: int | None = None, force: bool = False) -> str:
     settings = settings or default_settings
@@ -326,35 +401,29 @@ def analyze_ticker(conn, ticker: str, settings=None, name_cn: str = "", score: f
     if not items:
         return "no_items"
     ihash = input_hash(items)
-    note_count = sum(1 for i in items if i["type"] == "note")
-    comment_count = len(items) - note_count
 
-    last = conn.execute(
-        "SELECT input_hash, status FROM stock_analyses WHERE ticker=? ORDER BY generated_at_ms DESC LIMIT 1",
-        (ticker,),
-    ).fetchone()
     # unchanged inputs → keep the previous row as "latest" instead of duplicating it
-    if not force and last and last["input_hash"] == ihash and last["status"] in ("ok", "no_api_key"):
+    if not force and analysis_is_current(conn, ticker, ihash):
         log.info("%s: inputs unchanged, skipping", ticker)
         return "skipped_unchanged"
 
-    base_cols = dict(
-        ticker=ticker, run_id=run_id, generated_at_ms=now,
-        window_start_ms=now - settings.fresh_window_ms, window_end_ms=now,
-        note_count=note_count, comment_count=comment_count, popularity_score=score,
-        input_item_count=len(items), input_hash=ihash, model=settings.LLM_MODEL,
-    )
+    base_cols = analysis_cols(ticker, items, settings, score, run_id, now, settings.LLM_MODEL)
 
     def insert(status, **extra):
-        cols = {**base_cols, **extra, "status": status}
-        keys = ",".join(cols)
-        conn.execute(
-            f"INSERT INTO stock_analyses({keys}) VALUES({','.join('?' * len(cols))})",
-            tuple(cols.values()),
-        )
-        conn.commit()
+        insert_analysis(conn, base_cols, status, **extra)
 
     if not settings.DEEPSEEK_API_KEY:
+        # The fallback row exists to give a card *something* when nothing has judged this
+        # ticker. If something has — an agent, over MCP — then writing one now would bury a
+        # real rating under a bare quote list, and it would happen on every crawl: each cycle
+        # changes the evidence, so this branch fires, so the only judgement the dashboard has
+        # is deleted every few hours. Keep it. It carries its own age on the card, and
+        # pending_ratings() re-offers the ticker the moment its evidence moves.
+        if conn.execute(
+            "SELECT 1 FROM stock_analyses WHERE ticker=? AND status='ok' LIMIT 1", (ticker,)
+        ).fetchone():
+            log.info("%s: keeping the existing rating rather than burying it in a fallback", ticker)
+            return "kept_rating"
         quotes = pick_quotes(items)
         insert("no_api_key", notable_quotes=json.dumps(quotes, ensure_ascii=False))
         return "no_api_key"

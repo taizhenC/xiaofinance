@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "xiaofinance": {
+      "command": ".venv/Scripts/python.exe",
+      "args": ["-m", "app.mcp_server"],
+      "env": {
+        "PYTHONIOENCODING": "utf-8",
+        "PYTHONUTF8": "1"
+      }
+    }
+  }
+}
