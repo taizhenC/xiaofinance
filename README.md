@@ -38,8 +38,17 @@ CLI equivalent: `uv run python -m app.pipeline --mode both` (`--skip-crawl` re-a
 | Score | `app/scoring.py` | `3·notes + 1·comments + 2·Σlog₁₀(1+note likes) + 0.5·Σlog₁₀(1+comment likes)` over clusters |
 | Analyze | `app/analyze.py` | DeepSeek JSON-mode per stock: discards off-topic items, weighs distinct arguments (not repetition), outputs summary/bull/bear/quotes; sees the previous cycle's summary as compare-only background (≤48h, never overrides current data) so it can call out sentiment shifts; skips when inputs unchanged |
 | Slang scan | `app/slang_scan.py` | Every N cycles: mines unmatched finance posts for new 谐音/黑话 nicknames → review panel, accept merges into `data/stock_dict_local.json` |
+| Agent analyst | `app/mcp_server.py` | An MCP server that lets Claude Code / Codex do the Analyze and Slang-scan steps instead of DeepSeek — same evidence, same rows, no API key. See [docs/agent-analyst.md](docs/agent-analyst.md) |
 
 Freshness gate #2: every API query re-filters to the trailing 24h window, so items age out continuously between fetches.
+
+### Two brains, one table
+
+`DEEPSEEK_API_KEY` is optional. Without it the cards fall back to top quotes and no judgement —
+or you can point an agent at the corpus over MCP and let it write the ratings. Both paths share
+`gather_items` (the evidence), `AnalysisResult` (the validation) and `stock_analyses` (the row),
+so the two are directly comparable; only the `model` column differs. Start Claude Code in this
+repo, say *"rate the pending tickers"*, and it will work the queue.
 
 ## Notes & troubleshooting
 
