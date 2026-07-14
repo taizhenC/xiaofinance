@@ -11,7 +11,7 @@ class Settings(BaseSettings):
     )
 
     DEEPSEEK_API_KEY: str = ""
-    LLM_MODEL: str = "deepseek-chat"
+    LLM_MODEL: str = "deepseek-v4-flash"
     LLM_BASE_URL: str = "https://api.deepseek.com"
     SUMMARY_LANG: str = "en"
 

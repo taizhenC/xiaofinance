@@ -46,9 +46,9 @@ ASSET_TYPE_NAMES = {
 # no longer "上一周期" and gets dropped rather than mislead
 PREV_SUMMARY_MAX_AGE_MS = 48 * 3_600_000
 PREV_SUMMARY_TRUNC = 300
-# deepseek-chat list price, USD per 1M tokens
-COST_IN_PER_M = 0.27
-COST_OUT_PER_M = 1.10
+# deepseek-v4-flash list price, USD per 1M tokens
+COST_IN_PER_M = 0.14
+COST_OUT_PER_M = 0.28
 
 
 class SentimentCounts(BaseModel):
