@@ -58,6 +58,18 @@ def fake_vendor(tmp_path):
         "                    comments_res = await self.get_note_sub_comments(...)\n",
         encoding="utf-8",
     )
+    tools = tmp_path / "tools"
+    tools.mkdir()
+    (tools / "browser_launcher.py").write_text(
+        "            # Try to get version info\n"
+        "            try:\n"
+        '                result = subprocess.run([browser_path, "--version"],\n'
+        "                                      capture_output=True, text=True, encoding='utf-8', errors='ignore', timeout=5)\n"
+        "                version = result.stdout.strip() if result.stdout else \"Unknown Version\"\n"
+        "            except:\n"
+        '                version = "Unknown Version"\n',
+        encoding="utf-8",
+    )
     return tmp_path
 
 
@@ -192,3 +204,62 @@ def test_a_failed_comment_fetch_skips_the_note_instead_of_killing_the_run(tmp_pa
     assert "try:\n                await self.xhs_client.get_note_all_comments(" in core
     assert "except Exception as ex:" in core
     assert "skipping" in core
+
+
+def test_reused_browser_context_closes_its_leftover_default_tab(tmp_path):
+    """Chrome always opens its own New Tab Page in the context CDP reuses; MediaCrawler
+    then opens a second page for XHS and never touches the first, leaving an unrelated
+    tab open for the whole crawl. The cleanup must run after new_page(), not before —
+    closing a real Chrome window's last tab first would close the window itself."""
+    mc = fake_vendor(tmp_path)
+    patch_config(mc, settings())
+    core = (mc / "media_platform" / "xhs" / "core.py").read_text(encoding="utf-8")
+    new_page_pos = core.index("self.context_page = await self.browser_context.new_page()")
+    cleanup_pos = core.index("for leftover_page in self.browser_context.pages:")
+    assert new_page_pos < cleanup_pos
+    assert "if leftover_page is not self.context_page:" in core
+    assert "await leftover_page.close()" in core
+
+
+def test_chrome_profile_is_set_to_keep_session_cookies_across_restarts(tmp_path):
+    """XHS's login cookie is session-scoped, and each keyword launches a brand-new Chrome
+    process against the same profile — Chromium purges session cookies on every fresh
+    launch unless the profile says to continue where it left off, so without this the
+    account was logging out before the next keyword's launch."""
+    import json
+
+    mc = fake_vendor(tmp_path)
+    patch_config(mc, settings())
+    prefs = json.loads(
+        (mc / "browser_data" / "cdp_xhs_user_data_dir" / "Default" / "Preferences").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert prefs["session"]["restore_on_startup"] == 1
+
+
+def test_browser_version_probe_no_longer_shells_out(tmp_path):
+    """chrome.exe --version has no --user-data-dir, so it targets the user's own default
+    Chrome profile. If that's already running, Chrome's singleton IPC forwards the call
+    to the live instance instead of printing a version string — popping a blank window
+    in the user's real browser on every keyword's crawl process (confirmed live: this
+    box's `chrome.exe --version` printed "Opening in existing browser session." instead
+    of a version). The string is log-only, so drop the subprocess call entirely."""
+    mc = fake_vendor(tmp_path)
+    patch_config(mc, settings())
+    launcher = (mc / "tools" / "browser_launcher.py").read_text(encoding="utf-8")
+    assert "subprocess.run([browser_path" not in launcher
+    assert 'version = "Unknown Version"' in launcher
+
+
+def test_chrome_profile_patch_preserves_other_existing_preferences(tmp_path):
+    import json
+
+    mc = fake_vendor(tmp_path)
+    prefs_path = mc / "browser_data" / "cdp_xhs_user_data_dir" / "Default" / "Preferences"
+    prefs_path.parent.mkdir(parents=True)
+    prefs_path.write_text(json.dumps({"some_other_setting": True}), encoding="utf-8")
+    patch_config(mc, settings())
+    prefs = json.loads(prefs_path.read_text(encoding="utf-8"))
+    assert prefs["some_other_setting"] is True
+    assert prefs["session"]["restore_on_startup"] == 1
