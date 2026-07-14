@@ -246,7 +246,14 @@
     "UPS",
     "CMG",
     "MDB",
-    "ZS"
+    "ZS",
+    "GOLD",
+    "SILV",
+    "BOND",
+    "FUND",
+    "BTC",
+    "ETH",
+    "DXY"
   ],
   "traps": [
     "女大学生",
@@ -294,7 +301,102 @@
     "部分美国银行",
     "美国银行收"
   ],
+  "topic_tags": [
+    {
+      "tag": "理财",
+      "aliases": ["理财"]
+    },
+    {
+      "tag": "投资",
+      "aliases": ["投资"]
+    },
+    {
+      "tag": "定投",
+      "aliases": ["定投"]
+    },
+    {
+      "tag": "资产配置",
+      "aliases": ["资产配置", "组合配置", "再平衡"]
+    },
+    {
+      "tag": "避险",
+      "aliases": ["避险", "避险资产"]
+    },
+    {
+      "tag": "宏观",
+      "aliases": ["cpi", "通胀", "美联储", "降息", "加息", "非农", "地缘冲突", "伊朗"]
+    },
+    {
+      "tag": "现金流",
+      "aliases": ["现金流", "股息", "分红"]
+    },
+    {
+      "tag": "基金",
+      "aliases": ["基金", "公募", "etf"]
+    }
+  ],
   "stocks": [
+    {
+      "ticker": "GOLD",
+      "name_cn": "黄金",
+      "aliases": ["黄金", "金价", "现货黄金", "伦敦金", "xauusd"],
+      "ambiguous": ["大黄", "yellow", "gold"],
+      "sector": "贵金属",
+      "asset_class": "commodity",
+      "quote_symbol": "GC=F"
+    },
+    {
+      "ticker": "SILV",
+      "name_cn": "白银",
+      "aliases": ["白银", "银价", "现货白银", "xagusd"],
+      "ambiguous": ["silver"],
+      "sector": "贵金属",
+      "asset_class": "commodity",
+      "quote_symbol": "SI=F"
+    },
+    {
+      "ticker": "BOND",
+      "name_cn": "债券 / 美债",
+      "aliases": ["美债", "美国国债", "美债收益率", "十年期美债", "10年期美债"],
+      "ambiguous": ["国债", "债券"],
+      "sector": "固定收益",
+      "asset_class": "bond"
+    },
+    {
+      "ticker": "FUND",
+      "name_cn": "基金",
+      "aliases": ["基金定投", "指数基金", "公募基金"],
+      "ambiguous": ["基金"],
+      "sector": "基金",
+      "asset_class": "fund"
+    },
+    {
+      "ticker": "BTC",
+      "name_cn": "比特币",
+      "aliases": ["比特币", "bitcoin"],
+      "ambiguous": ["btc", "大饼"],
+      "sector": "加密资产",
+      "asset_class": "crypto",
+      "quote_symbol": "BTC-USD"
+    },
+    {
+      "ticker": "ETH",
+      "name_cn": "以太坊",
+      "aliases": ["以太坊", "ethereum"],
+      "ambiguous": ["eth", "二饼"],
+      "sector": "加密资产",
+      "asset_class": "crypto",
+      "quote_symbol": "ETH-USD"
+    },
+    {
+      "ticker": "DXY",
+      "name_cn": "美元指数",
+      "aliases": ["美元指数", "美指"],
+      "ambiguous": ["dxy"],
+      "sector": "外汇",
+      "asset_class": "forex",
+      "quote_symbol": "DX-Y.NYB"
+    },
     {
       "ticker": "AAPL",
       "name_cn": "苹果",
@@ -1753,25 +1855,30 @@
       "name_cn": "20年+美债ETF",
       "aliases": [],
       "ambiguous": [],
-      "sector": "ETF指数"
+      "sector": "ETF指数",
+      "asset_class": "fund",
+      "quote_symbol": "TLT",
+      "supersedes": ["BOND"]
     },
     {
       "ticker": "GLD",
       "name_cn": "黄金ETF",
-      "aliases": [],
-      "ambiguous": [
-        "黄金etf"
-      ],
-      "sector": "ETF指数"
+      "aliases": ["黄金etf"],
+      "ambiguous": [],
+      "sector": "ETF指数",
+      "asset_class": "fund",
+      "quote_symbol": "GLD",
+      "supersedes": ["GOLD"]
     },
     {
       "ticker": "IBIT",
       "name_cn": "比特币ETF",
-      "aliases": [],
-      "ambiguous": [
-        "比特币etf"
-      ],
-      "sector": "ETF指数"
+      "aliases": ["比特币etf"],
+      "ambiguous": [],
+      "sector": "ETF指数",
+      "asset_class": "fund",
+      "quote_symbol": "IBIT",
+      "supersedes": ["BTC"]
     },
     {
       "ticker": "UVXY",
@@ -2703,7 +2810,10 @@
         "白银etf"
       ],
       "ambiguous": [],
-      "sector": "ETF指数"
+      "sector": "ETF指数",
+      "asset_class": "fund",
+      "quote_symbol": "SLV",
+      "supersedes": ["SILV"]
     },
     {
       "ticker": "JEPI",

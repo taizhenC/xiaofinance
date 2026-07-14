@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>infinance — XHS 美股热度</title>
+<title>infinance — XHS 投资热度</title>
 <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
@@ -42,9 +42,25 @@
     <div id="indexStrip" class="index-row"></div>
   </section>
 
+  <section class="panel investment-panel" id="investmentPanel" hidden>
+    <div class="panel-head">
+      <h2>多元投资 <span class="muted small">黄金 · 债券 · 基金 · 加密资产 · 外汇</span></h2>
+      <span id="investmentNote" class="muted small"></span>
+    </div>
+    <div id="investmentStrip" class="index-row"></div>
+  </section>
+
+  <section class="panel" id="topicPanel" hidden>
+    <div class="panel-head">
+      <h2>投资主题 <span class="muted small">从正文与话题标签提取 · 理财仅作标签，不单独宽搜</span></h2>
+      <span id="topicNote" class="muted small"></span>
+    </div>
+    <div id="topicStrip" class="topic-row"></div>
+  </section>
+
   <section class="panel">
     <div class="panel-head">
-      <h2>热度排行 <span class="muted small">个股 popularity score, 24h</span></h2>
+      <h2>个股热度排行 <span class="muted small">popularity score, 24h</span></h2>
       <span class="legend-inline">
         <i class="dot" style="background:#26a877"></i>偏多
         <i class="dot" style="background:#e05252"></i>偏空
@@ -101,7 +117,7 @@
 </main>
 
 <footer class="muted small">
-  数据来自你自己的小红书账号，仅显示最近24小时内容 · 本工具仅供个人学习研究
+  数据来自你自己的小红书账号，仅显示最近24小时内容 · 舆论信号不构成投资建议 · 本工具仅供个人学习研究
 </footer>
 
 <script src="/static/vendor/echarts.min.js"></script>

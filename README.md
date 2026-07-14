@@ -1,8 +1,8 @@
-# xiaofinance — 小红书美股热度看板
+# xiaofinance — 小红书投资热度看板
 
-A local personal dashboard that answers: **which US stocks are hot on Xiaohongshu right now, and what do people think of them?**
+A local personal dashboard that answers: **which US stocks and investment themes are hot on Xiaohongshu right now, and what do people think of them?**
 
-Data comes from your own XHS account via [MediaCrawler](https://github.com/NanmiCoder/MediaCrawler) (QR login, no API key). A local dictionary detects stock mentions (~250 tickers with Chinese aliases, retail 黑话 like 老黄/苏妈/牙膏厂, and an ambiguity gate), repost spam is collapsed via simhash clustering, and DeepSeek summarizes per-stock sentiment. Only content from the **last 24 hours** is analyzed and shown.
+Data comes from your own XHS account via [MediaCrawler](https://github.com/NanmiCoder/MediaCrawler) (QR login, no API key). A local dictionary detects stocks, indexes and diversified investments such as gold, bonds, funds, crypto and FX. It understands Chinese aliases and retail 黑话—including context-gated terms such as 大黄/Yellow for gold—while extracting discussion tags such as 理财, 定投 and 资产配置. Repost spam is collapsed via simhash clustering, and DeepSeek summarizes sentiment. Only content from the **last 24 hours** is analyzed and shown.
 
 ## Setup (once)
 
@@ -23,7 +23,7 @@ DEEPSEEK_API_KEY=sk-...
 uv run uvicorn app.main:app --host 127.0.0.1 --port 8000
 ```
 
-Open http://127.0.0.1:8000, click **Fetch now**. A full cycle (crawl → ingest → dedup → mentions → score → analyze) takes ~10–15 min. Auto-refresh runs every `FETCH_INTERVAL_HOURS` (default 5, `0` disables).
+Open http://127.0.0.1:8000, click **Fetch now**. Routine fetches run Chrome in the background without opening a window. A full cycle (crawl → ingest → dedup → mentions → score → analyze) takes ~10–15 min. Auto-refresh runs every `FETCH_INTERVAL_HOURS` (default 5, `0` disables).
 
 CLI equivalent: `uv run python -m app.pipeline --mode both` (`--skip-crawl` re-analyzes existing data).
 
@@ -34,7 +34,7 @@ CLI equivalent: `uv run python -m app.pipeline --mode both` (`--skip-crawl` re-a
 | Crawl | `app/crawler_runner.py` | Runs MediaCrawler as a subprocess (time-sorted search, JSONL output, per-run log, kill-tree timeout) |
 | Ingest | `app/ingest.py` | Freshness gate #1: only notes/comments ≤ 24h old enter the DB (`data/infinance.db`) |
 | Dedup | `app/dedup.py` | Simhash clustering of reposted notes + exact-dup comments; clusters count once in scoring and reach the LLM as one item tagged `[×N相似]` |
-| Mentions | `app/mentions.py` | Dictionary matching in three strengths: safe aliases fire alone (特斯拉, 巨硬, 皮衣黄), ambiguous ones need a finance context word nearby (苹果 + 股价; 老黄, 马斯克, 谷歌 — a person fronts several ventures and a brand names products), and collision tickers (LI/MS/KO…) need context too |
+| Mentions | `app/mentions.py` | Dictionary matching in three strengths: safe aliases fire alone (特斯拉, 黄金, 比特币), ambiguous ones need investment context nearby (苹果 + 股价; 大黄 + 理财; Yellow + CPI), and collision symbols (LI/MS/GOLD…) need context too. Strategy tags are extracted separately from assets. |
 | Score | `app/scoring.py` | `3·notes + 1·comments + 2·Σlog₁₀(1+note likes) + 0.5·Σlog₁₀(1+comment likes)` over clusters |
 | Analyze | `app/analyze.py` | DeepSeek JSON-mode per stock: discards off-topic items, weighs distinct arguments (not repetition), outputs summary/bull/bear/quotes; sees the previous cycle's summary as compare-only background (≤48h, never overrides current data) so it can call out sentiment shifts; skips when inputs unchanged |
 | Slang scan | `app/slang_scan.py` | Every N cycles: mines unmatched finance posts for new 谐音/黑话 nicknames → review panel, accept merges into `data/stock_dict_local.json` |
@@ -62,9 +62,10 @@ repo, say *"rate the pending tickers"*, and it will work the queue.
 - **Trend badges** (🔥 新上榜 / ↑ 升温 / ↓ 降温) compare popularity against the previous fetch cycle, so they appear once two cycles of history exist. Amber/gray on purpose — green/red are reserved for sentiment.
 - **Price reality check**: daily closes from Yahoo Finance's public chart API (free, no key, delayed). The 🔀 badge flags sentiment/price divergence (e.g. crowd bullish while the stock fell ≥2%). This is the app's only non-XHS external request; set `ENABLE_PRICE_QUOTES=false` to stay fully offline.
 - **Tracked tickers** always render (targeted search: ticker symbol + finance-qualified keywords). Sub-floor tickers appear in the "On the radar" strip.
-- **Account safety**: low volume (~100–200 notes/cycle), concurrency 1, 3s sleeps, visible browser, ≥4–6h cadence. Consider a secondary XHS account. MediaCrawler is non-commercial/learning-licensed — keep it personal.
+- **Account safety**: low volume (~100–200 notes/cycle), concurrency 1, 3s sleeps, ≥4–6h cadence. Consider a secondary XHS account. MediaCrawler is non-commercial/learning-licensed — keep it personal.
 - **Reply threads**: on by default, and free. XHS nests the first few replies inside each root comment's own response, so the crawler was already downloading them and dropping them; `ENABLE_SUB_COMMENTS=true` just keeps them. The loop that would *page* for the rest costs one request per comment — the real account risk — and is patched out, so this cannot turn into extra traffic. Replies reach the LLM as a conversation (`↳ …` under the comment they answer) rather than as isolated lines, and reach a card with their parent quoted (`回复「…」: …`) so a quote still stands alone.
 - **大盘 / indexes**: 纳指, 纳斯达克 and 标普 are the most-used stock words in the corpus — 纳指 alone outruns 英伟达 by 7× — so they get a board of their own. They are scored like any ticker but kept off the stock ranking, the radar and the sector mix, and fan-out is counted *within* a class, so an index riding along in a post can't dilute the stock it's mentioned beside.
+- **多元投资**: GOLD is a direct gold-discussion signal, separate from the GLD ETF. The same board supports silver, bonds, funds, direct crypto assets and FX. 理财 is a content tag rather than a bare discovery query; precise rotating searches such as 黄金投资 and 基金定投 keep crawl noise under control.
 - **Upgrade MediaCrawler**: bump `$MC_PIN` in `scripts/setup.ps1`, re-run it, then do a small smoke crawl. The integration surface is only the CLI args, JSONL field names, and a few patched lines (`crawler_runner.PATCHES` / `CODE_PATCHES`) — the patcher hard-fails with a clear message if upstream renames one.
 - **Hit-rate scoreboard** (舆论准确率 panel): whenever an analysis leans clearly one way (|bullish−bearish| ≥ 2), that day's call is later scored against the next-day and 7-day price moves. It needs a few days of accumulated analyses + quotes before it shows anything.
 - **Retention**: raw content 7 days, runs/analyses 30 days, cleaned each cycle.

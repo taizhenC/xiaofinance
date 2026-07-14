@@ -89,10 +89,11 @@ def test_a_rating_built_on_stale_evidence_is_refused(corpus):
     assert corpus.execute("SELECT COUNT(*) FROM stock_analyses").fetchone()[0] == 0
 
 
-def test_pending_ratings_does_not_count_a_keyless_fallback_as_rated(corpus):
+def test_pending_ratings_does_not_count_a_keyless_fallback_as_rated(corpus, monkeypatch):
     from app.analyze import analyze_ticker
     from app.config import settings
 
+    monkeypatch.setattr(settings, "DEEPSEEK_API_KEY", "")
     analyze_ticker(corpus, "SKHY", settings)  # no API key -> writes a no_api_key row
     assert corpus.execute(
         "SELECT status FROM stock_analyses WHERE ticker='SKHY'"
@@ -152,13 +153,15 @@ def test_a_reshuffle_that_keeps_every_item_is_still_refused(corpus):
     assert corpus.execute("SELECT COUNT(*) FROM stock_analyses").fetchone()[0] == 0
 
 
-def test_a_crawl_does_not_bury_the_agents_rating_under_a_keyless_fallback(corpus):
+def test_a_crawl_does_not_bury_the_agents_rating_under_a_keyless_fallback(corpus, monkeypatch):
     """Without this, the agent path is pointless. Every crawl changes a ticker's evidence, so
     the keyless branch of analyze_ticker fires and writes a no_api_key row — quotes, no
     judgement — which becomes the newest row and therefore the card. The agent's rating would
     silently vanish within hours of being written, every time."""
     from app.analyze import analyze_ticker
     from app.config import settings
+
+    monkeypatch.setattr(settings, "DEEPSEEK_API_KEY", "")
 
     ev = M.evidence("SKHY")
     M.submit_rating("SKHY", ev["evidence_hash"], "bulls on the pop, bears on the premium",
@@ -190,11 +193,12 @@ def test_a_crawl_does_not_bury_the_agents_rating_under_a_keyless_fallback(corpus
     assert "SKHY" in [p["ticker"] for p in M.pending_ratings()]
 
 
-def test_a_ticker_nobody_has_rated_still_gets_its_fallback_quotes(corpus):
+def test_a_ticker_nobody_has_rated_still_gets_its_fallback_quotes(corpus, monkeypatch):
     """The fallback is not dead code — it is what a keyless card shows when no judgement exists."""
     from app.analyze import analyze_ticker
     from app.config import settings
 
+    monkeypatch.setattr(settings, "DEEPSEEK_API_KEY", "")
     assert analyze_ticker(corpus, "SKHY", settings) == "no_api_key"
     r = corpus.execute("SELECT status, notable_quotes FROM stock_analyses WHERE ticker='SKHY'").fetchone()
     assert r["status"] == "no_api_key"

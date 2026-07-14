@@ -7,7 +7,8 @@ POOL = "美股医药,美股银行,能源股,黄金股,电动车,巴菲特"
 
 def _settings(**kw):
     return Settings(
-        **{"DISCOVERY_CORE": "美股,美股财报", "DISCOVERY_POOL": POOL, "KEYWORDS_PER_CYCLE": 4, **kw}
+        **{"DISCOVERY_CORE": "美股,美股财报", "DISCOVERY_POOL": POOL,
+           "DISCOVERY_INVESTMENT_POOL": "", "KEYWORDS_PER_CYCLE": 4, **kw}
     )
 
 
@@ -59,7 +60,8 @@ def test_a_gap_in_the_sampled_prefix_stops_the_advance(conn):
 
 
 def test_empty_pool_falls_back_to_the_static_list(conn):
-    s = Settings(DISCOVERY_POOL="", DISCOVERY_KEYWORDS="美股,纳指", KEYWORDS_PER_CYCLE=10)
+    s = Settings(DISCOVERY_POOL="", DISCOVERY_INVESTMENT_POOL="",
+                 DISCOVERY_KEYWORDS="美股,纳指", KEYWORDS_PER_CYCLE=10)
     keywords, rotation = select_keywords(conn, s)
     assert keywords == ["美股", "纳指"]
     assert rotation is None

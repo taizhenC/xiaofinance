@@ -23,6 +23,8 @@ def test_status_and_empty_ranking(client):
     assert s["window_hours"] == settings.FRESH_WINDOW_HOURS
     r = client.get("/api/ranking").json()
     assert r["ranking"] == []
+    assert r["investments"] == []
+    assert r["topics"] == []
     assert r["radar"] == []
 
 

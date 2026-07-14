@@ -11,7 +11,7 @@ class Settings(BaseSettings):
     )
 
     DEEPSEEK_API_KEY: str = ""
-    LLM_MODEL: str = "deepseek-chat"
+    LLM_MODEL: str = "deepseek-v4-flash"
     LLM_BASE_URL: str = "https://api.deepseek.com"
     SUMMARY_LANG: str = "en"
 
@@ -27,6 +27,7 @@ class Settings(BaseSettings):
     # sector terms return A-share or consumer posts — 电动车 returns scooter rentals, 黄金股
     # returns 紫金/老铺黄金, 减肥药 returns diet pills. Probe before adding, never guess.
     DISCOVERY_POOL: str = "中概股,美股医药,美股银行,巴菲特,美股打新"
+    DISCOVERY_INVESTMENT_POOL: str = "黄金投资,美债投资,基金定投,资产配置,比特币投资"
     # Each keyword is its own crawler process now, so the cycle is no longer racing
     # CRAWL_TIMEOUT_MIN — the budget is requests per day against the account flag.
     # 6 keywords × ~21 requests ≈ what two keywords cost before the detail slice.
@@ -70,6 +71,7 @@ class Settings(BaseSettings):
     # mainland xiaohongshu.com: the API host and cookie domain differ, and the search API
     # answers 您当前登录的账号没有权限访问. Switches to webapi.rednote.com / .rednote.com.
     XHS_INTERNATIONAL: bool = False
+    BROWSER_HEADLESS: bool = True
     # MediaCrawler hardcodes a macOS Chrome 126 UA, which mismatches the real client on a
     # Windows box (XHS logs the session as an "unknown" device) — send a truthful one.
     BROWSER_USER_AGENT: str = (
@@ -133,6 +135,10 @@ class Settings(BaseSettings):
     @property
     def discovery_pool_list(self) -> list[str]:
         return self._split(self.DISCOVERY_POOL)
+
+    @property
+    def discovery_investment_pool_list(self) -> list[str]:
+        return self._split(self.DISCOVERY_INVESTMENT_POOL)
 
 
 settings = Settings()

@@ -9,17 +9,12 @@ from pathlib import Path
 log = logging.getLogger(__name__)
 
 # The only MediaCrawler internals we touch. Patcher hard-fails if upstream renames them.
-# CDP mode drives the user's real installed Chrome (a visible window, persistent profile
-# under browser_data/cdp_xhs_user_data_dir) instead of Playwright's bundled Chromium.
-# That window is one the user can actually operate: log in once, and when XHS walls the
-# account (runs 17-20) solve the slider CAPTCHA right there — the Playwright profile
-# offered no way to do either. The signed API calls still go out over httpx, but with the
-# CDP context's cookies, so the session crawling is the one the user can see and repair.
+# CDP mode drives the user's installed Chrome with a persistent profile under
+# browser_data/cdp_xhs_user_data_dir. Routine crawls stay headless; login_xhs.ps1 opts
+# into a visible window when the session needs user interaction.
 PATCHES = [
     ("config/xhs_config.py", "SORT_TYPE", '"time_descending"'),
     ("config/base_config.py", "ENABLE_CDP_MODE", "True"),
-    # headless would take away the window that is the whole point of CDP mode here
-    ("config/base_config.py", "CDP_HEADLESS", "False"),
 ]
 
 # Line patches for things that aren't config variables. Same contract as PATCHES:
@@ -92,6 +87,44 @@ CODE_PATCHES = [
         '                utils.logger.error(f"[XiaoHongShuCrawler.get_comments] '
         'comments failed for note {note_id}, skipping: {ex}")\n',
     ),
+    # get_browser_info() shells out to `chrome.exe --version` with no --user-data-dir,
+    # so it targets the user's own default Chrome profile, not our isolated
+    # cdp_xhs_user_data_dir one. If the user's real Chrome is already running, Chrome's
+    # singleton IPC forwards the invocation to that live instance instead of just
+    # printing a version string — popping a blank window in the user's own browser on
+    # every keyword's crawl process. `chrome.exe --version` on this box prints exactly
+    # that: "Opening in existing browser session." The version string is log-only, so
+    # skip the subprocess call entirely rather than fight the singleton behaviour.
+    (
+        "tools/browser_launcher.py",
+        "            # Try to get version info\n"
+        "            try:\n"
+        '                result = subprocess.run([browser_path, "--version"],\n'
+        "                                      capture_output=True, text=True, encoding='utf-8', errors='ignore', timeout=5)\n"
+        "                version = result.stdout.strip() if result.stdout else \"Unknown Version\"\n"
+        "            except:\n"
+        '                version = "Unknown Version"\n',
+        '            version = "Unknown Version"  # xiaofinance: --version pokes the '
+        "user's real Chrome via singleton IPC, skip it\n",
+    ),
+    # A freshly launched Chrome always has its own default startup tab (the New Tab
+    # Page) sitting in the context CDP reuses; MediaCrawler opens a second page for XHS
+    # and never touches the first, so every crawl left an unrelated NTP tab open
+    # alongside the working one. Close the leftover only *after* our own page exists —
+    # closing a real Chrome window's last remaining tab first would close the window
+    # (and likely the whole process) before new_page() got a chance to open one.
+    (
+        "media_platform/xhs/core.py",
+        "self.context_page = await self.browser_context.new_page()\n"
+        "            self.context_page.set_default_timeout(120_000)\n"
+        "            self.context_page.set_default_navigation_timeout(120_000)",
+        "self.context_page = await self.browser_context.new_page()\n"
+        "            self.context_page.set_default_timeout(120_000)\n"
+        "            self.context_page.set_default_navigation_timeout(120_000)\n"
+        "            for leftover_page in self.browser_context.pages:\n"
+        "                if leftover_page is not self.context_page:\n"
+        "                    await leftover_page.close()",
+    ),
 ]
 
 LOGIN_HINTS = ["扫码", "二维码", "请扫码", "未登录", "登录已过期", "login expired", "login failed"]
@@ -104,10 +137,13 @@ def _bool(v) -> str:
     return "True" if v else "False"
 
 
-def patch_config(mc_dir: Path, settings=None) -> None:
+def patch_config(mc_dir: Path, settings=None, browser_headless: bool | None = None) -> None:
     if settings is None:
         from .config import settings
+    if browser_headless is None:
+        browser_headless = settings.BROWSER_HEADLESS
     patches = PATCHES + [
+        ("config/base_config.py", "CDP_HEADLESS", _bool(browser_headless)),
         ("config/base_config.py", "XHS_INTERNATIONAL", _bool(settings.XHS_INTERNATIONAL)),
         ("config/base_config.py", "CRAWLER_MAX_SLEEP_SEC", str(settings.CRAWL_SLEEP_SEC)),
     ]
@@ -142,6 +178,28 @@ def patch_config(mc_dir: Path, settings=None) -> None:
         log.info("patched %s: %s", rel, replacement.strip().splitlines()[0])
     _patch_user_agent(mc_dir, settings.BROWSER_USER_AGENT)
     _patch_detail_slice(mc_dir, settings.MAX_NOTES_PER_KEYWORD)
+    _ensure_chrome_keeps_session_cookies(mc_dir)
+
+
+# Chromium deletes non-persistent (session) cookies from its on-disk store at every
+# fresh launch unless the profile is set to "continue where you left off" — and XHS's
+# login cookie is session-scoped. Each keyword gets its own from-scratch Chrome process
+# (one per keyword, always hard-killed when done — see _kill_tree/BrowserLauncher.cleanup),
+# so without this the account was logging out before the next keyword's launch, forcing
+# a fresh QR scan almost every cycle even though the profile directory itself persists.
+def _ensure_chrome_keeps_session_cookies(mc_dir: Path) -> None:
+    prefs_path = mc_dir / "browser_data" / "cdp_xhs_user_data_dir" / "Default" / "Preferences"
+    prefs_path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        data = json.loads(prefs_path.read_text(encoding="utf-8")) if prefs_path.exists() else {}
+    except (OSError, ValueError):
+        data = {}
+    session = data.setdefault("session", {})
+    if session.get("restore_on_startup") == 1:
+        return
+    session["restore_on_startup"] = 1
+    prefs_path.write_text(json.dumps(data), encoding="utf-8")
+    log.info("patched Chrome profile Preferences: session.restore_on_startup = 1")
 
 
 # Regex rather than an anchor swap so re-running with a different UA re-patches cleanly.
@@ -255,7 +313,12 @@ def run_crawl(keywords: list[str], run_dir: Path, settings, get_comments: bool =
         "--get_sub_comment", "yes" if get_comments and settings.ENABLE_SUB_COMMENTS else "no",
         "--crawler_max_notes_count", str(settings.MAX_NOTES_PER_KEYWORD),
         "--max_comments_count_singlenotes", str(settings.MAX_COMMENTS_PER_NOTE),
-        "--start", "1", "--headless", "no", "--max_concurrency_num", "1",
+        "--start", "1",
+        # cmd_arg.py applies this to config.CDP_HEADLESS unconditionally, clobbering the
+        # patch_config() CDP_HEADLESS write above with whatever this says — leaving it
+        # hardcoded "no" forced every routine crawl into a visible window (run 28's log).
+        "--headless", "yes" if settings.BROWSER_HEADLESS else "no",
+        "--max_concurrency_num", "1",
     ]
     # unbuffered, or the child's stdout arrives in 8KB blocks and both the CAPTCHA abort
     # and the progress readout lag tens of requests behind what the crawler is really doing

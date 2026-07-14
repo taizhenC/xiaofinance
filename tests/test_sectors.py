@@ -36,7 +36,8 @@ def test_sector_labels_stay_a_closed_set():
     # A typo'd sector silently becomes its own slice of the composition bar.
     known = {
         "半导体", "科技", "中概", "金融", "医药", "消费", "汽车", "能源电力",
-        "工业军工", "加密", "旅游航空", "题材", "ETF指数",
+        "工业军工", "加密", "旅游航空", "题材", "ETF指数", "贵金属",
+        "固定收益", "基金", "加密资产", "外汇",
     }
     raw = json.loads(settings.STOCK_DICT_PATH.read_text(encoding="utf-8"))
     used = {s["sector"] for s in raw["stocks"]}

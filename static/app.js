@@ -142,7 +142,8 @@ function quoteBadge(e) {
   if (!q || q.change_pct == null) return "";
   const col = q.change_pct > 0 ? BULL : q.change_pct < 0 ? BEAR : NEUT;
   const sign = q.change_pct > 0 ? "+" : "";
-  return `<span class="badge" title="最近交易日收盘 vs 前一交易日（${esc(q.market_date)}，Yahoo 免费数据，非实时）">股价 $${q.price} <b style="color:${col}">${sign}${q.change_pct}%</b></span>`;
+  const label = e.asset_class === "stock" ? "股价" : "行情";
+  return `<span class="badge" title="最近交易日收盘 vs 前一交易日（${esc(q.market_date)}，Yahoo 免费数据，非实时）">${label} $${q.price} <b style="color:${col}">${sign}${q.change_pct}%</b></span>`;
 }
 function divergenceBadge(e) {
   if (!e.divergence) return "";
@@ -183,6 +184,7 @@ function renderRanking(entries) {
   const rows = [...withData].sort((a, b) => a.score - b.score); // bottom-up for horizontal bars
   rankingChart.setOption({
     backgroundColor: "transparent",
+    animation: !window.matchMedia("(prefers-reduced-motion: reduce)").matches,
     grid: { left: 8, right: 30, top: 6, bottom: 22, containLabel: true },
     xAxis: {
       type: "value",
@@ -238,6 +240,9 @@ function sentiLegend(sc) {
 function cardHtml(e, d) {
   const a = d.analysis;
   const meta = [];
+  const assetLabel = ASSET_LABELS[e.asset_class] || "个股";
+  meta.push(`<span class="badge badge-asset asset-${esc(e.asset_class || "stock")}">${assetLabel}</span>`);
+  (d.topics || []).forEach((tag) => meta.push(`<span class="badge">#${esc(tag)}</span>`));
   const tb = trendBadge(e.trend);
   if (tb) meta.push(tb);
   const qb = quoteBadge(e);
@@ -308,6 +313,7 @@ function renderDonut(ticker, sc) {
   const net = sc.bullish - sc.bearish;
   chart.setOption({
     backgroundColor: "transparent",
+    animation: !window.matchMedia("(prefers-reduced-motion: reduce)").matches,
     series: [{
       type: "pie",
       radius: ["62%", "85%"],
@@ -351,6 +357,10 @@ const SECTOR_COLORS = {
   工业军工: "#7d8590", 加密: "#d9a441", 旅游航空: "#b06fbd", 题材: "#9c6b4f",
   ETF指数: "#5d6673", 其他: "#495057",
 };
+const ASSET_LABELS = {
+  stock: "个股", index: "指数 / ETF", commodity: "贵金属",
+  bond: "固定收益", fund: "基金", crypto: "加密资产", forex: "外汇",
+};
 const sectorColor = (s) => SECTOR_COLORS[s] || "#495057";
 
 function renderSectors(sectors, windows) {
@@ -390,17 +400,17 @@ function renderSectors(sectors, windows) {
 // Index talk is most of what XHS says about US markets — 纳指 and 标普 outrun every company
 // name in the corpus. On the stock board it would bury the stocks; hidden, it was the
 // largest thing the dashboard could not see. So: its own strip, its own scale.
-function renderIndexes(indexes) {
-  const rows = indexes || [];
-  $("#indexPanel").hidden = rows.length === 0;
+function renderAssetStrip(entries, panelSelector, stripSelector, noteSelector) {
+  const rows = entries || [];
+  $(panelSelector).hidden = rows.length === 0;
   if (!rows.length) return;
 
   const commentShare = rows.reduce((n, e) => n + (e.comment_count || 0), 0);
-  $("#indexNote").textContent = commentShare
+  $(noteSelector).textContent = commentShare
     ? `${rows.length} 项 · 其中 ${commentShare} 次来自评论区`
     : `${rows.length} 项`;
 
-  $("#indexStrip").innerHTML = rows.map((e) => {
+  $(stripSelector).innerHTML = rows.map((e) => {
     const sc = e.sentiment_counts;
     const senti = sc
       ? `<span class="senti"><b style="color:${BULL}">${sc.bullish || 0}</b>/<b style="color:${BEAR}">${sc.bearish || 0}</b>/<b style="color:${NEUT}">${sc.neutral || 0}</b></span>`
@@ -419,6 +429,28 @@ function renderIndexes(indexes) {
       </div>
     </div>`;
   }).join("");
+}
+
+function renderIndexes(indexes) {
+  renderAssetStrip(indexes, "#indexPanel", "#indexStrip", "#indexNote");
+}
+
+function renderInvestments(investments) {
+  renderAssetStrip(
+    investments, "#investmentPanel", "#investmentStrip", "#investmentNote"
+  );
+}
+
+function renderTopics(topics, windows) {
+  const rows = topics || [];
+  $("#topicPanel").hidden = rows.length === 0;
+  if (!rows.length) return;
+  $("#topicNote").textContent = `近 ${windows?.board_hours ?? 24}h · ${rows.length} 个主题`;
+  $("#topicStrip").innerHTML = rows.map((topic) =>
+    `<span class="topic-chip" title="相关帖子累计 ${topic.likes} 赞">
+      <span>#${esc(topic.tag)}</span><b>${topic.mentions}</b>
+    </span>`
+  ).join("");
 }
 
 /* ---------- radar / tracked / suggestions / runs ---------- */
@@ -605,11 +637,14 @@ $("#fetchBtn").addEventListener("click", async () => {
 async function refreshData() {
   const { data } = await api("/api/ranking");
   renderIndexes(data.indexes);
+  renderInvestments(data.investments);
+  renderTopics(data.topics, data.windows);
   renderRanking(data.ranking);
   renderSectors(data.sectors, data.windows);
   renderRadar(data.radar, data.windows);
-  // stocks lead; the index cards follow, so 大盘 reads as context rather than as the headline
-  await buildCards([...data.ranking, ...(data.indexes || [])]);
+  await buildCards([
+    ...data.ranking, ...(data.investments || []), ...(data.indexes || []),
+  ]);
   loadTracked(); loadSuggestions(); loadRuns(); loadScoreboard();
 }
 window.addEventListener("resize", () => rankingChart?.resize());

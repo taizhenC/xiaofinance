@@ -16,7 +16,8 @@ KEYWORD_CURSOR = "keyword_cursor"
 
 def rotation_candidates(settings) -> list[str]:
     core = settings.discovery_core_list
-    return [k for k in settings.discovery_pool_list if k not in core]
+    pool = settings.discovery_pool_list + settings.discovery_investment_pool_list
+    return [k for k in dict.fromkeys(pool) if k not in core]
 
 
 def select_keywords(conn, settings) -> tuple[list[str], dict | None]:
