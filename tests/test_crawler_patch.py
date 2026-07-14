@@ -61,10 +61,10 @@ def fake_vendor(tmp_path):
     return tmp_path
 
 
-def settings(intl=False, ua=WIN_UA, sleep=8, max_notes=10):
+def settings(intl=False, ua=WIN_UA, sleep=8, max_notes=10, headless=True):
     return SimpleNamespace(
         XHS_INTERNATIONAL=intl, BROWSER_USER_AGENT=ua, CRAWL_SLEEP_SEC=sleep,
-        MAX_NOTES_PER_KEYWORD=max_notes,
+        MAX_NOTES_PER_KEYWORD=max_notes, BROWSER_HEADLESS=headless,
     )
 
 
@@ -93,15 +93,20 @@ def test_user_agent_repatches_when_changed(tmp_path):
 
 
 def test_patch_config_applies_base_patches(tmp_path):
-    """CDP mode is on so the crawl runs in the user's real Chrome — a visible, persistent
-    window they can log into and clear a slider CAPTCHA in, unlike the Playwright profile."""
     mc = fake_vendor(tmp_path)
     patch_config(mc, settings())
     base = (mc / "config" / "base_config.py").read_text(encoding="utf-8")
     assert "ENABLE_CDP_MODE = True" in base
-    assert "CDP_HEADLESS = False" in base
+    assert "CDP_HEADLESS = True" in base
     assert 'SORT_TYPE = "time_descending"' in (mc / "config" / "xhs_config.py").read_text(encoding="utf-8")
     assert "set_default_timeout(120_000)" in (mc / "media_platform" / "xhs" / "core.py").read_text(encoding="utf-8")
+
+
+def test_login_can_request_a_visible_browser(tmp_path):
+    mc = fake_vendor(tmp_path)
+    patch_config(mc, settings(), browser_headless=False)
+    base = (mc / "config" / "base_config.py").read_text(encoding="utf-8")
+    assert "CDP_HEADLESS = False" in base
 
 
 def test_request_rate_comes_from_settings(tmp_path):

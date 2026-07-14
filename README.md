@@ -23,7 +23,7 @@ DEEPSEEK_API_KEY=sk-...
 uv run uvicorn app.main:app --host 127.0.0.1 --port 8000
 ```
 
-Open http://127.0.0.1:8000, click **Fetch now**. A full cycle (crawl → ingest → dedup → mentions → score → analyze) takes ~10–15 min. Auto-refresh runs every `FETCH_INTERVAL_HOURS` (default 5, `0` disables).
+Open http://127.0.0.1:8000, click **Fetch now**. Routine fetches run Chrome in the background without opening a window. A full cycle (crawl → ingest → dedup → mentions → score → analyze) takes ~10–15 min. Auto-refresh runs every `FETCH_INTERVAL_HOURS` (default 5, `0` disables).
 
 CLI equivalent: `uv run python -m app.pipeline --mode both` (`--skip-crawl` re-analyzes existing data).
 
@@ -62,7 +62,7 @@ repo, say *"rate the pending tickers"*, and it will work the queue.
 - **Trend badges** (🔥 新上榜 / ↑ 升温 / ↓ 降温) compare popularity against the previous fetch cycle, so they appear once two cycles of history exist. Amber/gray on purpose — green/red are reserved for sentiment.
 - **Price reality check**: daily closes from Yahoo Finance's public chart API (free, no key, delayed). The 🔀 badge flags sentiment/price divergence (e.g. crowd bullish while the stock fell ≥2%). This is the app's only non-XHS external request; set `ENABLE_PRICE_QUOTES=false` to stay fully offline.
 - **Tracked tickers** always render (targeted search: ticker symbol + finance-qualified keywords). Sub-floor tickers appear in the "On the radar" strip.
-- **Account safety**: low volume (~100–200 notes/cycle), concurrency 1, 3s sleeps, visible browser, ≥4–6h cadence. Consider a secondary XHS account. MediaCrawler is non-commercial/learning-licensed — keep it personal.
+- **Account safety**: low volume (~100–200 notes/cycle), concurrency 1, 3s sleeps, ≥4–6h cadence. Consider a secondary XHS account. MediaCrawler is non-commercial/learning-licensed — keep it personal.
 - **Reply threads**: on by default, and free. XHS nests the first few replies inside each root comment's own response, so the crawler was already downloading them and dropping them; `ENABLE_SUB_COMMENTS=true` just keeps them. The loop that would *page* for the rest costs one request per comment — the real account risk — and is patched out, so this cannot turn into extra traffic. Replies reach the LLM as a conversation (`↳ …` under the comment they answer) rather than as isolated lines, and reach a card with their parent quoted (`回复「…」: …`) so a quote still stands alone.
 - **大盘 / indexes**: 纳指, 纳斯达克 and 标普 are the most-used stock words in the corpus — 纳指 alone outruns 英伟达 by 7× — so they get a board of their own. They are scored like any ticker but kept off the stock ranking, the radar and the sector mix, and fan-out is counted *within* a class, so an index riding along in a post can't dilute the stock it's mentioned beside.
 - **多元投资**: GOLD is a direct gold-discussion signal, separate from the GLD ETF. The same board supports silver, bonds, funds, direct crypto assets and FX. 理财 is a content tag rather than a bare discovery query; precise rotating searches such as 黄金投资 and 基金定投 keep crawl noise under control.

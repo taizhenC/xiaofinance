@@ -71,6 +71,7 @@ class Settings(BaseSettings):
     # mainland xiaohongshu.com: the API host and cookie domain differ, and the search API
     # answers 您当前登录的账号没有权限访问. Switches to webapi.rednote.com / .rednote.com.
     XHS_INTERNATIONAL: bool = False
+    BROWSER_HEADLESS: bool = True
     # MediaCrawler hardcodes a macOS Chrome 126 UA, which mismatches the real client on a
     # Windows box (XHS logs the session as an "unknown" device) — send a truthful one.
     BROWSER_USER_AGENT: str = (

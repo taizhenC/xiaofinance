@@ -1,0 +1,10 @@
+[mcp_servers.xiaofinance]
+command = ".venv/Scripts/python.exe"
+args = [
+    "-m",
+    "app.mcp_server",
+]
+
+[mcp_servers.xiaofinance.env]
+PYTHONIOENCODING = "utf-8"
+PYTHONUTF8 = "1"

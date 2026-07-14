@@ -9,17 +9,12 @@ from pathlib import Path
 log = logging.getLogger(__name__)
 
 # The only MediaCrawler internals we touch. Patcher hard-fails if upstream renames them.
-# CDP mode drives the user's real installed Chrome (a visible window, persistent profile
-# under browser_data/cdp_xhs_user_data_dir) instead of Playwright's bundled Chromium.
-# That window is one the user can actually operate: log in once, and when XHS walls the
-# account (runs 17-20) solve the slider CAPTCHA right there — the Playwright profile
-# offered no way to do either. The signed API calls still go out over httpx, but with the
-# CDP context's cookies, so the session crawling is the one the user can see and repair.
+# CDP mode drives the user's installed Chrome with a persistent profile under
+# browser_data/cdp_xhs_user_data_dir. Routine crawls stay headless; login_xhs.ps1 opts
+# into a visible window when the session needs user interaction.
 PATCHES = [
     ("config/xhs_config.py", "SORT_TYPE", '"time_descending"'),
     ("config/base_config.py", "ENABLE_CDP_MODE", "True"),
-    # headless would take away the window that is the whole point of CDP mode here
-    ("config/base_config.py", "CDP_HEADLESS", "False"),
 ]
 
 # Line patches for things that aren't config variables. Same contract as PATCHES:
@@ -104,10 +99,13 @@ def _bool(v) -> str:
     return "True" if v else "False"
 
 
-def patch_config(mc_dir: Path, settings=None) -> None:
+def patch_config(mc_dir: Path, settings=None, browser_headless: bool | None = None) -> None:
     if settings is None:
         from .config import settings
+    if browser_headless is None:
+        browser_headless = settings.BROWSER_HEADLESS
     patches = PATCHES + [
+        ("config/base_config.py", "CDP_HEADLESS", _bool(browser_headless)),
         ("config/base_config.py", "XHS_INTERNATIONAL", _bool(settings.XHS_INTERNATIONAL)),
         ("config/base_config.py", "CRAWLER_MAX_SLEEP_SEC", str(settings.CRAWL_SLEEP_SEC)),
     ]
