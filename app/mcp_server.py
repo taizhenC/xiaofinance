@@ -14,8 +14,6 @@ attaching quotes to the wrong posts.
 
 Run:  .venv/Scripts/python.exe -m app.mcp_server        (stdio; see .mcp.json)
 """
-import json
-
 from mcp.server.fastmcp import FastMCP
 
 from .analyze import (
@@ -31,7 +29,14 @@ from .analyze import (
 from .analyze import evidence_hash as compute_evidence_hash
 from .config import settings
 from .db import connect
-from .mentions import Matcher, index_tickers, load_stock_dict
+from .mentions import (
+    Matcher,
+    asset_classes,
+    index_tickers,
+    investment_tickers,
+    load_stock_dict,
+    non_stock_tickers,
+)
 from .scoring import compute_stats, index_board, ranking_and_radar
 from .util import norm_text, now_ms
 
@@ -42,7 +47,7 @@ AGENT_MODEL = "agent/mcp"
 
 def _dict_and_indexes():
     d = load_stock_dict()
-    return d, index_tickers(d)
+    return d, non_stock_tickers(d)
 
 
 def _names(d: dict) -> dict[str, str]:
@@ -67,15 +72,21 @@ def board() -> dict:
     """
     conn = connect()
     try:
-        d, idx = _dict_and_indexes()
+        d, non_stocks = _dict_and_indexes()
+        idx, investments = index_tickers(d), investment_tickers(d)
         names, now = _names(d), now_ms()
-        stats = compute_stats(conn, settings.fresh_window_ms, now, indexes=idx)
-        ranking, radar = ranking_and_radar(stats, settings.MIN_MENTIONS_FOR_ANALYSIS, idx)
+        stats = compute_stats(conn, settings.fresh_window_ms, now, indexes=non_stocks)
+        ranking, radar = ranking_and_radar(
+            stats, settings.MIN_MENTIONS_FOR_ANALYSIS, non_stocks
+        )
         return {
             "window_hours": settings.FRESH_WINDOW_HOURS,
             "stocks": [_row(e, names) for e in ranking],
             "indexes": [_row(e, names)
                         for e in index_board(stats, idx, settings.MIN_MENTIONS_FOR_ANALYSIS)],
+            "investments": [_row(e, names) for e in index_board(
+                stats, investments, settings.MIN_MENTIONS_FOR_ANALYSIS
+            )],
             "radar": [_row(e, names) for e in radar[:15]],
         }
     finally:
@@ -91,12 +102,18 @@ def pending_ratings() -> list[dict]:
     """
     conn = connect()
     try:
-        d, idx = _dict_and_indexes()
+        d, non_stocks = _dict_and_indexes()
+        idx, investments = index_tickers(d), investment_tickers(d)
         names, now = _names(d), now_ms()
-        stats = compute_stats(conn, settings.fresh_window_ms, now, indexes=idx)
-        ranking, _ = ranking_and_radar(stats, settings.MIN_MENTIONS_FOR_ANALYSIS, idx)
+        stats = compute_stats(conn, settings.fresh_window_ms, now, indexes=non_stocks)
+        ranking, _ = ranking_and_radar(
+            stats, settings.MIN_MENTIONS_FOR_ANALYSIS, non_stocks
+        )
         indexes = index_board(stats, idx, settings.MIN_MENTIONS_FOR_ANALYSIS)
-        candidates = ranking[: settings.MAX_ANALYZED_STOCKS] + indexes[:3]
+        investment_board = index_board(
+            stats, investments, settings.MIN_MENTIONS_FOR_ANALYSIS
+        )
+        candidates = ranking[: settings.MAX_ANALYZED_STOCKS] + indexes[:3] + investment_board[:5]
 
         out = []
         for e in candidates:
@@ -112,6 +129,7 @@ def pending_ratings() -> list[dict]:
                 "ticker": t, "name_cn": names.get(t, ""), "score": e["score"],
                 "mentions": e["mentions"], "evidence_items": len(items),
                 "is_index": t in idx,
+                "asset_class": asset_classes(d).get(t, "stock"),
             })
         return out
     finally:
@@ -136,6 +154,7 @@ def evidence(ticker: str) -> dict:
         _, rubric = build_prompt(
             ticker, _names(d).get(ticker, ""), items, settings.SUMMARY_LANG, now,
             window_hours=settings.FRESH_WINDOW_HOURS,
+            asset_type=asset_classes(d).get(ticker, "stock"),
         )
         return {
             "ticker": ticker,

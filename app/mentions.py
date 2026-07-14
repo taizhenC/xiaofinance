@@ -73,16 +73,59 @@ def add_alias_to_overlay(term: str, ticker: str) -> None:
         json.dump(data, f, ensure_ascii=False, indent=2)
 
 
-# Funds and indexes, not companies. They are matched and scored like any other ticker, but
-# ranked on their own board: 纳指/标普 are the most-discussed words in the corpus by a wide
-# margin, and letting them into the stock ranking both buries the stocks (QQQ scored 4x the
-# top name) and dilutes them, since every "英伟达带动纳指新高" post would name two tickers
-# and halve NVDA's fan-out weight.
 INDEX_SECTOR = "ETF指数"
+INVESTMENT_CLASSES = {"commodity", "bond", "fund", "crypto", "forex"}
+
+
+def asset_class(entry: dict) -> str:
+    return entry.get("asset_class") or ("index" if entry.get("sector") == INDEX_SECTOR else "stock")
+
+
+def asset_classes(dict_data: dict) -> dict[str, str]:
+    return {s["ticker"]: asset_class(s) for s in dict_data.get("stocks", [])}
 
 
 def index_tickers(dict_data: dict) -> set[str]:
-    return {s["ticker"] for s in dict_data.get("stocks", []) if s.get("sector") == INDEX_SECTOR}
+    return {s["ticker"] for s in dict_data.get("stocks", []) if asset_class(s) == "index"}
+
+
+def investment_tickers(dict_data: dict) -> set[str]:
+    return {
+        s["ticker"] for s in dict_data.get("stocks", [])
+        if asset_class(s) in INVESTMENT_CLASSES
+    }
+
+
+def non_stock_tickers(dict_data: dict) -> set[str]:
+    return index_tickers(dict_data) | investment_tickers(dict_data)
+
+
+def extract_topic_tags(text: str, dict_data: dict) -> list[str]:
+    lower = norm_text(text or "").lower()
+    if not lower:
+        return []
+    found = []
+    for topic in dict_data.get("topic_tags", []):
+        if any(_compile_alias(alias)(lower) for alias in topic.get("aliases", [])):
+            found.append(topic["tag"])
+    return found
+
+
+def topic_breakdown(conn, dict_data: dict, window_ms: int, now: int | None = None) -> list[dict]:
+    now = now or now_ms()
+    cutoff = now - window_ms
+    counts: dict[str, dict] = {}
+    for row in conn.execute(
+        """SELECT title, note_desc, tag_list, liked_count FROM notes
+           WHERE publish_time_ms >= ? AND dup_group_id IS NULL""",
+        (cutoff,),
+    ):
+        text = " ".join(filter(None, (row["title"], row["note_desc"], row["tag_list"])))
+        for tag in extract_topic_tags(text, dict_data):
+            entry = counts.setdefault(tag, {"tag": tag, "mentions": 0, "likes": 0})
+            entry["mentions"] += 1
+            entry["likes"] += row["liked_count"] or 0
+    return sorted(counts.values(), key=lambda e: (e["mentions"], e["likes"]), reverse=True)
 
 
 def mask_traps(lower: str, traps) -> str:
@@ -153,12 +196,14 @@ class Matcher:
         self.collision = set(dict_data.get("collision_tickers", []))
         self.traps = [t.lower() for t in dict_data.get("traps", [])]
         self.stocks: dict[str, dict] = {}
+        self.supersedes: dict[str, set[str]] = {}
         for s in dict_data.get("stocks", []):
             self.stocks[s["ticker"]] = {
                 "name_cn": s.get("name_cn", ""),
                 "safe": list(s.get("aliases", [])),
                 "ambiguous": list(s.get("ambiguous", [])),
             }
+            self.supersedes[s["ticker"]] = set(s.get("supersedes", []))
         for t, kws in tracked.items():
             entry = self.stocks.setdefault(t, {"name_cn": "", "safe": [], "ambiguous": []})
             # user-supplied keywords are unvetted → treated as ambiguous
@@ -213,6 +258,9 @@ class Matcher:
                 add(t, alias, "alias+context")
             elif targeted_ticker == t:
                 add(t, alias, "targeted_search")
+        for ticker in tuple(out):
+            for general in self.supersedes.get(ticker, set()):
+                out.pop(general, None)
         return out
 
 

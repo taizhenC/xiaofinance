@@ -195,7 +195,7 @@ def run_cycle(mode: str = "both", skip_crawl: bool = False, settings=None,
         dedup.recompute_dedup(conn, settings.context_window_ms)
         mentions.extract_mentions(conn, dict_data, _tracked_rows(conn), settings.context_window_ms, last_run_id)
         stats = scoring.compute_stats(conn, settings.fresh_window_ms,
-                                      indexes=mentions.index_tickers(dict_data))
+                                      indexes=mentions.non_stock_tickers(dict_data))
         if not skip_crawl:
             scoring.snapshot_scores(conn, stats, last_run_id)
         tracked = {r["ticker"] for r in _tracked_rows(conn)}
@@ -206,7 +206,18 @@ def run_cycle(mode: str = "both", skip_crawl: bool = False, settings=None,
         )
         if settings.ENABLE_PRICE_QUOTES:
             ranked = sorted(stats, key=lambda t: -stats[t]["score"])[: settings.MAX_ANALYZED_STOCKS]
-            prices.refresh_quotes(conn, ranked + sorted(t for t in tracked if t not in ranked))
+            entries = {s["ticker"]: s for s in dict_data.get("stocks", [])}
+            classes = mentions.asset_classes(dict_data)
+            requested = ranked + sorted(t for t in tracked if t not in ranked)
+            quoteable = [
+                t for t in requested
+                if classes.get(t) in ("stock", "index") or entries.get(t, {}).get("quote_symbol")
+            ]
+            symbol_overrides = {
+                t: entries[t]["quote_symbol"] for t in quoteable
+                if entries.get(t, {}).get("quote_symbol")
+            }
+            prices.refresh_quotes(conn, quoteable, symbol_overrides=symbol_overrides)
         cleanup(conn, settings)
 
         cycle = int(meta_get(conn, "cycle_count", "0") or 0) + 1

@@ -25,7 +25,7 @@ quotes_lock = threading.Lock()
 scheduler: BackgroundScheduler | None = None
 
 
-def _refresh_quotes_bg(tickers: list[str]) -> None:
+def _refresh_quotes_bg(tickers: list[str], symbol_overrides: dict[str, str] | None = None) -> None:
     """Non-blocking: kick a daemon thread so ranking requests never wait on
     stooq.com; the UI picks up fresh quotes on its next poll."""
     if not quotes_lock.acquire(blocking=False):
@@ -35,7 +35,7 @@ def _refresh_quotes_bg(tickers: list[str]) -> None:
         try:
             conn = connect()
             try:
-                prices.refresh_quotes(conn, tickers)
+                prices.refresh_quotes(conn, tickers, symbol_overrides=symbol_overrides)
             finally:
                 conn.close()
         except Exception:
@@ -192,22 +192,33 @@ def api_ranking():
         dict_data = mentions.load_stock_dict()
         names = {s["ticker"]: s.get("name_cn", "") for s in dict_data["stocks"]}
         sectors = {s["ticker"]: s.get("sector", "") for s in dict_data["stocks"]}
+        entries = {s["ticker"]: s for s in dict_data["stocks"]}
+        classes = mentions.asset_classes(dict_data)
         indexes = mentions.index_tickers(dict_data)
-        stats = scoring.compute_stats(conn, settings.fresh_window_ms, now, indexes=indexes)
-        context = scoring.compute_stats(conn, settings.context_window_ms, now, indexes=indexes)
+        investments = mentions.investment_tickers(dict_data)
+        non_stocks = indexes | investments
+        stats = scoring.compute_stats(conn, settings.fresh_window_ms, now, indexes=non_stocks)
+        context = scoring.compute_stats(conn, settings.context_window_ms, now, indexes=non_stocks)
         tracked = _tracked_map(conn)
         trends = scoring.compute_trends(conn)
-        ranking, _ = scoring.ranking_and_radar(stats, settings.MIN_MENTIONS_FOR_ANALYSIS, indexes)
+        ranking, _ = scoring.ranking_and_radar(stats, settings.MIN_MENTIONS_FOR_ANALYSIS, non_stocks)
         index_ranking = scoring.index_board(stats, indexes, settings.MIN_MENTIONS_FOR_ANALYSIS)
+        investment_ranking = scoring.index_board(
+            stats, investments, settings.MIN_MENTIONS_FOR_ANALYSIS
+        )
         # Sectors and radar read the wider window: a sector that produces one post a day
         # is invisible in 24h, and calling that "no interest" would be a measurement
         # artifact rather than a finding.
-        breakdown = scoring.sector_breakdown(context, sectors, exclude=indexes)
+        breakdown = scoring.sector_breakdown(context, sectors, exclude=non_stocks)
         for s in breakdown:
             if s["leader"]:
                 s["leader"]["name_cn"] = names.get(s["leader"]["ticker"], "")
 
-        shown = {e["ticker"] for e in ranking} | {e["ticker"] for e in index_ranking}
+        shown = (
+            {e["ticker"] for e in ranking}
+            | {e["ticker"] for e in index_ranking}
+            | {e["ticker"] for e in investment_ranking}
+        )
         for t in sorted(tracked):
             if t not in shown:
                 e = stats.get(t) or {
@@ -218,16 +229,35 @@ def api_ranking():
                     "latest_item_ms": 0, "top_quote": None,
                 }
                 # a tracked ticker always shows, but on the board it belongs to
-                (index_ranking if t in indexes else ranking).append(e)
+                if t in investments:
+                    investment_ranking.append(e)
+                elif t in indexes:
+                    index_ranking.append(e)
+                else:
+                    ranking.append(e)
                 shown.add(t)
 
-        boarded = [e["ticker"] for e in ranking] + [e["ticker"] for e in index_ranking]
+        boarded = (
+            [e["ticker"] for e in ranking]
+            + [e["ticker"] for e in investment_ranking]
+            + [e["ticker"] for e in index_ranking]
+        )
         history = scoring.score_history(conn, boarded)
         quotes = {}
         if settings.ENABLE_PRICE_QUOTES:
-            quotes = prices.get_quotes(conn, boarded)
-            if prices.quotes_need_refresh(conn, boarded, settings.QUOTE_REFRESH_MIN * 60_000, now):
-                _refresh_quotes_bg(boarded)
+            quoteable = [
+                t for t in boarded
+                if classes.get(t) in ("stock", "index") or entries.get(t, {}).get("quote_symbol")
+            ]
+            symbol_overrides = {
+                t: entries[t]["quote_symbol"] for t in quoteable
+                if entries.get(t, {}).get("quote_symbol")
+            }
+            quotes = prices.get_quotes(conn, quoteable)
+            if prices.quotes_need_refresh(
+                conn, quoteable, settings.QUOTE_REFRESH_MIN * 60_000, now
+            ):
+                _refresh_quotes_bg(quoteable, symbol_overrides)
 
         def card(e: dict) -> dict:
             t = e["ticker"]
@@ -242,6 +272,7 @@ def api_ranking():
                 "ticker": t,
                 "name_cn": names.get(t, ""),
                 "sector": sectors.get(t, ""),
+                "asset_class": classes.get(t, "stock"),
                 "score": e.get("score", 0.0),
                 "note_count": e["note_count"],
                 "comment_count": e["comment_count"],
@@ -265,7 +296,8 @@ def api_ranking():
 
         out = [card(e) for e in ranking]
         indexes_out = [card(e) for e in index_ranking]
-        radar = scoring.radar_entries(context, exclude=shown | set(tracked) | indexes)
+        investments_out = [card(e) for e in investment_ranking]
+        radar = scoring.radar_entries(context, exclude=shown | set(tracked) | non_stocks)
         radar_out = [
             {
                 "ticker": e["ticker"],
@@ -280,6 +312,10 @@ def api_ranking():
         return {
             "ranking": out,
             "indexes": indexes_out,
+            "investments": investments_out,
+            "topics": mentions.topic_breakdown(
+                conn, dict_data, settings.fresh_window_ms, now
+            ),
             "radar": radar_out,
             "sectors": breakdown,
             "windows": {
@@ -302,6 +338,7 @@ def api_stock(ticker: str):
         now = now_ms()
         dict_data = mentions.load_stock_dict()
         names = {s["ticker"]: s.get("name_cn", "") for s in dict_data["stocks"]}
+        classes = mentions.asset_classes(dict_data)
         a = _latest_analysis(conn, ticker)
         items = analyze.gather_items(conn, ticker, settings.fresh_window_ms, now)[:30]
         analysis = None
@@ -313,6 +350,11 @@ def api_stock(ticker: str):
         return {
             "ticker": ticker,
             "name_cn": names.get(ticker, ""),
+            "asset_class": classes.get(ticker, "stock"),
+            "topics": sorted({
+                tag for item in items
+                for tag in mentions.extract_topic_tags(item["text"], dict_data)
+            }),
             "analysis": analysis,
             "items": [
                 {

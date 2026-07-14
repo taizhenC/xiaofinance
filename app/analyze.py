@@ -3,12 +3,12 @@ import json
 import logging
 import time
 
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import BaseModel, Field
 
 from .config import settings as default_settings
 from .db import connect
 from .dedup import comment_cluster_sizes, note_cluster_sizes
-from .mentions import alias_hits, index_tickers, is_aside
+from .mentions import alias_hits, asset_classes, index_tickers, investment_tickers, is_aside
 from .scoring import is_rankable, source_fanout
 from .util import (
     MIN_COMMENT_SUBSTANCE,
@@ -266,7 +266,8 @@ def evidence_hash(items: list[dict]) -> str:
 
 
 def build_prompt(ticker: str, name_cn: str, items: list[dict], lang: str, now: int,
-                 prev_summary: str | None = None, window_hours: int = 24) -> tuple[str, str]:
+                 prev_summary: str | None = None, window_hours: int = 24,
+                 asset_type: str = "stock") -> tuple[str, str]:
     lines = []
     for n, i in enumerate(items, 1):
         age_h = max(0, (now - i["ts"]) // 3_600_000)
@@ -285,12 +286,17 @@ def build_prompt(ticker: str, name_cn: str, items: list[dict], lang: str, now: i
             f"如与本次列出的内容矛盾，一律以本次内容为准：\n{prev_summary}\n"
         )
         change_hint = "如舆论方向或核心论点相比上一周期有明显变化，在 summary 末尾用一句话点明变化；无明显变化则不提。"
+    type_names = {
+        "stock": "股票", "index": "指数或ETF", "commodity": "大宗商品",
+        "bond": "债券", "fund": "基金", "crypto": "加密资产", "forex": "外汇",
+    }
+    subject_type = type_names.get(asset_type, "投资标的")
     system = (
-        "你是一位资深美股分析师，从小红书的帖子和评论里提炼散户对某只股票的真实看法。"
-        "小红书上大量内容是教学、引流和生活分享，只是顺带提到了股票——把这些剔除干净，"
+        "你是一位资深市场分析师，从小红书的帖子和评论里提炼散户对投资标的的真实看法。"
+        "小红书上大量内容是教学、引流和生活分享，只是顺带提到了相关名词——把这些剔除干净，"
         "比硬凑出一个观点更重要。没有观点时，如实说没有。"
     )
-    user = f"""以下是过去{window_hours}小时内小红书上提及 {name} 的帖子和评论，每行格式：[编号] [类型] [发布时间] [点赞数] 内容。
+    user = f"""以下是过去{window_hours}小时内小红书上提及 {name}（类型：{subject_type}）的帖子和评论，每行格式：[编号] [类型] [发布时间] [点赞数] 内容。
 
 标注含义：
 - [×N相似]：N条重复转发已合并为一条。重复转发不代表更多独立观点。
@@ -394,7 +400,8 @@ def analysis_is_current(conn, ticker: str, ihash: str,
 
 
 def analyze_ticker(conn, ticker: str, settings=None, name_cn: str = "", score: float = 0.0,
-                   run_id: int | None = None, now: int | None = None, force: bool = False) -> str:
+                   run_id: int | None = None, now: int | None = None, force: bool = False,
+                   asset_type: str = "stock") -> str:
     settings = settings or default_settings
     now = now or now_ms()
     items = gather_items(conn, ticker, settings.fresh_window_ms, now)
@@ -436,7 +443,7 @@ def analyze_ticker(conn, ticker: str, settings=None, name_cn: str = "", score: f
     prev_summary = prev_row["summary"].strip()[:PREV_SUMMARY_TRUNC] if prev_row else None
 
     system, user = build_prompt(ticker, name_cn, items, settings.SUMMARY_LANG, now, prev_summary,
-                                settings.FRESH_WINDOW_HOURS)
+                                settings.FRESH_WINDOW_HOURS, asset_type)
     last_err = None
     for attempt in range(2):
         try:
@@ -471,13 +478,17 @@ def analyze_ticker(conn, ticker: str, settings=None, name_cn: str = "", score: f
 def analyze_all(conn, settings, dict_data: dict, stats: dict[str, dict],
                 tracked: set[str], min_mentions: int, max_stocks: int,
                 run_id: int | None = None, now: int | None = None,
-                force: bool = False, max_indexes: int = 3) -> dict[str, str]:
+                force: bool = False, max_indexes: int = 3,
+                max_investments: int = 5) -> dict[str, str]:
     names = {s["ticker"]: s.get("name_cn", "") for s in dict_data.get("stocks", [])}
+    classes = asset_classes(dict_data)
     indexes = index_tickers(dict_data)
+    investments = investment_tickers(dict_data)
+    non_stocks = indexes | investments
     # Budgeted separately, or 纳指 and 标普 would take most of the stock budget on score alone.
     ranked = sorted(
         (e for e in stats.values()
-         if e["ticker"] not in indexes and is_rankable(e, min_mentions)),
+         if e["ticker"] not in non_stocks and is_rankable(e, min_mentions)),
         key=lambda e: e["score"], reverse=True,
     )[:max_stocks]
     ranked += sorted(
@@ -485,6 +496,11 @@ def analyze_all(conn, settings, dict_data: dict, stats: dict[str, dict],
          if e["ticker"] in indexes and e.get("mentions", 0) >= min_mentions),
         key=lambda e: e["score"], reverse=True,
     )[:max_indexes]
+    ranked += sorted(
+        (e for e in stats.values()
+         if e["ticker"] in investments and e.get("mentions", 0) >= min_mentions),
+        key=lambda e: e["score"], reverse=True,
+    )[:max_investments]
     candidates = [e["ticker"] for e in ranked]
     for t in sorted(tracked):
         if t not in candidates and stats.get(t, {}).get("mentions", 0) >= 1:
@@ -494,7 +510,7 @@ def analyze_all(conn, settings, dict_data: dict, stats: dict[str, dict],
     for t in candidates:
         results[t] = analyze_ticker(
             conn, t, settings, names.get(t, ""), stats.get(t, {}).get("score", 0.0),
-            run_id, now, force,
+            run_id, now, force, classes.get(t, "stock"),
         )
         if settings.DEEPSEEK_API_KEY:
             time.sleep(0.5)
@@ -513,10 +529,15 @@ if __name__ == "__main__":
     conn = connect()
     dict_data = mentions.load_stock_dict()
     names = {s["ticker"]: s.get("name_cn", "") for s in dict_data["stocks"]}
-    stats = scoring.compute_stats(conn, default_settings.fresh_window_ms)
+    classes = mentions.asset_classes(dict_data)
+    stats = scoring.compute_stats(
+        conn, default_settings.fresh_window_ms,
+        indexes=mentions.non_stock_tickers(dict_data),
+    )
     t = args.ticker.upper()
     status = analyze_ticker(conn, t, default_settings, names.get(t, ""),
-                            stats.get(t, {}).get("score", 0.0), force=args.force)
+                            stats.get(t, {}).get("score", 0.0), force=args.force,
+                            asset_type=classes.get(t, "stock"))
     print(f"{t}: {status}")
     row = conn.execute(
         "SELECT status, summary FROM stock_analyses WHERE ticker=? ORDER BY generated_at_ms DESC LIMIT 1",

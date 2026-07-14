@@ -1,5 +1,5 @@
 from app.dedup import recompute_dedup
-from app.mentions import extract_mentions, index_tickers, load_stock_dict
+from app.mentions import extract_mentions, index_tickers, load_stock_dict, non_stock_tickers
 from app.scoring import (
     compute_stats,
     fanout,
@@ -13,6 +13,7 @@ H = 3_600_000
 WINDOW = 24 * H
 DICT = load_stock_dict()
 IDX = index_tickers(DICT)
+NON_STOCKS = non_stock_tickers(DICT)
 
 
 def _note(conn, note_id, title, desc, ts, likes=10):
@@ -27,11 +28,12 @@ def _stats(conn, now):
     conn.commit()
     recompute_dedup(conn, WINDOW, now)
     extract_mentions(conn, DICT, [], WINDOW, now=now)
-    return compute_stats(conn, WINDOW, now, indexes=IDX)
+    return compute_stats(conn, WINDOW, now, indexes=NON_STOCKS)
 
 
 def test_index_tickers_come_from_the_etf_sector():
-    assert {"QQQ", "SPY", "GLD"} <= IDX
+    assert {"QQQ", "SPY"} <= IDX
+    assert "GLD" not in IDX and "GOLD" not in IDX
     assert "NVDA" not in IDX and "BRK" not in IDX
 
 
@@ -82,6 +84,6 @@ def test_sectors_answer_which_sectors_not_stocks_versus_indexes(conn):
     stats = _stats(conn, now)
     sectors = {s["ticker"]: s.get("sector", "") for s in DICT["stocks"]}
 
-    named = {a["sector"] for a in sector_breakdown(stats, sectors, exclude=IDX)}
+    named = {a["sector"] for a in sector_breakdown(stats, sectors, exclude=NON_STOCKS)}
     assert "ETF指数" not in named
     assert "半导体" in named
