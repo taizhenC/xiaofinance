@@ -276,6 +276,24 @@ def build_prompt(ticker: str, name_cn: str, items: list[dict], lang: str, now: i
         aside = " [顺带提及]" if i.get("aside") else ""
         body = i.get("prompt_text") or i["text"]
         lines.append(f"[{n}] [{i['type']}] [{age_h}小时前] [赞:{i['likes']}]{dup}{roundup}{aside} {body}")
+    markers = []
+    if any(i["cluster_size"] > 1 for i in items):
+        markers.append("- [×N相似]：N条重复内容已合并，不算独立观点。")
+    if any(i.get("fanout", 1) >= FANOUT_ROUNDUP for i in items):
+        markers.append("- [盘点·提及N股]：同时罗列N股；被列出不等于表达观点。")
+    if any(i.get("aside") for i in items):
+        markers.append(
+            f"- [顺带提及]：全文仅出现一次{ticker}，通常不是主题"
+            "（如教学例子、持仓一行、求职/开户背景）。"
+        )
+    if any("…" in (i.get("prompt_text") or i["text"]) for i in items):
+        markers.append(f"- …：长文仅保留开头及{ticker}附近语境。")
+    if any((i.get("prompt_text") or "").startswith("↳") for i in items):
+        markers.append(
+            "- ↳：上一条的回复，须结合上文理解；"
+            "一问一答只是一次交流，不算两个独立观点。"
+        )
+    marker_block = f"\n标记：\n{chr(10).join(markers)}\n" if markers else ""
     lang_name = "英文(English)" if lang == "en" else "中文"
     name = f"{ticker}（{name_cn}）" if name_cn else ticker
     prev_block = ""
@@ -292,27 +310,19 @@ def build_prompt(ticker: str, name_cn: str, items: list[dict], lang: str, now: i
     }
     subject_type = type_names.get(asset_type, "投资标的")
     system = (
-        "你是一位资深市场分析师，从小红书的帖子和评论里提炼散户对投资标的的真实看法。"
-        "小红书上大量内容是教学、引流和生活分享，只是顺带提到了相关名词——把这些剔除干净，"
-        "比硬凑出一个观点更重要。没有观点时，如实说没有。"
+        "你是资深市场分析师。仅依据提供的小红书内容提炼散户对投资标的的真实看法；"
+        "无观点就如实说明，不得推测。只输出JSON。"
     )
-    user = f"""以下是过去{window_hours}小时内小红书上提及 {name}（类型：{subject_type}）的帖子和评论，每行格式：[编号] [类型] [发布时间] [点赞数] 内容。
-
-标注含义：
-- [×N相似]：N条重复转发已合并为一条。重复转发不代表更多独立观点。
-- [盘点·提及N股]：该帖同时罗列了N只股票（财报日历、涨幅盘点等）。被罗列本身不构成观点。
-- [顺带提及]：全文只出现一次 {ticker}，帖子主题多半不是它——期权教学拿它举例、持仓表里的一行、求职或开户经历里的公司名。
-- 正文过长时，只截取到提及 {ticker} 的那一段，省略处用 … 标出。
-- 以 ↳ 开头的是上一条的回复，按对话顺序排列。回复要结合它上面那一条来读：「别追，我出货了」单独看没有信息，接在「还能上车吗」后面才是明确看空。一问一答只是一次交流，不要当成两个独立观点。
-
+    user = f"""分析过去{window_hours}小时提及 {name} [{subject_type}] 的帖子/评论。每行格式：[编号] [类型] [距今小时] [赞数] 内容。
+{marker_block}
 {chr(10).join(lines)}
 {prev_block}
-请完成三步：
-1. 剔除没有表达 {ticker} 投资观点的条目，数量记为 irrelevant_item_count。判断标准是「这条内容有没有对 {ticker} 表达看法」，不是「有没有出现 {ticker}」。常见应剔除的：同名歧义（水果苹果）、教学/科普里把 {ticker} 当例子、晒单晒产品、引流广告、把公司名当背景板的生活分享。
-2. 对剩下的条目逐条判断立场（bullish/bearish/neutral），汇总为 sentiment_counts。论点相同的只算一个观点，按论点的数量与质量权衡，不按重复次数。若剩下0条，三个计数都填0，并在 summary 里直接说明本周期没有实质讨论——不要从被剔除的内容里推测立场。
-3. 用{lang_name}写总结：summary 以 "{ticker}: " 开头，不超过120词；bull_points 最多4条看多要点，bear_points 最多4条看空要点（均用{lang_name}）；notable_quote_ids 最多3个编号，从**未被剔除**的条目里选最有代表性的，只给编号，不要重写原文。{change_hint}
+任务：
+1. 只保留对 {ticker} 表达投资看法的条目；剔除同名歧义、教学/科普例子、产品晒单、广告引流、仅以公司为背景的生活分享。irrelevant_item_count=剔除数。
+2. 将保留条目判为 bullish/bearish/neutral 并计数。相同论点只算一次；综合论点数量与质量，不按重复次数。若无保留条目，计数全为0，summary说明本周期无实质讨论，不从剔除内容推测。
+3. 用{lang_name}输出：summary以 "{ticker}: " 开头且不超过120词；bull_points、bear_points各最多4条；notable_quote_ids从保留条目选最多3个代表编号，只给编号，不抄原文。{change_hint}
 
-只输出一个JSON对象，格式：
+JSON格式：
 {{"summary": "...", "sentiment_counts": {{"bullish": 0, "bearish": 0, "neutral": 0}}, "bull_points": ["..."], "bear_points": ["..."], "notable_quote_ids": [1, 2], "irrelevant_item_count": 0}}"""
     return system, user
 
@@ -449,30 +459,33 @@ def analyze_ticker(conn, ticker: str, settings=None, name_cn: str = "", score: f
         try:
             resp = _call_llm(settings, system, user)
             result = AnalysisResult.model_validate_json(resp.choices[0].message.content)
-            summary = result.summary.strip()
-            if not summary.upper().startswith(f"{ticker}:"):
-                summary = f"{ticker}: {summary}"
-            quotes = quotes_from_ids(items, result.notable_quote_ids)
-            usage = resp.usage
-            cost = (usage.prompt_tokens * COST_IN_PER_M + usage.completion_tokens * COST_OUT_PER_M) / 1e6
-            insert(
-                "ok",
-                sentiment_counts=json.dumps(result.sentiment_counts.model_dump()),
-                summary=summary,
-                bull_points=json.dumps(result.bull_points[:4], ensure_ascii=False),
-                bear_points=json.dumps(result.bear_points[:4], ensure_ascii=False),
-                notable_quotes=json.dumps(quotes, ensure_ascii=False),
-                irrelevant_item_count=result.irrelevant_item_count,
-                input_tokens=usage.prompt_tokens, output_tokens=usage.completion_tokens,
-                cost_usd=round(cost, 6),
-            )
-            return "ok"
         except Exception as e:  # per-ticker isolation: API, parse, and validation errors alike
             last_err = e
             log.warning("%s: analysis attempt %d failed: %s", ticker, attempt + 1, e)
-            time.sleep(1)
-    insert("error", error=str(last_err)[:500])
-    return "error"
+            if attempt == 0:
+                time.sleep(1)
+        else:
+            break
+    else:
+        insert("error", error=str(last_err)[:500])
+        return "error"
+
+    usage = resp.usage
+    cost = (usage.prompt_tokens * COST_IN_PER_M + usage.completion_tokens * COST_OUT_PER_M) / 1e6
+    try:
+        store_result(
+            conn, ticker, items, result, base_cols,
+            input_tokens=usage.prompt_tokens, output_tokens=usage.completion_tokens,
+            cost_usd=round(cost, 6),
+        )
+    except Exception as e:
+        log.warning("%s: storing analysis failed: %s", ticker, e)
+        try:
+            insert("error", error=str(e)[:500])
+        except Exception:
+            log.exception("%s: storing the analysis error row also failed", ticker)
+        return "error"
+    return "ok"
 
 
 def analyze_all(conn, settings, dict_data: dict, stats: dict[str, dict],
