@@ -7,7 +7,7 @@ from pathlib import Path
 
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.interval import IntervalTrigger
-from fastapi import Body, FastAPI, HTTPException
+from fastapi import Body, FastAPI, HTTPException, Query
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -387,9 +387,15 @@ def api_tracked_add(payload: dict = Body(...)):
     ticker = str(payload.get("ticker", "")).strip().upper()
     if not TICKER_RE.match(ticker):
         raise HTTPException(422, "ticker must match ^[A-Z]{1,5}$")
-    kws = payload.get("custom_keywords") or []
-    if isinstance(kws, str):
-        kws = [k.strip() for k in kws.split(",") if k.strip()]
+    raw_kws = payload.get("custom_keywords", [])
+    if raw_kws is None:
+        kws = []
+    elif isinstance(raw_kws, str):
+        kws = [k.strip() for k in raw_kws.split(",") if k.strip()]
+    elif isinstance(raw_kws, list) and all(isinstance(k, str) for k in raw_kws):
+        kws = [k.strip() for k in raw_kws if k.strip()]
+    else:
+        raise HTTPException(422, "custom_keywords must be a string or list of strings")
     conn = connect()
     try:
         conn.execute(
@@ -427,7 +433,7 @@ def api_scoreboard():
 
 
 @app.get("/api/runs")
-def api_runs(limit: int = 20):
+def api_runs(limit: int = Query(default=20, ge=1)):
     conn = connect()
     try:
         return [

@@ -158,7 +158,11 @@ def cleanup(conn, settings, now: int | None = None) -> None:
 
     conn.execute("DELETE FROM stock_mentions WHERE content_time_ms < ?", (content_cutoff,))
     conn.execute("DELETE FROM comments WHERE create_time_ms < ?", (content_cutoff,))
-    conn.execute("DELETE FROM notes WHERE publish_time_ms < ?", (content_cutoff,))
+    conn.execute(
+        """DELETE FROM notes WHERE publish_time_ms < ?
+           AND NOT EXISTS (SELECT 1 FROM comments WHERE comments.note_id = notes.note_id)""",
+        (content_cutoff,),
+    )
     conn.execute("DELETE FROM stock_analyses WHERE generated_at_ms < ?", (runs_cutoff,))
     conn.execute("DELETE FROM score_snapshots WHERE snapped_at_ms < ?", (runs_cutoff,))
     conn.execute("DELETE FROM fetch_runs WHERE started_at_ms < ?", (runs_cutoff,))

@@ -1,7 +1,7 @@
 import json
 
 from app.ingest import ingest_run_dir
-from app.util import now_ms
+from app.util import norm_for_hash, now_ms, simhash64, to_signed64
 
 H = 3_600_000
 DAY = 24 * H
@@ -49,3 +49,51 @@ def test_ingest_freshness_gate(conn, tmp_path):
     assert n2["publish_time_ms"] > 10**12  # 10-digit seconds normalized to ms
     assert conn.execute("SELECT COUNT(*) c FROM notes").fetchone()["c"] == 2
     assert conn.execute("SELECT COUNT(*) c FROM comments").fetchone()["c"] == 1
+
+
+def test_ingest_updates_existing_content_and_hashes(conn, tmp_path):
+    now = now_ms()
+    first_run = tmp_path / "run_000001"
+    _write_jsonl(first_run, "search_contents_1.jsonl", [{
+        "note_id": "n1", "title": "旧标题", "desc": "旧描述", "type": "normal",
+        "time": now - H, "liked_count": "1", "note_url": "https://x/old",
+        "tag_list": "旧标签", "source_keyword": "旧关键词", "nickname": "旧作者",
+    }])
+    _write_jsonl(first_run, "search_comments_1.jsonl", [{
+        "comment_id": "c1", "note_id": "n1", "parent_comment_id": "p1",
+        "content": "这是旧的评论内容", "create_time": now - H, "like_count": "1",
+        "sub_comment_count": "1", "nickname": "旧评论者",
+    }])
+    ingest_run_dir(conn, first_run, run_id=1, fresh_window_ms=DAY, now=now)
+
+    second_run = tmp_path / "run_000002"
+    _write_jsonl(second_run, "search_contents_2.jsonl", [{
+        "note_id": "n1", "title": "新标题", "desc": "新描述", "type": "video",
+        "time": now - H, "liked_count": "2", "note_url": "https://x/new",
+        "tag_list": "新标签", "source_keyword": "新关键词", "nickname": "新作者",
+    }])
+    _write_jsonl(second_run, "search_comments_2.jsonl", [{
+        "comment_id": "c1", "note_id": "n1", "parent_comment_id": "p2",
+        "content": "这是更新后的评论内容", "create_time": now - H, "like_count": "2",
+        "sub_comment_count": "2", "nickname": "新评论者",
+    }])
+    ingest_run_dir(conn, second_run, run_id=2, fresh_window_ms=DAY, now=now + 1)
+
+    note = conn.execute("SELECT * FROM notes WHERE note_id='n1'").fetchone()
+    assert note["title"] == "新标题"
+    assert note["note_desc"] == "新描述"
+    assert note["note_type"] == "video"
+    assert note["note_url"] == "https://x/new"
+    assert note["tag_list"] == "新标签"
+    assert note["source_keyword"] == "新关键词"
+    assert note["nickname"] == "新作者"
+    assert note["simhash"] == to_signed64(simhash64("新标题 新描述"))
+    assert note["first_seen_run_id"] == 1
+    assert note["last_seen_run_id"] == 2
+
+    comment = conn.execute("SELECT * FROM comments WHERE comment_id='c1'").fetchone()
+    assert comment["parent_comment_id"] == "p2"
+    assert comment["content"] == "这是更新后的评论内容"
+    assert comment["nickname"] == "新评论者"
+    assert comment["content_norm_hash"] == norm_for_hash("这是更新后的评论内容")
+    assert comment["first_seen_run_id"] == 1

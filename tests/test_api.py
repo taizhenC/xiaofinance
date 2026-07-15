@@ -42,6 +42,13 @@ def test_tracked_crud(client):
     assert any(e["ticker"] == "NVDA" and e["tracked"] for e in r["ranking"])
 
 
+def test_tracked_rejects_non_string_keywords(client):
+    for kws in (1, ["开市客", 1]):
+        response = client.post("/api/tracked", json={"ticker": "COST", "custom_keywords": kws})
+        assert response.status_code == 422
+    assert client.get("/api/tracked").json() == []
+
+
 def test_ranking_includes_trend(client):
     from app.db import connect
     from app.scoring import snapshot_scores
@@ -135,6 +142,11 @@ def test_run_detail_endpoint_serves_the_stored_snapshot_after_cleanup(client, tm
     assert client.get("/api/runs/999/detail").status_code == 404
     # the list endpoint must not drag the blob along for every row
     assert "detail" not in client.get("/api/runs").json()[0]
+
+
+def test_runs_rejects_negative_limit(client):
+    response = client.get("/api/runs", params={"limit": -1})
+    assert response.status_code == 422
 
 
 def test_run_detail_endpoint_computes_live_from_the_raw_dir(client, tmp_path):
