@@ -1,12 +1,14 @@
 import json
 import logging
 import re
+import secrets
 import threading
 from contextlib import asynccontextmanager
+from urllib.parse import urlsplit
 
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.interval import IntervalTrigger
-from fastapi import Body, FastAPI, HTTPException
+from fastapi import Body, FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -59,8 +61,33 @@ def _scheduled_cycle() -> None:
     runner.start("both")
 
 
+LOOPBACK_HOSTS = {"127.0.0.1", "::1", "localhost"}
+
+
+def is_local_bind(host: str) -> bool:
+    return host in LOOPBACK_HOSTS
+
+
+def check_bind_security(host: str, auth_token: str) -> None:
+    """Refuse the footgun: a non-local bind exposes endpoints that crawl with
+    the user's XHS account and write files. TR-02."""
+    if not is_local_bind(host) and not auth_token:
+        raise RuntimeError(
+            f"refusing to bind {host}: set AUTH_TOKEN in .env before exposing the "
+            "dashboard beyond this machine — without it, anyone on the network can "
+            "trigger crawls with YOUR XHS account. Mutating requests must then send "
+            "the header 'Authorization: Bearer <token>'."
+        )
+
+
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
+    check_bind_security(settings.HOST, settings.AUTH_TOKEN)
+    if not is_local_bind(settings.HOST):
+        log.warning(
+            "dashboard exposed on %s — mutating endpoints require the AUTH_TOKEN "
+            "bearer header; reads are open to the network", settings.HOST,
+        )
     conn = connect()
     conn.execute(
         "UPDATE fetch_runs SET status='failed', error='stale: server restarted mid-run' WHERE status='running'"
@@ -82,6 +109,29 @@ async def lifespan(_app: FastAPI):
 
 
 app = FastAPI(title="infinance", lifespan=lifespan)
+
+MUTATING_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
+
+
+@app.middleware("http")
+async def security_gate(request: Request, call_next):
+    """Active only for non-local binds (TR-02): bearer token on every mutating
+    API call plus a same-origin check against cross-site browser requests.
+    Reads stay open by design — the token protects actions, not the view."""
+    if not is_local_bind(settings.HOST) and request.method in MUTATING_METHODS \
+            and request.url.path.startswith("/api/"):
+        origin = request.headers.get("origin")
+        if origin:
+            host = request.headers.get("host", "")
+            if urlsplit(origin).netloc.lower() != host.lower():
+                return JSONResponse(status_code=403, content={"detail": "cross-origin request rejected"})
+        supplied = request.headers.get("authorization", "").removeprefix("Bearer ").strip()
+        if not settings.AUTH_TOKEN or not secrets.compare_digest(supplied, settings.AUTH_TOKEN):
+            return JSONResponse(
+                status_code=401,
+                content={"detail": "AUTH_TOKEN required: send 'Authorization: Bearer <token>'"},
+            )
+    return await call_next(request)
 
 
 def _latest_analysis(conn, ticker: str):

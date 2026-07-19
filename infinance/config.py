@@ -81,6 +81,10 @@ class Settings(BaseSettings):
 
     HOST: str = "127.0.0.1"
     PORT: int = 8000
+    # Required to bind anything but loopback. When set (and the bind is
+    # non-local), every mutating endpoint demands `Authorization: Bearer <token>`
+    # and cross-origin browser requests are rejected.
+    AUTH_TOKEN: str = ""
 
     @property
     def fresh_window_ms(self) -> int:
