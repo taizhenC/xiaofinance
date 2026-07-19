@@ -12,10 +12,13 @@ from fastapi import Body, FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from . import analyze, guardrails, jobs, mentions, prices, scoreboard, scoring
+from . import analyze, guardrails, jobs, mentions, prices, scoreboard, scoring, session
 from .config import BASE_DIR, settings
 from .db import connect
 from .util import now_ms
+
+# the .env-sourced cookie value, before any UI override is applied
+ENV_COOKIES = settings.XHS_COOKIES
 
 log = logging.getLogger(__name__)
 
@@ -93,6 +96,7 @@ async def lifespan(_app: FastAPI):
         "UPDATE fetch_runs SET status='failed', error='stale: server restarted mid-run' WHERE status='running'"
     )
     conn.commit()
+    session.apply_overrides(conn, settings)
     conn.close()
     global scheduler
     if settings.FETCH_INTERVAL_HOURS > 0:
@@ -210,6 +214,64 @@ def api_fetch_cancel():
     if not runner.cancel():
         raise HTTPException(404, "no fetch cycle is running")
     return {"cancelling": True}
+
+
+@app.get("/api/session")
+def api_session():
+    conn = connect()
+    try:
+        return session.health(conn, settings)
+    finally:
+        conn.close()
+
+
+@app.post("/api/session/login")
+def api_session_login(payload: dict = Body(default={})):
+    if runner.running:
+        raise HTTPException(409, "a fetch cycle is running — wait for it or cancel it first")
+    timeout_min = int(payload.get("timeout_min", 6))
+    if not session.start_login(settings, timeout_min=min(max(timeout_min, 1), 30)):
+        raise HTTPException(409, "a login attempt is already in progress")
+    return JSONResponse(status_code=202, content={"started": True})
+
+
+@app.post("/api/session/cookies")
+def api_session_cookies(payload: dict = Body(...)):
+    cookies = str(payload.get("cookies", "")).strip()
+    if not session.cookie_format_ok(cookies):
+        raise HTTPException(
+            422, "cookie string must contain a1= and web_session= — copy the whole "
+                 "`cookie:` header value from a logged-in browser",
+        )
+    conn = connect()
+    try:
+        session.set_cookies(conn, settings, cookies)
+    finally:
+        conn.close()
+    return {"configured": True}
+
+
+@app.delete("/api/session/cookies")
+def api_session_cookies_delete():
+    conn = connect()
+    try:
+        session.clear_cookies(conn, settings, ENV_COOKIES)
+    finally:
+        conn.close()
+    return {"configured": bool(settings.XHS_COOKIES)}
+
+
+@app.post("/api/session/config")
+def api_session_config(payload: dict = Body(...)):
+    if "xhs_international" not in payload:
+        raise HTTPException(422, "xhs_international (bool) is required")
+    value = bool(payload["xhs_international"])
+    conn = connect()
+    try:
+        session.set_international(conn, settings, value)
+    finally:
+        conn.close()
+    return {"xhs_international": value}
 
 
 @app.get("/api/ranking")
