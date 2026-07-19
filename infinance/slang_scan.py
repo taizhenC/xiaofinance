@@ -4,7 +4,7 @@ import re
 from pydantic import BaseModel, Field
 
 from .mentions import Matcher
-from .util import norm_text, now_ms
+from .util import norm_for_hash, norm_text, now_ms
 
 log = logging.getLogger(__name__)
 
@@ -86,6 +86,7 @@ def run_slang_scan(conn, settings, dict_data: dict, now: int | None = None) -> d
         return {"error": str(e)[:200]}
 
     known = _known_terms(dict_data)
+    cand_norms = [norm_for_hash(c["text"]) for c in candidates]
     inserted = 0
     for s in result.suggestions:
         term = s.term.strip()
@@ -94,14 +95,30 @@ def run_slang_scan(conn, settings, dict_data: dict, now: int | None = None) -> d
             continue
         if term.lower() in known or term.upper() == ticker:
             continue
-        note_id = None
-        if 1 <= s.item <= len(candidates):
-            note_id = candidates[s.item - 1]["note_id"]
+        # AN-01: the term must actually appear verbatim in a scanned note —
+        # prefer the note the model cited, fall back to any candidate. A term
+        # that appears nowhere is a fabrication and never reaches review.
+        term_norm = norm_for_hash(term)
+        cited = s.item - 1 if 1 <= s.item <= len(candidates) else None
+        if term_norm and cited is not None and term_norm in cand_norms[cited]:
+            source = cited
+        elif term_norm:
+            source = next((i for i, cn in enumerate(cand_norms) if term_norm in cn), None)
+        else:
+            source = None
+        if source is None:
+            log.info("slang scan: dropped %r -> %s (term not found verbatim in any note)", term, ticker)
+            continue
+        # evidence must be a verbatim quote of the source note too; otherwise
+        # show the real note text instead of a possibly-paraphrased "quote"
+        evidence = s.evidence.strip()
+        if not evidence or norm_for_hash(evidence) not in cand_norms[source]:
+            evidence = candidates[source]["text"]
         cur = conn.execute(
             """INSERT OR IGNORE INTO alias_suggestions
                (term, guessed_ticker, evidence_quote, evidence_note_id, suggested_at_ms)
                VALUES(?,?,?,?,?)""",
-            (term, ticker, s.evidence.strip()[:300], note_id, now),
+            (term, ticker, evidence[:300], candidates[source]["note_id"], now),
         )
         inserted += cur.rowcount
     conn.commit()

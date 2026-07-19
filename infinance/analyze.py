@@ -8,7 +8,7 @@ from pydantic import BaseModel, Field
 from .config import settings as default_settings
 from .db import connect
 from .dedup import comment_cluster_sizes, note_cluster_sizes
-from .util import now_ms, sha256_hex
+from .util import norm_for_hash, now_ms, sha256_hex
 
 log = logging.getLogger(__name__)
 
@@ -81,6 +81,32 @@ def gather_items(conn, ticker: str, fresh_window_ms: int, now: int | None = None
 
 def input_hash(items: list[dict]) -> str:
     return sha256_hex("|".join(sorted(f"{i['type']}:{i['id']}" for i in items)))
+
+
+def verify_quotes(quotes: list[str], items: list[dict]) -> tuple[list[str], int]:
+    """Keep only quotes that are verbatim substrings of some input item
+    (compared after norm_for_hash: NFKC, lowercased latin, punctuation and
+    whitespace stripped — so the model may reflow spacing/punctuation but not
+    change a single content character). Quotes are the product's proof layer;
+    an LLM paraphrase presented as a quote is a fabrication.
+
+    Returns (verified_quotes, dropped_count)."""
+    haystacks = [norm_for_hash(i["text"]) for i in items]
+    kept: list[str] = []
+    dropped = 0
+    for q in quotes:
+        needle = norm_for_hash(q or "")
+        # a quote that normalizes to nothing (pure emoji/punctuation) proves nothing
+        if needle and any(needle in h for h in haystacks):
+            kept.append(q)
+        else:
+            dropped += 1
+    return kept, dropped
+
+
+def fallback_quotes(items: list[dict]) -> list[str]:
+    """Real top-liked texts, comments preferred — same shape the keyless path uses."""
+    return [i["text"] for i in items if i["type"] == "comment"][:3] or [i["text"] for i in items[:3]]
 
 
 def build_prompt(ticker: str, name_cn: str, items: list[dict], lang: str, now: int,
@@ -186,6 +212,12 @@ def analyze_ticker(conn, ticker: str, settings=None, name_cn: str = "", score: f
             summary = result.summary.strip()
             if not summary.upper().startswith(f"{ticker}:"):
                 summary = f"{ticker}: {summary}"
+            # AN-01: quotes must be verbatim — drop paraphrases, never render them
+            quotes, dropped = verify_quotes(result.notable_quotes, items)
+            if dropped:
+                log.warning("%s: dropped %d unverifiable quote(s) from the model", ticker, dropped)
+            if not quotes and result.notable_quotes:
+                quotes = fallback_quotes(items)
             usage = resp.usage
             cost = (usage.prompt_tokens * COST_IN_PER_M + usage.completion_tokens * COST_OUT_PER_M) / 1e6
             insert(
@@ -194,7 +226,7 @@ def analyze_ticker(conn, ticker: str, settings=None, name_cn: str = "", score: f
                 summary=summary,
                 bull_points=json.dumps(result.bull_points[:4], ensure_ascii=False),
                 bear_points=json.dumps(result.bear_points[:4], ensure_ascii=False),
-                notable_quotes=json.dumps(result.notable_quotes[:3], ensure_ascii=False),
+                notable_quotes=json.dumps(quotes[:3], ensure_ascii=False),
                 irrelevant_item_count=result.irrelevant_item_count,
                 input_tokens=usage.prompt_tokens, output_tokens=usage.completion_tokens,
                 cost_usd=round(cost, 6),
