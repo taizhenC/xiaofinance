@@ -242,7 +242,9 @@ def analyze_ticker(conn, ticker: str, settings=None, name_cn: str = "", score: f
 
 def analyze_all(conn, settings, dict_data: dict, stats: dict[str, dict],
                 tracked: set[str], min_mentions: int, max_stocks: int,
-                run_id: int | None = None, now: int | None = None) -> dict[str, str]:
+                run_id: int | None = None, now: int | None = None,
+                progress=None, cancel_event=None) -> dict[str, str]:
+    report = progress or (lambda stage=None, **kw: None)
     names = {s["ticker"]: s.get("name_cn", "") for s in dict_data.get("stocks", [])}
     ranked = sorted(
         (e for e in stats.values() if e["mentions"] >= min_mentions),
@@ -254,10 +256,15 @@ def analyze_all(conn, settings, dict_data: dict, stats: dict[str, dict],
             candidates.append(t)
 
     results = {}
-    for t in candidates:
+    for idx, t in enumerate(candidates):
+        if cancel_event is not None and cancel_event.is_set():
+            log.info("analyze_all cancelled after %d/%d tickers", idx, len(candidates))
+            break
+        report(done=idx, total=len(candidates), ticker=t)
         results[t] = analyze_ticker(
             conn, t, settings, names.get(t, ""), stats.get(t, {}).get("score", 0.0), run_id, now
         )
+        report(done=idx + 1, total=len(candidates))
         if settings.DEEPSEEK_API_KEY:
             time.sleep(0.5)
     log.info("analyze_all: %s", results)

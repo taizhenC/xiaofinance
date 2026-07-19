@@ -10,7 +10,7 @@ from fastapi import Body, FastAPI, HTTPException
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from . import analyze, guardrails, mentions, pipeline, prices, scoreboard, scoring
+from . import analyze, guardrails, jobs, mentions, prices, scoreboard, scoring
 from .config import BASE_DIR, settings
 from .db import connect
 from .util import now_ms
@@ -21,6 +21,7 @@ TICKER_RE = re.compile(r"^[A-Z]{1,5}$")
 
 fetch_lock = threading.Lock()
 quotes_lock = threading.Lock()
+runner = jobs.JobRunner(fetch_lock)
 scheduler: BackgroundScheduler | None = None
 
 
@@ -45,18 +46,6 @@ def _refresh_quotes_bg(tickers: list[str]) -> None:
     threading.Thread(target=worker, daemon=True).start()
 
 
-def _run_cycle_locked(mode: str) -> bool:
-    if not fetch_lock.acquire(blocking=False):
-        return False
-    try:
-        pipeline.run_cycle(mode)
-    except Exception:
-        log.exception("cycle failed")
-    finally:
-        fetch_lock.release()
-    return True
-
-
 def _scheduled_cycle() -> None:
     """Scheduler entry: guardrails first — a timer must never out-vote them."""
     conn = connect()
@@ -67,7 +56,7 @@ def _scheduled_cycle() -> None:
     if block:
         log.info("scheduled cycle skipped by guardrail: %s", block["reason"])
         return
-    _run_cycle_locked("both")
+    runner.start("both")
 
 
 @asynccontextmanager
@@ -130,7 +119,8 @@ def api_status():
                 next_run_ms = int(job.next_run_time.timestamp() * 1000)
         return {
             "last_run": dict(last) if last else None,
-            "running": fetch_lock.locked(),
+            "running": runner.running,
+            "job": runner.status(),
             "login_required": bool(last and last["error"] == "login_required"),
             "guardrails": guardrails.state(conn, settings),
             "scheduler": {
@@ -159,19 +149,17 @@ def api_fetch(payload: dict = Body(default={})):
         conn.close()
     if block:
         raise HTTPException(429, detail=block)
-    if not fetch_lock.acquire(blocking=False):
+    job = runner.start(mode)
+    if job is None:
         raise HTTPException(409, "a fetch cycle is already running")
+    return JSONResponse(status_code=202, content={"started": True, "mode": mode, "job_id": job.id})
 
-    def worker():
-        try:
-            pipeline.run_cycle(mode)
-        except Exception:
-            log.exception("cycle failed")
-        finally:
-            fetch_lock.release()
 
-    threading.Thread(target=worker, daemon=True).start()
-    return JSONResponse(status_code=202, content={"started": True, "mode": mode})
+@app.post("/api/fetch/cancel")
+def api_fetch_cancel():
+    if not runner.cancel():
+        raise HTTPException(404, "no fetch cycle is running")
+    return {"cancelling": True}
 
 
 @app.get("/api/ranking")
