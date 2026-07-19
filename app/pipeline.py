@@ -4,9 +4,10 @@ import logging
 import shutil
 from pathlib import Path
 
-from . import analyze, crawler_runner, dedup, ingest, mentions, prices, scoring, slang_scan
+from . import analyze, dedup, ingest, mentions, prices, scoring, slang_scan
 from .config import settings as default_settings
 from .db import connect, meta_get, meta_set
+from .providers import SearchRequest, get_provider
 from .util import now_ms
 
 log = logging.getLogger(__name__)
@@ -19,7 +20,7 @@ def _tracked_rows(conn):
     return conn.execute("SELECT ticker, custom_keywords FROM tracked_stocks ORDER BY ticker").fetchall()
 
 
-def run_fetch(conn, mode: str, dict_data: dict, settings) -> int | None:
+def run_fetch(conn, mode: str, dict_data: dict, settings, provider=None) -> int | None:
     if mode == "discovery":
         keywords = settings.discovery_keywords_list
     else:
@@ -28,6 +29,7 @@ def run_fetch(conn, mode: str, dict_data: dict, settings) -> int | None:
             log.info("no tracked tickers, skipping tracked run")
             return None
 
+    provider = provider or get_provider(settings)
     started = now_ms()
     cur = conn.execute(
         "INSERT INTO fetch_runs(mode, keywords, status, started_at_ms) VALUES(?,?,'running',?)",
@@ -40,16 +42,25 @@ def run_fetch(conn, mode: str, dict_data: dict, settings) -> int | None:
     status, error = "failed", None
     stats = {"notes_fetched": 0, "notes_fresh": 0, "comments_fresh": 0, "malformed": 0}
     try:
-        result = crawler_runner.run_crawl(keywords, run_dir, settings)
+        result = provider.search(SearchRequest(
+            keywords=keywords, run_dir=run_dir,
+            max_notes_per_keyword=settings.MAX_NOTES_PER_KEYWORD,
+            max_comments_per_note=settings.MAX_COMMENTS_PER_NOTE,
+            include_sub_comments=settings.ENABLE_SUB_COMMENTS,
+            timeout_min=settings.CRAWL_TIMEOUT_MIN,
+        ))
         stats = ingest.ingest_run_dir(conn, run_dir, run_id, settings.fresh_window_ms)
-        if crawler_runner.login_looks_required(result["log_path"], stats["notes_fresh"]):
+        if result.cancelled:
+            status = "partial" if stats["notes_fresh"] > 0 else "failed"
+            error = "cancelled"
+        elif provider.login_looks_required(result.log_path, stats["notes_fresh"]):
             status, error = "failed", "login_required"
-        elif result["timed_out"]:
+        elif result.timed_out:
             status = "partial" if stats["notes_fresh"] > 0 else "failed"
             error = f"timeout after {settings.CRAWL_TIMEOUT_MIN} min"
-        elif result["exit_code"] != 0:
+        elif result.exit_code != 0:
             status = "partial" if stats["notes_fresh"] > 0 else "failed"
-            error = f"crawler exit code {result['exit_code']}"
+            error = f"crawler exit code {result.exit_code}"
         elif stats["malformed"] > 0:
             status, error = "partial", f"{stats['malformed']} malformed lines skipped"
         else:
@@ -89,16 +100,17 @@ def cleanup(conn, settings, now: int | None = None) -> None:
     conn.commit()
 
 
-def run_cycle(mode: str = "both", skip_crawl: bool = False, settings=None) -> dict:
+def run_cycle(mode: str = "both", skip_crawl: bool = False, settings=None, provider=None) -> dict:
     settings = settings or default_settings
     conn = connect(settings.DB_PATH)
     try:
         dict_data = mentions.load_stock_dict()
         run_ids = []
         if not skip_crawl:
+            provider = provider or get_provider(settings)
             modes = {"both": ["discovery", "tracked"], "discovery": ["discovery"], "tracked": ["tracked"]}[mode]
             for m in modes:
-                rid = run_fetch(conn, m, dict_data, settings)
+                rid = run_fetch(conn, m, dict_data, settings, provider)
                 if rid is not None:
                     run_ids.append(rid)
         last_run_id = run_ids[-1] if run_ids else None
