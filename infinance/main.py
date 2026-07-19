@@ -10,7 +10,7 @@ from fastapi import Body, FastAPI, HTTPException
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from . import analyze, mentions, pipeline, prices, scoreboard, scoring
+from . import analyze, guardrails, mentions, pipeline, prices, scoreboard, scoring
 from .config import BASE_DIR, settings
 from .db import connect
 from .util import now_ms
@@ -57,6 +57,19 @@ def _run_cycle_locked(mode: str) -> bool:
     return True
 
 
+def _scheduled_cycle() -> None:
+    """Scheduler entry: guardrails first — a timer must never out-vote them."""
+    conn = connect()
+    try:
+        block = guardrails.check_fetch_allowed(conn, settings, manual=False)
+    finally:
+        conn.close()
+    if block:
+        log.info("scheduled cycle skipped by guardrail: %s", block["reason"])
+        return
+    _run_cycle_locked("both")
+
+
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     conn = connect()
@@ -69,7 +82,7 @@ async def lifespan(_app: FastAPI):
     if settings.FETCH_INTERVAL_HOURS > 0:
         scheduler = BackgroundScheduler()
         scheduler.add_job(
-            lambda: _run_cycle_locked("both"),
+            _scheduled_cycle,
             IntervalTrigger(hours=settings.FETCH_INTERVAL_HOURS),
             id="fetch_cycle",
         )
@@ -119,6 +132,7 @@ def api_status():
             "last_run": dict(last) if last else None,
             "running": fetch_lock.locked(),
             "login_required": bool(last and last["error"] == "login_required"),
+            "guardrails": guardrails.state(conn, settings),
             "scheduler": {
                 "enabled": settings.FETCH_INTERVAL_HOURS > 0,
                 "interval_hours": settings.FETCH_INTERVAL_HOURS,
@@ -137,6 +151,14 @@ def api_fetch(payload: dict = Body(default={})):
     mode = payload.get("mode", "both")
     if mode not in ("both", "discovery", "tracked"):
         raise HTTPException(422, "mode must be both|discovery|tracked")
+    force = bool(payload.get("force", False))
+    conn = connect()
+    try:
+        block = guardrails.check_fetch_allowed(conn, settings, manual=True, force=force)
+    finally:
+        conn.close()
+    if block:
+        raise HTTPException(429, detail=block)
     if not fetch_lock.acquire(blocking=False):
         raise HTTPException(409, "a fetch cycle is already running")
 

@@ -69,11 +69,12 @@ def run_fetch(conn, mode: str, dict_data: dict, settings, provider=None) -> int 
         error = str(e)[:500]
         log.exception("fetch run %d failed", run_id)
 
+    requests_est = stats["notes_fetched"] + stats.get("comments_seen", 0)
     conn.execute(
         """UPDATE fetch_runs SET status=?, finished_at_ms=?, notes_fetched=?, notes_fresh=?,
-           comments_fresh=?, raw_dir=?, error=? WHERE id=?""",
+           comments_fresh=?, requests_est=?, raw_dir=?, error=? WHERE id=?""",
         (status, now_ms(), stats["notes_fetched"], stats["notes_fresh"],
-         stats["comments_fresh"], str(run_dir), error, run_id),
+         stats["comments_fresh"], requests_est, str(run_dir), error, run_id),
     )
     conn.commit()
     log.info("run %d (%s): %s %s", run_id, mode, status, error or "")

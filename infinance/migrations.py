@@ -163,6 +163,11 @@ Migration = list[str] | Callable[[sqlite3.Connection], None]
 # (version, name, statements-or-callable) — versions strictly increasing from 1.
 MIGRATIONS: list[tuple[int, str, Migration]] = [
     (1, "baseline schema", _BASELINE),
+    # DC-03: per-run request accounting feeds the daily budget guardrail and
+    # the per-cycle counter in the runs panel.
+    (2, "fetch_runs request accounting", [
+        "ALTER TABLE fetch_runs ADD COLUMN requests_est INTEGER NOT NULL DEFAULT 0",
+    ]),
 ]
 
 LATEST_VERSION = MIGRATIONS[-1][0]

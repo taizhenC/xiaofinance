@@ -56,6 +56,14 @@ class Settings(BaseSettings):
     # QR-login one. Must come from the same site the account lives on (see XHS_INTERNATIONAL).
     XHS_COOKIES: str = ""
 
+    # Account-safety guardrails (DC-03) — on by default. They protect the
+    # user's XHS account from the behaviors that get accounts restricted:
+    # back-to-back manual fetches, blowing the request volume up with custom
+    # keywords, and hammering a session the platform already flagged.
+    MIN_FETCH_GAP_MIN: int = 45
+    AUTH_COOLDOWN_MIN: int = 30
+    DAILY_REQUEST_BUDGET: int = 15000
+
     FRESH_WINDOW_HOURS: int = 24
     MIN_MENTIONS_FOR_ANALYSIS: int = 2
     MAX_ANALYZED_STOCKS: int = 15
