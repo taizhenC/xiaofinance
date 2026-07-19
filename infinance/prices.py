@@ -7,7 +7,7 @@ never break a pipeline cycle."""
 import json
 import logging
 import urllib.request
-from datetime import date, datetime, timedelta, timezone
+from datetime import UTC, date, datetime, timedelta
 
 from .util import now_ms
 
@@ -35,10 +35,10 @@ def parse_chart_json(data: dict) -> list[tuple[str, float]]:
     except (KeyError, IndexError, TypeError):
         return []
     by_date: dict[str, float] = {}
-    for ts, close in zip(timestamps, closes):
+    for ts, close in zip(timestamps, closes, strict=False):
         if close is None:
             continue
-        day = datetime.fromtimestamp(ts + offset, tz=timezone.utc).date().isoformat()
+        day = datetime.fromtimestamp(ts + offset, tz=UTC).date().isoformat()
         by_date[day] = round(float(close), 4)
     return sorted(by_date.items())
 

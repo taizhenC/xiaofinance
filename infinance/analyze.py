@@ -3,7 +3,7 @@ import json
 import logging
 import time
 
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import BaseModel, Field
 
 from .config import settings as default_settings
 from .db import connect

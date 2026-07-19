@@ -2,7 +2,7 @@ from types import SimpleNamespace
 
 from conftest import MAC_UA
 
-from app.providers.mediacrawler import clear_cookie_config, patch_config, set_cookie_config
+from infinance.providers.mediacrawler import clear_cookie_config, patch_config, set_cookie_config
 
 WIN_UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/149.0.0.0 Safari/537.36"
 

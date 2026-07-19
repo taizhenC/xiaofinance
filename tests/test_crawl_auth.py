@@ -4,8 +4,8 @@ be cleared from the vendor checkout when the run ends."""
 
 from types import SimpleNamespace
 
-from app.providers.base import SearchRequest
-from app.providers.mediacrawler import MediaCrawlerProvider
+from infinance.providers.base import SearchRequest
+from infinance.providers.mediacrawler import MediaCrawlerProvider
 
 COOKIE = "a1=abc; web_session=xyz"
 

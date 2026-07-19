@@ -1,4 +1,4 @@
-from app.prices import (
+from infinance.prices import (
     get_quotes,
     parse_chart_json,
     quotes_need_refresh,

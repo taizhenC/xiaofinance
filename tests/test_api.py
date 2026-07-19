@@ -4,8 +4,8 @@ import time
 import pytest
 from fastapi.testclient import TestClient
 
-import app.main as main_mod
-from app.config import settings
+import infinance.main as main_mod
+from infinance.config import settings
 
 
 @pytest.fixture
@@ -41,8 +41,8 @@ def test_tracked_crud(client):
 
 
 def test_ranking_includes_trend(client):
-    from app.db import connect
-    from app.scoring import snapshot_scores
+    from infinance.db import connect
+    from infinance.scoring import snapshot_scores
 
     def stats(score):
         return {"NVDA": {"ticker": "NVDA", "score": score, "mentions": 2,
@@ -79,8 +79,8 @@ def test_double_fetch_409(client, monkeypatch):
 
 
 def test_alias_suggestion_accept(client, tmp_path):
-    from app.db import connect
-    from app.util import now_ms
+    from infinance.db import connect
+    from infinance.util import now_ms
 
     conn = connect(settings.DB_PATH)
     conn.execute(
@@ -102,6 +102,6 @@ def test_alias_suggestion_accept(client, tmp_path):
     assert overlay["stocks"][0]["ticker"] == "NVDA"
     assert "老黄家" in overlay["stocks"][0]["ambiguous"]
 
-    from app.mentions import Matcher, load_stock_dict
+    from infinance.mentions import Matcher, load_stock_dict
     found = Matcher(load_stock_dict()).extract("老黄家股价又新高了")
     assert found.get("NVDA", ("", ""))[1] == "alias+context"

@@ -1,7 +1,7 @@
 import json
 
-from app.ingest import ingest_run_dir
-from app.util import now_ms
+from infinance.ingest import ingest_run_dir
+from infinance.util import now_ms
 
 H = 3_600_000
 DAY = 24 * H

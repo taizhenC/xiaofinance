@@ -1,7 +1,7 @@
 from types import SimpleNamespace
 
-from app.providers.base import SessionState
-from app.providers.mediacrawler import MediaCrawlerProvider
+from infinance.providers.base import SessionState
+from infinance.providers.mediacrawler import MediaCrawlerProvider
 
 
 def provider(tmp_path):

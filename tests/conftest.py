@@ -5,7 +5,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from app.db import connect  # noqa: E402
+from infinance.db import connect  # noqa: E402
 
 
 @pytest.fixture

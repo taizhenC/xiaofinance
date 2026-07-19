@@ -10,7 +10,7 @@ pipeline or the public API surface.
 """
 
 from dataclasses import dataclass
-from enum import Enum
+from enum import StrEnum
 from pathlib import Path
 from typing import Protocol
 
@@ -34,7 +34,7 @@ class RunResult:
     log_path: Path
 
 
-class SessionState(str, Enum):
+class SessionState(StrEnum):
     VALID = "valid"
     EXPIRED = "expired"
     UNAUTHORIZED = "unauthorized"

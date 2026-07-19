@@ -18,6 +18,8 @@ import shutil
 import subprocess
 from pathlib import Path
 
+import psutil
+
 from .base import LoginOutcome, RunResult, SearchRequest, SessionState
 
 log = logging.getLogger(__name__)
@@ -208,12 +210,19 @@ class MediaCrawlerProvider:
 
     @staticmethod
     def _kill_tree(proc: subprocess.Popen) -> None:
-        # plain kill would orphan Chromium on Windows
-        subprocess.run(["taskkill", "/PID", str(proc.pid), "/T", "/F"], capture_output=True)
+        # kill children first (uv → python → Chromium): a plain kill of the
+        # parent would orphan the browser on every platform
         try:
-            proc.wait(timeout=30)
-        except subprocess.TimeoutExpired:
-            pass
+            parent = psutil.Process(proc.pid)
+            procs = [*parent.children(recursive=True), parent]
+        except psutil.NoSuchProcess:
+            return
+        for p in procs:
+            try:
+                p.kill()
+            except psutil.NoSuchProcess:
+                pass
+        psutil.wait_procs(procs, timeout=30)
 
     def search(self, req: SearchRequest) -> RunResult:
         patch_config(self.mc_dir, self.settings)

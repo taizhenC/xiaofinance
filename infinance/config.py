@@ -1,13 +1,36 @@
+import sys
 from pathlib import Path
 
+import platformdirs
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-BASE_DIR = Path(__file__).resolve().parent.parent
+PACKAGE_DIR = Path(__file__).resolve().parent
+BASE_DIR = PACKAGE_DIR.parent
+
+# Repo checkout (developer flow): everything lives inside the repo, as always.
+# Installed package (pipx/uvx): state goes to the platform user-data dir —
+# site-packages is ephemeral and must never hold databases or vendor checkouts.
+IS_REPO_CHECKOUT = (BASE_DIR / "pyproject.toml").exists()
+DATA_HOME = (
+    BASE_DIR if IS_REPO_CHECKOUT else Path(platformdirs.user_data_dir("infinance", appauthor=False))
+)
+
+
+def default_user_agent() -> str:
+    """A truthful UA for the machine we actually run on. MediaCrawler hardcodes
+    a macOS Chrome UA; sending that from Windows/Linux makes XHS log the session
+    as an 'unknown device', which raises exactly the suspicion we want to avoid."""
+    chrome = "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36"
+    if sys.platform == "darwin":
+        return f"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) {chrome}"
+    if sys.platform.startswith("linux"):
+        return f"Mozilla/5.0 (X11; Linux x86_64) {chrome}"
+    return f"Mozilla/5.0 (Windows NT 10.0; Win64; x64) {chrome}"
 
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
-        env_file=BASE_DIR / ".env", env_file_encoding="utf-8", extra="ignore"
+        env_file=DATA_HOME / ".env", env_file_encoding="utf-8", extra="ignore"
     )
 
     DEEPSEEK_API_KEY: str = ""
@@ -27,12 +50,8 @@ class Settings(BaseSettings):
     # mainland xiaohongshu.com: the API host and cookie domain differ, and the search API
     # answers 您当前登录的账号没有权限访问. Switches to webapi.rednote.com / .rednote.com.
     XHS_INTERNATIONAL: bool = False
-    # MediaCrawler hardcodes a macOS Chrome 126 UA, which mismatches the real client on a
-    # Windows box (XHS logs the session as an "unknown" device) — send a truthful one.
-    BROWSER_USER_AGENT: str = (
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-        "(KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36"
-    )
+    # Platform-appropriate by default (see default_user_agent); override to pin one.
+    BROWSER_USER_AGENT: str = default_user_agent()
     # Paste a logged-in browser's cookie string to crawl with that session instead of a
     # QR-login one. Must come from the same site the account lives on (see XHS_INTERNATIONAL).
     XHS_COOKIES: str = ""
@@ -45,12 +64,12 @@ class Settings(BaseSettings):
     ENABLE_PRICE_QUOTES: bool = True
     QUOTE_REFRESH_MIN: int = 30
 
-    MEDIACRAWLER_DIR: Path = BASE_DIR / "vendor" / "MediaCrawler"
+    MEDIACRAWLER_DIR: Path = DATA_HOME / "vendor" / "MediaCrawler"
     UV_EXE: str = "uv"
-    DB_PATH: Path = BASE_DIR / "data" / "infinance.db"
-    RAW_DIR: Path = BASE_DIR / "data" / "raw"
-    STOCK_DICT_PATH: Path = BASE_DIR / "app" / "data" / "stock_dict.json"
-    STOCK_DICT_LOCAL_PATH: Path = BASE_DIR / "data" / "stock_dict_local.json"
+    DB_PATH: Path = DATA_HOME / "data" / "infinance.db"
+    RAW_DIR: Path = DATA_HOME / "data" / "raw"
+    STOCK_DICT_PATH: Path = PACKAGE_DIR / "data" / "stock_dict.json"
+    STOCK_DICT_LOCAL_PATH: Path = DATA_HOME / "data" / "stock_dict_local.json"
 
     HOST: str = "127.0.0.1"
     PORT: int = 8000

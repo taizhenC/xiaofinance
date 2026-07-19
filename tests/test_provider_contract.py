@@ -8,11 +8,11 @@ import json
 from pathlib import Path
 from types import SimpleNamespace
 
-from app import pipeline
-from app.mentions import load_stock_dict
-from app.providers.base import RunResult, SearchRequest, SessionState
-from app.providers.mediacrawler import MediaCrawlerProvider
-from app.util import now_ms
+from infinance import pipeline
+from infinance.mentions import load_stock_dict
+from infinance.providers.base import RunResult, SearchRequest, SessionState
+from infinance.providers.mediacrawler import MediaCrawlerProvider
+from infinance.util import now_ms
 
 H = 3_600_000
 
@@ -105,7 +105,7 @@ def test_run_fetch_flags_login_required_from_provider_classification(conn, tmp_p
 def test_mediacrawler_provider_writes_ingestable_layout(tmp_path, make_vendor):
     """The real adapter, spawn faked to emit what MediaCrawler emits, produces
     a run dir the ingest layer accepts — the output half of the contract."""
-    from app.ingest import ingest_run_dir
+    from infinance.ingest import ingest_run_dir
 
     vendor = make_vendor()
     provider = MediaCrawlerProvider(SimpleNamespace(
@@ -132,7 +132,7 @@ def test_mediacrawler_provider_writes_ingestable_layout(tmp_path, make_vendor):
     ))
     assert result.exit_code == 0
 
-    from app.db import connect
+    from infinance.db import connect
     conn = connect(tmp_path / "contract.db")
     stats = ingest_run_dir(conn, tmp_path / "run", run_id=1, fresh_window_ms=24 * H, now=now)
     conn.close()

@@ -8,8 +8,8 @@ must carry one of these databases to LATEST_VERSION without losing data.
 
 import sqlite3
 
-from app.db import connect
-from app.migrations import LATEST_VERSION, MIGRATIONS, get_version
+from infinance.db import connect
+from infinance.migrations import LATEST_VERSION, MIGRATIONS, get_version
 
 V0_SCHEMA = """
 CREATE TABLE IF NOT EXISTS fetch_runs(

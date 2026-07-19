@@ -1,4 +1,4 @@
-from app.scoring import compute_trends, score_history, snapshot_scores
+from infinance.scoring import compute_trends, score_history, snapshot_scores
 
 
 def _stats(**scores):
