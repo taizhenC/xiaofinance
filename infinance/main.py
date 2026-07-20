@@ -1,21 +1,39 @@
 import json
 import logging
 import re
+import secrets
 import threading
 from contextlib import asynccontextmanager
 from pathlib import Path
+from urllib.parse import urlsplit
 
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.interval import IntervalTrigger
-from fastapi import Body, FastAPI, HTTPException, Query
+from fastapi import Body, FastAPI, HTTPException, Query, Request
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from . import analyze, mentions, pipeline, prices, scoreboard, scoring
-from .config import BASE_DIR, settings
+from . import (
+    analyze,
+    doctor,
+    guardrails,
+    jobs,
+    mentions,
+    pipeline,
+    prices,
+    scoreboard,
+    scoring,
+    session,
+)
+from .config import PACKAGE_DIR, settings
 from .db import connect
 from .providers import get_provider
 from .util import now_ms
+
+WEBUI_DIR = PACKAGE_DIR / "webui"
+
+# the .env-sourced cookie value, before any UI override is applied
+ENV_COOKIES = settings.XHS_COOKIES
 
 log = logging.getLogger(__name__)
 
@@ -23,6 +41,7 @@ TICKER_RE = re.compile(r"^[A-Z]{1,5}$")
 
 fetch_lock = threading.Lock()
 quotes_lock = threading.Lock()
+runner = jobs.JobRunner(fetch_lock)
 scheduler: BackgroundScheduler | None = None
 
 
@@ -47,22 +66,14 @@ def _refresh_quotes_bg(tickers: list[str], symbol_overrides: dict[str, str] | No
     threading.Thread(target=worker, daemon=True).start()
 
 
-def _run_cycle_locked(mode: str) -> bool:
-    if not fetch_lock.acquire(blocking=False):
-        return False
-    try:
-        pipeline.run_cycle(mode)
-    except Exception:
-        log.exception("cycle failed")
-    finally:
-        fetch_lock.release()
-    return True
-
-
 def _scheduled_cycle() -> None:
+    """Scheduler entry: both account-safety gates before a timer may crawl —
+    the DC-03 guardrails (gap/budget/auth cooldown) and main's CAPTCHA
+    risk-control cooldown. A timer must never out-vote either."""
     conn = connect()
     try:
         until = pipeline.risk_cooldown_until(conn, settings)
+        block = guardrails.check_fetch_allowed(conn, settings, manual=False)
     finally:
         conn.close()
     if until and now_ms() < until:
@@ -71,16 +82,45 @@ def _scheduled_cycle() -> None:
             (until - now_ms()) / 3_600_000,
         )
         return
-    _run_cycle_locked("both")
+    if block:
+        log.info("scheduled cycle skipped by guardrail: %s", block["reason"])
+        return
+    runner.start("both")
+
+
+LOOPBACK_HOSTS = {"127.0.0.1", "::1", "localhost"}
+
+
+def is_local_bind(host: str) -> bool:
+    return host in LOOPBACK_HOSTS
+
+
+def check_bind_security(host: str, auth_token: str) -> None:
+    """Refuse the footgun: a non-local bind exposes endpoints that crawl with
+    the user's XHS account and write files. TR-02."""
+    if not is_local_bind(host) and not auth_token:
+        raise RuntimeError(
+            f"refusing to bind {host}: set AUTH_TOKEN in .env before exposing the "
+            "dashboard beyond this machine — without it, anyone on the network can "
+            "trigger crawls with YOUR XHS account. Mutating requests must then send "
+            "the header 'Authorization: Bearer <token>'."
+        )
 
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
+    check_bind_security(settings.HOST, settings.AUTH_TOKEN)
+    if not is_local_bind(settings.HOST):
+        log.warning(
+            "dashboard exposed on %s — mutating endpoints require the AUTH_TOKEN "
+            "bearer header; reads are open to the network", settings.HOST,
+        )
     conn = connect()
     conn.execute(
         "UPDATE fetch_runs SET status='failed', error='stale: server restarted mid-run' WHERE status='running'"
     )
     conn.commit()
+    session.apply_overrides(conn, settings)
     conn.close()
     global scheduler
     if settings.FETCH_INTERVAL_HOURS > 0:
@@ -97,6 +137,29 @@ async def lifespan(_app: FastAPI):
 
 
 app = FastAPI(title="infinance", lifespan=lifespan)
+
+MUTATING_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
+
+
+@app.middleware("http")
+async def security_gate(request: Request, call_next):
+    """Active only for non-local binds (TR-02): bearer token on every mutating
+    API call plus a same-origin check against cross-site browser requests.
+    Reads stay open by design — the token protects actions, not the view."""
+    if not is_local_bind(settings.HOST) and request.method in MUTATING_METHODS \
+            and request.url.path.startswith("/api/"):
+        origin = request.headers.get("origin")
+        if origin:
+            host = request.headers.get("host", "")
+            if urlsplit(origin).netloc.lower() != host.lower():
+                return JSONResponse(status_code=403, content={"detail": "cross-origin request rejected"})
+        supplied = request.headers.get("authorization", "").removeprefix("Bearer ").strip()
+        if not settings.AUTH_TOKEN or not secrets.compare_digest(supplied, settings.AUTH_TOKEN):
+            return JSONResponse(
+                status_code=401,
+                content={"detail": "AUTH_TOKEN required: send 'Authorization: Bearer <token>'"},
+            )
+    return await call_next(request)
 
 
 def _latest_analysis(conn, ticker: str):
@@ -131,7 +194,13 @@ def _tracked_map(conn) -> dict[str, list[str]]:
 
 @app.get("/")
 def index():
-    return FileResponse(BASE_DIR / "static" / "index.html")
+    page = WEBUI_DIR / "index.html"
+    if not page.exists():
+        return JSONResponse(status_code=503, content={
+            "detail": "web UI not built — run `npm ci && npm run build` in frontend/ "
+                      "(or install the packaged release, which ships it prebuilt)",
+        })
+    return FileResponse(page)
 
 
 @app.get("/api/status")
@@ -149,8 +218,10 @@ def api_status():
             cooldown_ms = None
         return {
             "last_run": _with_progress(last) if last else None,
-            "running": fetch_lock.locked(),
+            "running": runner.running,
+            "job": runner.status(),
             "login_required": bool(last and last["error"] == "login_required"),
+            "guardrails": guardrails.state(conn, settings),
             "scheduler": {
                 "enabled": settings.FETCH_INTERVAL_HOURS > 0,
                 "interval_hours": settings.FETCH_INTERVAL_HOURS,
@@ -170,19 +241,83 @@ def api_fetch(payload: dict = Body(default={})):
     mode = payload.get("mode", "both")
     if mode not in ("both", "discovery", "tracked"):
         raise HTTPException(422, "mode must be both|discovery|tracked")
-    if not fetch_lock.acquire(blocking=False):
+    force = bool(payload.get("force", False))
+    conn = connect()
+    try:
+        block = guardrails.check_fetch_allowed(conn, settings, manual=True, force=force)
+    finally:
+        conn.close()
+    if block:
+        raise HTTPException(429, detail=block)
+    job = runner.start(mode)
+    if job is None:
         raise HTTPException(409, "a fetch cycle is already running")
+    return JSONResponse(status_code=202, content={"started": True, "mode": mode, "job_id": job.id})
 
-    def worker():
-        try:
-            pipeline.run_cycle(mode)
-        except Exception:
-            log.exception("cycle failed")
-        finally:
-            fetch_lock.release()
 
-    threading.Thread(target=worker, daemon=True).start()
-    return JSONResponse(status_code=202, content={"started": True, "mode": mode})
+@app.post("/api/fetch/cancel")
+def api_fetch_cancel():
+    if not runner.cancel():
+        raise HTTPException(404, "no fetch cycle is running")
+    return {"cancelling": True}
+
+
+@app.get("/api/session")
+def api_session():
+    conn = connect()
+    try:
+        return session.health(conn, settings)
+    finally:
+        conn.close()
+
+
+@app.post("/api/session/login")
+def api_session_login(payload: dict = Body(default={})):
+    if runner.running:
+        raise HTTPException(409, "a fetch cycle is running — wait for it or cancel it first")
+    timeout_min = int(payload.get("timeout_min", 6))
+    if not session.start_login(settings, timeout_min=min(max(timeout_min, 1), 30)):
+        raise HTTPException(409, "a login attempt is already in progress")
+    return JSONResponse(status_code=202, content={"started": True})
+
+
+@app.post("/api/session/cookies")
+def api_session_cookies(payload: dict = Body(...)):
+    cookies = str(payload.get("cookies", "")).strip()
+    if not session.cookie_format_ok(cookies):
+        raise HTTPException(
+            422, "cookie string must contain a1= and web_session= — copy the whole "
+                 "`cookie:` header value from a logged-in browser",
+        )
+    conn = connect()
+    try:
+        session.set_cookies(conn, settings, cookies)
+    finally:
+        conn.close()
+    return {"configured": True}
+
+
+@app.delete("/api/session/cookies")
+def api_session_cookies_delete():
+    conn = connect()
+    try:
+        session.clear_cookies(conn, settings, ENV_COOKIES)
+    finally:
+        conn.close()
+    return {"configured": bool(settings.XHS_COOKIES)}
+
+
+@app.post("/api/session/config")
+def api_session_config(payload: dict = Body(...)):
+    if "xhs_international" not in payload:
+        raise HTTPException(422, "xhs_international (bool) is required")
+    value = bool(payload["xhs_international"])
+    conn = connect()
+    try:
+        session.set_international(conn, settings, value)
+    finally:
+        conn.close()
+    return {"xhs_international": value}
 
 
 @app.get("/api/ranking")
@@ -512,4 +647,11 @@ def api_suggestion_action(suggestion_id: int, payload: dict = Body(...)):
         conn.close()
 
 
-app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
+@app.get("/api/doctor")
+def api_doctor():
+    # the server occupies its own port, so the port-free check is meaningless here
+    return {"checks": [c.as_dict() for c in doctor.run_checks(settings, include_port=False)]}
+
+
+if (WEBUI_DIR / "assets").is_dir():
+    app.mount("/assets", StaticFiles(directory=WEBUI_DIR / "assets"), name="assets")

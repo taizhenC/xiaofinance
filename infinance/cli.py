@@ -14,7 +14,6 @@ Windows, macOS and Linux.
 
 import argparse
 import shutil
-import socket
 import subprocess
 import sys
 from pathlib import Path
@@ -152,9 +151,21 @@ def cmd_run(args) -> int:
     import uvicorn
 
     from .config import settings
+    from .main import check_bind_security, is_local_bind
 
     host = args.host or settings.HOST
     port = args.port or settings.PORT
+    try:
+        check_bind_security(host, settings.AUTH_TOKEN)
+    except RuntimeError as e:
+        print(f"{BAD} {e}")
+        return 1
+    if not is_local_bind(host):
+        # settings.HOST drives the in-app security gate; keep it consistent
+        # with the actual bind when --host was passed on the command line
+        settings.HOST = host
+        print(f"{BAD} WARNING: dashboard exposed on {host} — mutating endpoints require "
+              "the AUTH_TOKEN bearer header; anyone on the network can read the data.")
     print(f"infinance dashboard → http://{'127.0.0.1' if host == '0.0.0.0' else host}:{port}")
     # one worker, always: fetch mutual-exclusion and the scheduler are in-process
     uvicorn.run("infinance.main:app", host=host, port=port, workers=1, log_level="info")
@@ -224,100 +235,38 @@ def cmd_smoke(args) -> int:
 # --------------------------------------------------------------- doctor ----
 
 
-def _check(ok: bool, label: str, hint: str = "") -> bool:
-    print(f"{OK if ok else BAD} {label}")
-    if not ok and hint:
-        print(f"     fix: {hint}")
-    return ok
-
-
-def _playwright_cache_dir() -> Path:
-    if sys.platform == "win32":
-        import os
-
-        return Path(os.environ.get("LOCALAPPDATA", "~")).expanduser() / "ms-playwright"
-    if sys.platform == "darwin":
-        return Path("~/Library/Caches/ms-playwright").expanduser()
-    return Path("~/.cache/ms-playwright").expanduser()
-
-
 def cmd_doctor(args) -> int:
     from .config import DATA_HOME, settings
     from .db import connect
-    from .migrations import LATEST_VERSION, get_version
-    from .providers.mediacrawler import VENDOR_PIN
+    from .doctor import run_checks
 
     print("== infinance doctor ==")
     print(f"{INFO} platform: {sys.platform}, python {sys.version.split()[0]}")
     print(f"{INFO} data home: {DATA_HOME}")
+
     ok = True
-
-    ok &= _check(sys.version_info >= (3, 11), "Python >= 3.11")
-    ok &= _check(_uv_ok(), "uv on PATH", "install from https://docs.astral.sh/uv/")
-
-    mc_dir = Path(settings.MEDIACRAWLER_DIR)
-    vendor_ok = (mc_dir / "main.py").exists()
-    ok &= _check(vendor_ok, f"MediaCrawler present at {mc_dir}", "run `infinance setup`")
-    if vendor_ok:
-        try:
-            head = subprocess.run(
-                ["git", "-C", str(mc_dir), "rev-parse", "HEAD"],
-                capture_output=True, text=True, timeout=15,
-            ).stdout.strip()
-        except (OSError, subprocess.TimeoutExpired):
-            head = ""
-        ok &= _check(
-            head == VENDOR_PIN,
-            f"MediaCrawler pinned at {VENDOR_PIN[:12]}",
-            "run `infinance setup` to re-pin (upstream churn breaks the patch contract)",
-        )
-        ok &= _check((mc_dir / ".venv").exists(), "crawler dependencies installed",
-                     "run `infinance setup`")
-
-    pw = _playwright_cache_dir()
-    has_chromium = pw.exists() and any(p.name.startswith("chromium") for p in pw.iterdir())
-    ok &= _check(has_chromium, "Playwright Chromium installed", "run `infinance setup`")
-
-    env_path = DATA_HOME / ".env"
-    _check(env_path.exists(), f".env present at {env_path}",
-           "run `infinance setup` to scaffold it")
-    if settings.DEEPSEEK_API_KEY:
-        print(f"{OK} LLM key configured ({settings.LLM_MODEL} @ {settings.LLM_BASE_URL})")
-    else:
-        print(f"{INFO} no LLM key — cards will show top quotes instead of AI summaries")
-    cookies = settings.XHS_COOKIES.strip()
-    if cookies:
-        valid = "a1=" in cookies and "web_session=" in cookies
-        # never print the value: it is a live session token
-        _check(valid, "XHS_COOKIES format (a1= and web_session= present)",
-               "copy the full `cookie:` header value from a logged-in browser")
+    for c in run_checks(settings):
+        mark = OK if c.ok else (INFO if not c.required else BAD)
+        detail = f" ({c.detail})" if c.detail else ""
+        print(f"{mark} {c.label}{detail}")
+        if not c.ok and c.fix:
+            print(f"     fix: {c.fix}")
+        if c.required and not c.ok:
+            ok = False
 
     try:
         conn = connect()
-        version = get_version(conn)
         last = conn.execute("SELECT * FROM fetch_runs ORDER BY id DESC LIMIT 1").fetchone()
         conn.close()
-        _check(version == LATEST_VERSION, f"database schema v{version} (latest v{LATEST_VERSION})")
         if last is not None:
-            when = last["started_at_ms"]
             print(f"{INFO} last run: #{last['id']} {last['mode']} → {last['status']}"
                   f" ({last['error'] or 'no error'})")
             if last["error"] == "login_required":
                 print("     fix: run `infinance login` (or paste fresh XHS_COOKIES)")
-            _ = when
         else:
             print(f"{INFO} no fetch runs yet — run `infinance run` and click 立即抓取")
-    except Exception as e:
-        ok = _check(False, f"database opens ({settings.DB_PATH})", str(e))
-
-    try:
-        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        s.bind((settings.HOST, settings.PORT))
-        s.close()
-        print(f"{OK} port {settings.PORT} free on {settings.HOST}")
-    except OSError:
-        print(f"{INFO} port {settings.PORT} busy on {settings.HOST} — dashboard already running,"
-              f" or set PORT in .env")
+    except Exception:
+        pass
 
     print()
     if ok:

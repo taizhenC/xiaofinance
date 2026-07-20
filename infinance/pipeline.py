@@ -2,6 +2,7 @@ import argparse
 import json
 import logging
 import shutil
+import threading
 import time
 from pathlib import Path
 
@@ -22,7 +23,29 @@ def _tracked_rows(conn):
     return conn.execute("SELECT ticker, custom_keywords FROM tracked_stocks ORDER BY ticker").fetchall()
 
 
-def run_fetch(conn, mode: str, dict_data: dict, settings, provider=None) -> int | None:
+def _count_jsonl_lines(run_dir: Path, prefix: str) -> int:
+    total = 0
+    for f in (run_dir / "xhs" / "jsonl").glob(f"{prefix}_*.jsonl"):
+        try:
+            with open(f, "rb") as fh:
+                total += sum(1 for _ in fh)
+        except OSError:
+            pass
+    return total
+
+
+def _tail_crawl_output(run_dir: Path, report, stop: threading.Event) -> None:
+    """While the per-keyword crawl processes run, poll the shared run directory
+    so the UI sees live counts instead of a 10-minute opaque spinner (DC-02)."""
+    while not stop.wait(2):
+        report(
+            notes_seen=_count_jsonl_lines(run_dir, "search_contents"),
+            comments_seen=_count_jsonl_lines(run_dir, "search_comments"),
+        )
+
+
+def run_fetch(conn, mode: str, dict_data: dict, settings, provider=None,
+              progress=None) -> int | None:
     rotation = None
     if mode == "discovery":
         keywords, rotation = keywords_mod.select_keywords(conn, settings)
@@ -33,6 +56,7 @@ def run_fetch(conn, mode: str, dict_data: dict, settings, provider=None) -> int 
             return None
 
     provider = provider or get_provider(settings)
+    report = progress or (lambda stage=None, **kw: None)
     started = now_ms()
     cur = conn.execute(
         "INSERT INTO fetch_runs(mode, keywords, status, started_at_ms) VALUES(?,?,'running',?)",
@@ -44,9 +68,12 @@ def run_fetch(conn, mode: str, dict_data: dict, settings, provider=None) -> int 
     # progress out of the run directory while it is still running.
     conn.execute("UPDATE fetch_runs SET raw_dir=? WHERE id=?", (str(run_dir), run_id))
     conn.commit()
+    report(stage=f"crawl:{mode}", run_id=run_id, keywords=len(keywords),
+           notes_seen=0, comments_seen=0)
 
     status, error = "failed", None
-    stats = {"notes_fetched": 0, "notes_fresh": 0, "comments_fresh": 0, "malformed": 0}
+    stats = {"notes_fetched": 0, "notes_fresh": 0, "comments_fresh": 0,
+             "comments_seen": 0, "malformed": 0}
     # One crawler process per keyword, with a pause in between. The wall triggers on
     # session volume (runs 16-21 died at ~100-130 continuous requests), which a
     # multi-keyword marathon crosses at keyword 2-3 every time — so the tail keywords
@@ -54,8 +81,13 @@ def run_fetch(conn, mode: str, dict_data: dict, settings, provider=None) -> int 
     # rest of the list instead of poisoning what was already fetched.
     sampled: set[str] = set()
     failures: list[str] = []
-    walled = login_needed = False
+    walled = login_needed = cancelled = False
     captchas = 0
+    stop_tail = threading.Event()
+    tail = threading.Thread(
+        target=_tail_crawl_output, args=(run_dir, report, stop_tail), daemon=True
+    )
+    tail.start()
     try:
         log_path = run_dir / "crawler.log"
         for i, kw in enumerate(keywords):
@@ -73,6 +105,11 @@ def run_fetch(conn, mode: str, dict_data: dict, settings, provider=None) -> int 
             ))
             captchas += result.captchas
             kw_notes = provider.keyword_counts(run_dir)[0].get(kw, 0)
+            # a cancel (DC-02) kills the in-flight process — stop the cycle here,
+            # keep whatever was already banked
+            if result.cancelled:
+                cancelled = True
+                break
             if provider.login_looks_required(result.log_path, kw_notes, start=result.log_start):
                 login_needed = True
                 break
@@ -92,8 +129,15 @@ def run_fetch(conn, mode: str, dict_data: dict, settings, provider=None) -> int 
                 failures.append(f"{kw}: " + provider.failure_reason(
                     result.log_path, result.exit_code, start=result.log_start
                 ))
+        stop_tail.set()
+        tail.join(timeout=5)
+        report(stage=f"ingest:{mode}")
         stats = ingest.ingest_run_dir(conn, run_dir, run_id, settings.context_window_ms)
-        if login_needed:
+        report(notes_fresh=stats["notes_fresh"], comments_fresh=stats["comments_fresh"])
+        if cancelled:
+            status = "partial" if stats["notes_fresh"] > 0 else "failed"
+            error = "cancelled"
+        elif login_needed:
             status, error = "failed", "login_required"
         elif walled:
             status = "partial" if stats["notes_fresh"] > 0 else "failed"
@@ -111,6 +155,8 @@ def run_fetch(conn, mode: str, dict_data: dict, settings, provider=None) -> int 
     except Exception as e:
         error = str(e)[:500]
         log.exception("fetch run %d failed", run_id)
+    finally:
+        stop_tail.set()
 
     # Snapshotted now because the raw dir it is computed from outlives the run by only
     # RETAIN_CONTENT_DAYS, while the run row lives RETAIN_RUNS_DAYS.
@@ -122,11 +168,13 @@ def run_fetch(conn, mode: str, dict_data: dict, settings, provider=None) -> int 
     except Exception:
         log.exception("run %d: could not build the run detail", run_id)
 
+    # DC-03: notes + comment pages fetched this run, counted against the daily budget.
+    requests_est = stats["notes_fetched"] + stats.get("comments_seen", 0)
     conn.execute(
         """UPDATE fetch_runs SET status=?, finished_at_ms=?, notes_fetched=?, notes_fresh=?,
-           comments_fresh=?, raw_dir=?, error=?, detail=? WHERE id=?""",
+           comments_fresh=?, requests_est=?, raw_dir=?, error=?, detail=? WHERE id=?""",
         (status, now_ms(), stats["notes_fetched"], stats["notes_fresh"],
-         stats["comments_fresh"], str(run_dir), error, detail, run_id),
+         stats["comments_fresh"], requests_est, str(run_dir), error, detail, run_id),
     )
     # Advances only past the pool picks that were actually sampled: a keyword the wall
     # (or a login failure) ate leads the next cycle instead of waiting out a full wrap.
@@ -176,8 +224,14 @@ def cleanup(conn, settings, now: int | None = None) -> None:
 
 
 def run_cycle(mode: str = "both", skip_crawl: bool = False, settings=None,
-              force_analysis: bool = False, provider=None) -> dict:
+              force_analysis: bool = False, provider=None,
+              progress=None, cancel_event=None) -> dict:
     settings = settings or default_settings
+    report = progress or (lambda stage=None, **kw: None)
+
+    def cancelled() -> bool:
+        return cancel_event is not None and cancel_event.is_set()
+
     conn = connect(settings.DB_PATH)
     try:
         dict_data = mentions.load_stock_dict()
@@ -186,6 +240,8 @@ def run_cycle(mode: str = "both", skip_crawl: bool = False, settings=None,
             provider = provider or get_provider(settings)
             modes = {"both": ["discovery", "tracked"], "discovery": ["discovery"], "tracked": ["tracked"]}[mode]
             for m in modes:
+                if cancelled():
+                    break
                 if run_ids:
                     # the previous run in this cycle just failed for account reasons —
                     # a second run right now only burns requests into the same wall
@@ -193,29 +249,43 @@ def run_cycle(mode: str = "both", skip_crawl: bool = False, settings=None,
                         "SELECT error FROM fetch_runs WHERE id=?", (run_ids[-1],)
                     ).fetchone()
                     prev_error = (prev["error"] if prev else None) or ""
-                    if "CAPTCHA" in prev_error or prev_error == "login_required":
+                    if "CAPTCHA" in prev_error or prev_error in ("login_required", "cancelled"):
                         log.warning("skipping %s run: previous run ended with %r", m, prev_error)
                         break
                     if settings.KEYWORD_GAP_MIN > 0:
                         time.sleep(settings.KEYWORD_GAP_MIN * 60)
-                rid = run_fetch(conn, m, dict_data, settings, provider)
+                rid = run_fetch(conn, m, dict_data, settings, provider, progress=report)
                 if rid is not None:
                     run_ids.append(rid)
         last_run_id = run_ids[-1] if run_ids else None
 
+        # cancellation keeps whatever the aborted crawl already banked, but
+        # skips the expensive derived stages — the next cycle recomputes them
+        if cancelled():
+            log.info("cycle cancelled after crawl stage (runs: %s)", run_ids)
+            return {"run_ids": run_ids, "analysis": {}, "cycle": None,
+                    "slang_scan": None, "cancelled": True}
+
+        report(stage="dedup")
         dedup.recompute_dedup(conn, settings.context_window_ms)
+        report(stage="mentions")
         mentions.extract_mentions(conn, dict_data, _tracked_rows(conn), settings.context_window_ms, last_run_id)
         stats = scoring.compute_stats(conn, settings.fresh_window_ms,
                                       indexes=mentions.non_stock_tickers(dict_data))
         if not skip_crawl:
             scoring.snapshot_scores(conn, stats, last_run_id)
         tracked = {r["ticker"] for r in _tracked_rows(conn)}
+        report(stage="analyze", done=0)
         analysis = analyze.analyze_all(
             conn, settings, dict_data, stats, tracked,
             settings.MIN_MENTIONS_FOR_ANALYSIS, settings.MAX_ANALYZED_STOCKS, last_run_id,
-            force=force_analysis,
+            force=force_analysis, progress=report, cancel_event=cancel_event,
         )
+        if cancelled():
+            return {"run_ids": run_ids, "analysis": analysis, "cycle": None,
+                    "slang_scan": None, "cancelled": True}
         if settings.ENABLE_PRICE_QUOTES:
+            report(stage="prices")
             ranked = sorted(stats, key=lambda t: -stats[t]["score"])[: settings.MAX_ANALYZED_STOCKS]
             entries = {s["ticker"]: s for s in dict_data.get("stocks", [])}
             classes = mentions.asset_classes(dict_data)
@@ -229,6 +299,7 @@ def run_cycle(mode: str = "both", skip_crawl: bool = False, settings=None,
                 if entries.get(t, {}).get("quote_symbol")
             }
             prices.refresh_quotes(conn, quoteable, symbol_overrides=symbol_overrides)
+        report(stage="cleanup")
         cleanup(conn, settings)
 
         cycle = int(meta_get(conn, "cycle_count", "0") or 0) + 1
@@ -236,9 +307,11 @@ def run_cycle(mode: str = "both", skip_crawl: bool = False, settings=None,
         conn.commit()
         scan_result = None
         if settings.SLANG_SCAN_EVERY_N_CYCLES > 0 and cycle % settings.SLANG_SCAN_EVERY_N_CYCLES == 0:
+            report(stage="slang_scan")
             scan_result = slang_scan.run_slang_scan(conn, settings, dict_data)
 
-        return {"run_ids": run_ids, "analysis": analysis, "cycle": cycle, "slang_scan": scan_result}
+        return {"run_ids": run_ids, "analysis": analysis, "cycle": cycle,
+                "slang_scan": scan_result, "cancelled": False}
     finally:
         conn.close()
 

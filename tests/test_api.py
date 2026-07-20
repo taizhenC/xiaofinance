@@ -75,7 +75,7 @@ def test_double_fetch_409(client, monkeypatch):
     def slow_cycle(mode, *a, **kw):
         release.wait(timeout=5)
 
-    monkeypatch.setattr(main_mod.pipeline, "run_cycle", slow_cycle)
+    monkeypatch.setattr("infinance.pipeline.run_cycle", slow_cycle)
     assert client.post("/api/fetch", json={"mode": "both"}).status_code == 202
     time.sleep(0.05)
     assert client.post("/api/fetch", json={"mode": "both"}).status_code == 409

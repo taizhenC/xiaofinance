@@ -101,6 +101,15 @@ class Settings(BaseSettings):
     # QR-login one. Must come from the same site the account lives on (see XHS_INTERNATIONAL).
     XHS_COOKIES: str = ""
 
+    # Account-safety guardrails (DC-03) — on by default. They protect the
+    # user's XHS account from the behaviors that get accounts restricted:
+    # back-to-back manual fetches, blowing the request volume up with custom
+    # keywords, and hammering a session the platform already flagged. These
+    # complement the crawl-level CAPTCHA wall / risk cooldown below.
+    MIN_FETCH_GAP_MIN: int = 45
+    AUTH_COOLDOWN_MIN: int = 30
+    DAILY_REQUEST_BUDGET: int = 15000
+
     # The board scores the last FRESH_WINDOW_HOURS: it answers "what is hot today", and
     # trend badges compare snapshots taken on that basis.
     FRESH_WINDOW_HOURS: int = 24
@@ -125,6 +134,10 @@ class Settings(BaseSettings):
 
     HOST: str = "127.0.0.1"
     PORT: int = 8000
+    # Required to bind anything but loopback. When set (and the bind is
+    # non-local), every mutating endpoint demands `Authorization: Bearer <token>`
+    # and cross-origin browser requests are rejected.
+    AUTH_TOKEN: str = ""
 
     @property
     def fresh_window_ms(self) -> int:
