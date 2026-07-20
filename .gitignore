@@ -10,3 +10,7 @@ __pycache__/
 # frontend toolchain
 /frontend/node_modules/
 /dist/
+
+# git worktrees live here; they are separate checkouts, not content
+.claude/worktrees/
+.codex-remote-attachments

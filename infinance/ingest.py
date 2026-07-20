@@ -48,8 +48,12 @@ def ingest_run_dir(conn, run_dir: Path, run_id: int, fresh_window_ms: int, now: 
                  first_seen_run_id, last_seen_run_id, fetched_at_ms)
                VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
                ON CONFLICT(note_id) DO UPDATE SET
+                 title=excluded.title, note_desc=excluded.note_desc, note_type=excluded.note_type,
                  liked_count=excluded.liked_count, collected_count=excluded.collected_count,
                  comment_count=excluded.comment_count, share_count=excluded.share_count,
+                 note_url=excluded.note_url, tag_list=excluded.tag_list,
+                 source_keyword=excluded.source_keyword, nickname=excluded.nickname,
+                 simhash=excluded.simhash,
                  last_seen_run_id=excluded.last_seen_run_id, fetched_at_ms=excluded.fetched_at_ms""",
             (
                 note_id, title, desc, d.get("type"), ts,
@@ -86,7 +90,9 @@ def ingest_run_dir(conn, run_dir: Path, run_id: int, fresh_window_ms: int, now: 
                  first_seen_run_id, fetched_at_ms)
                VALUES(?,?,?,?,?,?,?,?,?,?,?)
                ON CONFLICT(comment_id) DO UPDATE SET
+                 parent_comment_id=excluded.parent_comment_id, content=excluded.content,
                  like_count=excluded.like_count, sub_comment_count=excluded.sub_comment_count,
+                 nickname=excluded.nickname, content_norm_hash=excluded.content_norm_hash,
                  fetched_at_ms=excluded.fetched_at_ms""",
             (
                 comment_id, note_id, d.get("parent_comment_id"), content, ts,

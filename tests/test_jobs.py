@@ -7,10 +7,17 @@ import time
 from types import SimpleNamespace
 
 from infinance import pipeline
+from infinance.config import Settings
 from infinance.db import connect
 from infinance.jobs import JobRunner, JobState
 from infinance.mentions import load_stock_dict
 from infinance.providers.base import RunResult, SearchRequest
+from infinance.providers.mediacrawler import (
+    append_log_line,
+    crawl_detail,
+    failure_reason,
+    keyword_counts,
+)
 from infinance.util import now_ms
 
 H = 3_600_000
@@ -19,16 +26,18 @@ H = 3_600_000
 def cycle_settings(tmp_path, **over):
     base = dict(
         DB_PATH=tmp_path / "cycle.db", RAW_DIR=tmp_path / "raw",
-        DISCOVERY_KEYWORDS="美股", discovery_keywords_list=["美股"],
+        DISCOVERY_KEYWORDS="美股", DISCOVERY_CORE="美股", DISCOVERY_POOL="",
+        DISCOVERY_INVESTMENT_POOL="", KEYWORDS_PER_CYCLE=1, KEYWORD_GAP_MIN=0,
         MAX_NOTES_PER_KEYWORD=5, MAX_COMMENTS_PER_NOTE=5,
         ENABLE_SUB_COMMENTS=False, CRAWL_TIMEOUT_MIN=1,
-        FRESH_WINDOW_HOURS=24, fresh_window_ms=24 * H,
+        FRESH_WINDOW_HOURS=24, CONTEXT_WINDOW_HOURS=24,
         MIN_MENTIONS_FOR_ANALYSIS=1, MAX_ANALYZED_STOCKS=5,
         ENABLE_PRICE_QUOTES=False, SLANG_SCAN_EVERY_N_CYCLES=0,
-        DEEPSEEK_API_KEY="", LLM_MODEL="deepseek-chat",
+        RISK_COOLDOWN_HOURS=0, DEEPSEEK_API_KEY="", LLM_MODEL="deepseek-chat",
     )
     base.update(over)
-    return SimpleNamespace(**base)
+    # a real Settings so the derived props (context_window_ms, rotation lists) exist
+    return Settings(**base)
 
 
 class SlowFakeProvider:
@@ -64,7 +73,7 @@ class SlowFakeProvider:
     def login(self, timeout_min: int = 6):
         raise AssertionError("never")
 
-    def login_looks_required(self, log_path, notes_fresh):
+    def login_looks_required(self, log_path, notes_fresh, start=0):
         return False
 
     def classify_log(self, log_text):
@@ -74,6 +83,19 @@ class SlowFakeProvider:
 
     def cancel(self):
         self.cancel_called.set()
+
+    # artifact readers the per-keyword pipeline loop calls (real ones parse the run dir)
+    def keyword_counts(self, run_dir):
+        return keyword_counts(run_dir)
+
+    def crawl_detail(self, run_dir, keywords, status):
+        return crawl_detail(run_dir, keywords, status)
+
+    def failure_reason(self, log_path, exit_code, start=0):
+        return failure_reason(log_path, exit_code, start)
+
+    def append_log_line(self, log_path, message):
+        append_log_line(log_path, message)
 
 
 def test_progress_reports_every_stage(tmp_path):
@@ -172,15 +194,17 @@ def test_analyze_progress_counts(conn):
     from infinance.analyze import analyze_all
 
     now = now_ms()
-    conn.execute("INSERT INTO notes(note_id, title, publish_time_ms, liked_count)"
-                 " VALUES('n1','英伟达冲',?,10)", (now - H,))
+    # enough substance to survive gather_items' MIN_NOTE_SUBSTANCE filter
+    conn.execute("INSERT INTO notes(note_id, title, note_desc, publish_time_ms, liked_count)"
+                 " VALUES('n1','英伟达财报又炸了','这波数据中心需求太猛，散户都在讨论要不要梭哈，感觉还能再涨一波',?,10)",
+                 (now - H,))
     conn.execute("INSERT INTO stock_mentions(ticker, source_type, source_id, note_id,"
                  " match_basis, content_time_ms) VALUES('NVDA','note','n1','n1','safe_alias',?)",
                  (now - H,))
     conn.commit()
-    from infinance.scoring import compute_stats
-
-    stats = compute_stats(conn, 24 * H, now)
+    # hand-built rankable stats: is_rankable needs focused_mentions >= 1, and this
+    # test is about progress reporting, not main's ranking rules
+    stats = {"NVDA": {"ticker": "NVDA", "score": 5.0, "mentions": 1, "focused_mentions": 1}}
     reports = []
 
     def report(stage=None, **detail):

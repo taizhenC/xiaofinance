@@ -41,6 +41,15 @@ def test_parse_chart_json_skips_null_closes():
 def test_yahoo_symbol():
     assert yahoo_symbol("NVDA") == "NVDA"
     assert yahoo_symbol("BRK.B") == "BRK-B"
+    assert yahoo_symbol("BRK") == "BRK-B"
+
+
+def test_store_quote_single_session_ipo(conn):
+    assert store_quote(conn, "SKHY", [("2026-07-10", 168.01)], now=5_000)
+    q = get_quotes(conn, ["SKHY"])["SKHY"]
+    assert q["price"] == 168.01
+    assert q["prev_close"] is None
+    assert q["change_pct"] is None
 
 
 def test_store_quote_computes_change(conn):
@@ -56,8 +65,8 @@ def test_store_quote_computes_change(conn):
     assert rows["n"] == 3
 
 
-def test_store_quote_needs_two_sessions(conn):
-    assert not store_quote(conn, "XYZ", [("2026-07-10", 10.0)], now=1)
+def test_store_quote_empty_history(conn):
+    assert not store_quote(conn, "XYZ", [], now=1)
     assert get_quotes(conn, ["XYZ"]) == {}
 
 

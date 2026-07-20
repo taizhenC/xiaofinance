@@ -11,7 +11,7 @@ from types import SimpleNamespace
 from infinance import pipeline
 from infinance.mentions import load_stock_dict
 from infinance.providers.base import RunResult, SearchRequest, SessionState
-from infinance.providers.mediacrawler import MediaCrawlerProvider
+from infinance.providers.mediacrawler import MediaCrawlerProvider, keyword_counts
 from infinance.util import now_ms
 
 H = 3_600_000
@@ -36,17 +36,25 @@ class RecordingProvider:
         out = req.run_dir / "xhs" / "jsonl"
         out.mkdir(parents=True, exist_ok=True)
         for name, rows in self.rows_by_file.items():
-            with open(out / name, "w", encoding="utf-8") as f:
+            with open(out / name, "a", encoding="utf-8") as f:
                 for r in rows:
-                    f.write(json.dumps(r, ensure_ascii=False) + "\n")
+                    # each fixture row lands once, on the call whose keyword owns
+                    # it (comments ride with the first keyword's process)
+                    if r.get("source_keyword", req.keywords[0]) in req.keywords \
+                            and not r.get("_emitted"):
+                        r["_emitted"] = True
+                        f.write(json.dumps(
+                            {k: v for k, v in r.items() if k != "_emitted"},
+                            ensure_ascii=False) + "\n")
         log_path = req.run_dir / "crawler.log"
-        log_path.write_text(self.log_text, encoding="utf-8")
+        with open(log_path, "a", encoding="utf-8") as f:
+            f.write(self.log_text)
         return RunResult(exit_code=0, timed_out=False, cancelled=False, log_path=log_path)
 
     def login(self, timeout_min: int = 6):
         raise AssertionError("pipeline must never trigger interactive login")
 
-    def login_looks_required(self, log_path: Path, notes_fresh: int) -> bool:
+    def login_looks_required(self, log_path: Path, notes_fresh: int, start: int = 0) -> bool:
         return "登录已过期" in self.log_text
 
     def classify_log(self, log_text: str) -> SessionState:
@@ -55,15 +63,32 @@ class RecordingProvider:
     def cancel(self):
         self.cancelled = True
 
+    def keyword_counts(self, run_dir: Path):
+        return keyword_counts(run_dir)
+
+    def crawl_progress(self, run_dir, keywords, target_per_keyword=20):
+        return {}
+
+    def crawl_detail(self, run_dir, keywords, status):
+        return {"keywords": [], "captchas": 0, "errors": [], "exceptions": [], "log_tail": ""}
+
+    def failure_reason(self, log_path, exit_code, start=0):
+        return f"crawler exit code {exit_code}"
+
+    def append_log_line(self, log_path, message):
+        pass
+
 
 def settings_for(tmp_path):
     return SimpleNamespace(
         RAW_DIR=tmp_path / "raw",
         DISCOVERY_KEYWORDS="美股,纳斯达克",
         discovery_keywords_list=["美股", "纳斯达克"],
+        discovery_core_list=[], discovery_pool_list=[], discovery_investment_pool_list=[],
+        KEYWORDS_PER_CYCLE=6, KEYWORD_GAP_MIN=0,
         MAX_NOTES_PER_KEYWORD=5, MAX_COMMENTS_PER_NOTE=10,
         ENABLE_SUB_COMMENTS=False, CRAWL_TIMEOUT_MIN=1,
-        fresh_window_ms=24 * H,
+        fresh_window_ms=24 * H, context_window_ms=72 * H,
     )
 
 
@@ -83,8 +108,8 @@ def test_run_fetch_consumes_only_the_interface(conn, tmp_path):
         conn, "discovery", load_stock_dict(), settings_for(tmp_path), provider
     )
     assert run_id is not None
-    req = provider.requests[0]
-    assert req.keywords == ["美股", "纳斯达克"]
+    # one crawler process per keyword — the per-keyword loop is the contract now
+    assert [r.keywords for r in provider.requests] == [["美股"], ["纳斯达克"]]
     run = conn.execute("SELECT * FROM fetch_runs WHERE id=?", (run_id,)).fetchone()
     assert run["status"] == "success"
     assert run["notes_fresh"] == 1
@@ -111,6 +136,8 @@ def test_mediacrawler_provider_writes_ingestable_layout(tmp_path, make_vendor):
     provider = MediaCrawlerProvider(SimpleNamespace(
         MEDIACRAWLER_DIR=vendor, UV_EXE="uv", XHS_COOKIES="",
         XHS_INTERNATIONAL=False, BROWSER_USER_AGENT="UA/1.0",
+        BROWSER_HEADLESS=True, CRAWL_SLEEP_SEC=8, CAPTCHA_ABORT_COUNT=10,
+        MAX_NOTES_PER_KEYWORD=5,
     ))
     now = now_ms()
 
@@ -123,7 +150,8 @@ def test_mediacrawler_provider_writes_ingestable_layout(tmp_path, make_vendor):
             encoding="utf-8",
         )
         log_path.write_text("update_xhs_note ok\n", encoding="utf-8")
-        return 0, False
+        return {"exit_code": 0, "timed_out": False, "risk_controlled": False,
+                "captchas": 0, "log_start": 0}
 
     provider._spawn = spawn
     result = provider.search(SearchRequest(

@@ -14,7 +14,8 @@ def fake_settings(vendor, cookies=""):
     return SimpleNamespace(
         MEDIACRAWLER_DIR=vendor, UV_EXE="uv", XHS_COOKIES=cookies,
         XHS_INTERNATIONAL=False, BROWSER_USER_AGENT="UA/1.0",
-        ENABLE_SUB_COMMENTS=False,
+        ENABLE_SUB_COMMENTS=False, BROWSER_HEADLESS=True,
+        CRAWL_SLEEP_SEC=8, CAPTCHA_ABORT_COUNT=10,
         MAX_NOTES_PER_KEYWORD=20, MAX_COMMENTS_PER_NOTE=20, CRAWL_TIMEOUT_MIN=1,
     )
 
@@ -38,7 +39,8 @@ def run_search(tmp_path, make_vendor, cookies=""):
         seen["cmd"] = cmd
         seen["config_during_run"] = (vendor / "config" / "base_config.py").read_text(encoding="utf-8")
         log_path.write_text("update_xhs_note ok\n", encoding="utf-8")
-        return 0, False
+        return {"exit_code": 0, "timed_out": False, "risk_controlled": False,
+                "captchas": 0, "log_start": 0}
 
     provider._spawn = spawn
     result = provider.search(request(tmp_path))
