@@ -62,3 +62,10 @@ Freshness gate #2: every API query re-filters to the trailing 24h window, so ite
 - **Hit-rate scoreboard** (舆论准确率 panel): whenever an analysis leans clearly one way (|bullish−bearish| ≥ 2), that day's call is later scored against the next-day and 7-day price moves. It needs a few days of accumulated analyses + quotes before it shows anything.
 - **Retention**: raw content 7 days, runs/analyses 30 days, cleaned each cycle.
 - **Tests**: `uv run pytest`
+
+## License, boundaries & disclaimer
+
+- **infinance itself is MIT-licensed** (see [LICENSE](LICENSE)).
+- **MediaCrawler is not part of this software.** `infinance setup` fetches a pinned checkout onto *your* machine, where it runs under its own non-commercial/learning license. infinance talks to it over its CLI only — it is never bundled, imported, or redistributed. Keep usage personal and volumes modest.
+- **信息汇总，不是投资建议。** The product summarizes public discussion; it never recommends a stock, never generates buy/sell signals, and ranks only by conversation volume. Every analytical surface carries 仅供参考，不构成投资建议 and a visible data age. The hit-rate scoreboard describes *the crowd's* past leans — it is not a prediction.
+- Raw third-party content stays on your machine and is pruned after 7 days; nothing is redistributed.
