@@ -12,6 +12,7 @@ dependencies = [
     "pydantic-settings>=2.3",
     "psutil>=5.9",
     "platformdirs>=4",
+    "mcp>=1.2",
 ]
 
 [project.scripts]

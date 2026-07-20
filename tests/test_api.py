@@ -23,6 +23,8 @@ def test_status_and_empty_ranking(client):
     assert s["window_hours"] == settings.FRESH_WINDOW_HOURS
     r = client.get("/api/ranking").json()
     assert r["ranking"] == []
+    assert r["investments"] == []
+    assert r["topics"] == []
     assert r["radar"] == []
 
 
@@ -38,6 +40,13 @@ def test_tracked_crud(client):
     client.post("/api/tracked", json={"ticker": "NVDA"})
     r = client.get("/api/ranking").json()
     assert any(e["ticker"] == "NVDA" and e["tracked"] for e in r["ranking"])
+
+
+def test_tracked_rejects_non_string_keywords(client):
+    for kws in (1, ["开市客", 1]):
+        response = client.post("/api/tracked", json={"ticker": "COST", "custom_keywords": kws})
+        assert response.status_code == 422
+    assert client.get("/api/tracked").json() == []
 
 
 def test_ranking_includes_trend(client):
@@ -105,3 +114,57 @@ def test_alias_suggestion_accept(client, tmp_path):
     from infinance.mentions import Matcher, load_stock_dict
     found = Matcher(load_stock_dict()).extract("老黄家股价又新高了")
     assert found.get("NVDA", ("", ""))[1] == "alias+context"
+
+
+def test_run_detail_endpoint_serves_the_stored_snapshot_after_cleanup(client, tmp_path):
+    import json
+
+    from infinance.db import connect
+
+    snapshot = {
+        "keywords": [{"keyword": "美股", "state": "done", "started_at": None,
+                      "notes": 20, "comments": 51}],
+        "captchas": 0, "errors": [], "exceptions": ["KeyError: 'Verifytype'"],
+        "log_tail": "tail",
+    }
+    conn = connect(settings.DB_PATH)
+    conn.execute(
+        "INSERT INTO fetch_runs(id, mode, keywords, status, started_at_ms, raw_dir, detail)"
+        " VALUES(1,'discovery','美股','partial',1,?,?)",
+        (str(tmp_path / "cleaned-up"), json.dumps(snapshot, ensure_ascii=False)),
+    )
+    conn.commit()
+    conn.close()
+
+    d = client.get("/api/runs/1/detail").json()
+    assert d["detail"]["keywords"][0]["keyword"] == "美股"
+    assert d["detail"]["exceptions"] == ["KeyError: 'Verifytype'"]
+    assert client.get("/api/runs/999/detail").status_code == 404
+    # the list endpoint must not drag the blob along for every row
+    assert "detail" not in client.get("/api/runs").json()[0]
+
+
+def test_runs_rejects_negative_limit(client):
+    response = client.get("/api/runs", params={"limit": -1})
+    assert response.status_code == 422
+
+
+def test_run_detail_endpoint_computes_live_from_the_raw_dir(client, tmp_path):
+    from infinance.db import connect
+
+    run_dir = tmp_path / "run_x"
+    (run_dir / "xhs" / "jsonl").mkdir(parents=True)
+    (run_dir / "crawler.log").write_text(
+        "2026-07-12 00:54:25 x - Current search keyword: 美股\n", encoding="utf-8"
+    )
+    conn = connect(settings.DB_PATH)
+    conn.execute(
+        "INSERT INTO fetch_runs(id, mode, keywords, status, started_at_ms, raw_dir)"
+        " VALUES(2,'discovery','美股,中概股','running',1,?)", (str(run_dir),)
+    )
+    conn.commit()
+    conn.close()
+
+    d = client.get("/api/runs/2/detail").json()
+    states = {k["keyword"]: k["state"] for k in d["detail"]["keywords"]}
+    assert states == {"美股": "current", "中概股": "not_reached"}

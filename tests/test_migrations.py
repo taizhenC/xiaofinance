@@ -221,6 +221,8 @@ def test_v0_db_migrates_in_place_with_backup_and_data_intact(tmp_path):
     assert conn.execute("SELECT title FROM notes WHERE note_id='n1'").fetchone()[0] == "NVDA新高"
     assert conn.execute("SELECT value FROM meta WHERE key='cycle_count'").fetchone()[0] == "7"
     assert conn.execute("SELECT summary FROM stock_analyses").fetchone()[0] == "NVDA: bullish crowd"
+    # columns added by later migrations exist with their defaults
+    assert run["detail"] is None
     conn.close()
 
     # pre-migration backup was written and is itself a valid v0 snapshot
@@ -230,6 +232,22 @@ def test_v0_db_migrates_in_place_with_backup_and_data_intact(tmp_path):
     assert bconn.execute("PRAGMA user_version").fetchone()[0] == 0
     assert bconn.execute("SELECT COUNT(*) FROM notes").fetchone()[0] == 1
     bconn.close()
+
+
+def test_v0_db_that_already_has_detail_column_migrates_too(tmp_path):
+    """The pre-migration code ALTERed `detail` in on connect, so field databases
+    exist in both flavors — the chain must not trip over the column existing."""
+    db = tmp_path / "legacy2.db"
+    make_v0_db(db)
+    conn = sqlite3.connect(db)
+    conn.execute("ALTER TABLE fetch_runs ADD COLUMN detail TEXT")
+    conn.commit()
+    conn.close()
+
+    conn = connect(db)
+    assert get_version(conn) == LATEST_VERSION
+    assert conn.execute("SELECT detail FROM fetch_runs").fetchone()[0] is None
+    conn.close()
 
 
 def test_reconnect_is_idempotent_and_makes_no_second_backup(tmp_path):

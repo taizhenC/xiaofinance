@@ -33,7 +33,8 @@ _BASELINE = [
   notes_fresh INTEGER NOT NULL DEFAULT 0,
   comments_fresh INTEGER NOT NULL DEFAULT 0,
   raw_dir TEXT,
-  error TEXT
+  error TEXT,
+  detail TEXT
 )""",
     """CREATE TABLE IF NOT EXISTS notes(
   note_id TEXT PRIMARY KEY,
@@ -160,9 +161,24 @@ _BASELINE = [
 
 Migration = list[str] | Callable[[sqlite3.Connection], None]
 
+def _add_column_if_missing(conn: sqlite3.Connection, table: str, column: str,
+                           decl: str) -> None:
+    cols = {r[1] for r in conn.execute(f"PRAGMA table_info({table})")}
+    if column not in cols:
+        conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {decl}")
+
+
+def _m2_fetch_runs_detail(conn: sqlite3.Connection) -> None:
+    """Adopted v0 databases come in two flavors: before the run-detail feature
+    (no `detail` column — baseline's IF NOT EXISTS can't add it) and after it
+    (the pre-migration code ALTERed it in on connect). Check-first covers both."""
+    _add_column_if_missing(conn, "fetch_runs", "detail", "TEXT")
+
+
 # (version, name, statements-or-callable) — versions strictly increasing from 1.
 MIGRATIONS: list[tuple[int, str, Migration]] = [
     (1, "baseline schema", _BASELINE),
+    (2, "fetch_runs detail column", _m2_fetch_runs_detail),
 ]
 
 LATEST_VERSION = MIGRATIONS[-1][0]

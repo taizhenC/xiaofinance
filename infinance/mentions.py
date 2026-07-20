@@ -73,6 +73,74 @@ def add_alias_to_overlay(term: str, ticker: str) -> None:
         json.dump(data, f, ensure_ascii=False, indent=2)
 
 
+INDEX_SECTOR = "ETF指数"
+INVESTMENT_CLASSES = {"commodity", "bond", "fund", "crypto", "forex"}
+
+
+def asset_class(entry: dict) -> str:
+    return entry.get("asset_class") or ("index" if entry.get("sector") == INDEX_SECTOR else "stock")
+
+
+def asset_classes(dict_data: dict) -> dict[str, str]:
+    return {s["ticker"]: asset_class(s) for s in dict_data.get("stocks", [])}
+
+
+def index_tickers(dict_data: dict) -> set[str]:
+    return {s["ticker"] for s in dict_data.get("stocks", []) if asset_class(s) == "index"}
+
+
+def investment_tickers(dict_data: dict) -> set[str]:
+    return {
+        s["ticker"] for s in dict_data.get("stocks", [])
+        if asset_class(s) in INVESTMENT_CLASSES
+    }
+
+
+def non_stock_tickers(dict_data: dict) -> set[str]:
+    return index_tickers(dict_data) | investment_tickers(dict_data)
+
+
+def extract_topic_tags(text: str, dict_data: dict) -> list[str]:
+    lower = norm_text(text or "").lower()
+    if not lower:
+        return []
+    found = []
+    for topic in dict_data.get("topic_tags", []):
+        if any(_compile_alias(alias)(lower) for alias in topic.get("aliases", [])):
+            found.append(topic["tag"])
+    return found
+
+
+def topic_breakdown(conn, dict_data: dict, window_ms: int, now: int | None = None) -> list[dict]:
+    now = now or now_ms()
+    cutoff = now - window_ms
+    counts: dict[str, dict] = {}
+    for row in conn.execute(
+        """SELECT title, note_desc, tag_list, liked_count FROM notes
+           WHERE publish_time_ms >= ? AND dup_group_id IS NULL""",
+        (cutoff,),
+    ):
+        text = " ".join(filter(None, (row["title"], row["note_desc"], row["tag_list"])))
+        for tag in extract_topic_tags(text, dict_data):
+            entry = counts.setdefault(tag, {"tag": tag, "mentions": 0, "likes": 0})
+            entry["mentions"] += 1
+            entry["likes"] += row["liked_count"] or 0
+    return sorted(counts.values(), key=lambda e: (e["mentions"], e["likes"]), reverse=True)
+
+
+def mask_traps(lower: str, traps) -> str:
+    """Blank out phrases that merely contain an alias without meaning it.
+
+    The CJK matcher is a plain substring test — there are no word boundaries to lean on — so
+    女大 (NVDA) fires inside 女大学生, and 纳斯达克 (QQQ) fires inside 纳斯达克上市, which is
+    about a listing venue rather than the index. Masking keeps the string's length, so match
+    positions still line up with the original text."""
+    for p in traps:
+        if p in lower:
+            lower = lower.replace(p, "\x00" * len(p))
+    return lower
+
+
 def _compile_alias(alias: str):
     a = alias.lower()
     if _ASCII_ALIAS_RE.match(a):
@@ -81,6 +149,40 @@ def _compile_alias(alias: str):
         rx = re.compile(r"(?<![0-9a-z])" + re.escape(a) + r"(?![0-9a-z])")
         return lambda lower: rx.search(lower) is not None
     return lambda lower: a in lower
+
+
+# Named once in a post this long, the ticker is a passing reference: an example in an
+# options tutorial, a row in a portfolio table, the company someone interviewed at. The
+# posts genuinely arguing about a stock come back to its name (SK海力士 11×, BIDU 9×,
+# the 高盛 research note 8×), and half of all note-mentions do not.
+ASIDE_MAX_HITS = 1
+ASIDE_MIN_LEN = 300
+
+
+def is_aside(text: str, hits: int) -> bool:
+    """Does this post merely contain the ticker, rather than being about it?
+
+    Complements fan-out, which only catches posts that name *many* tickers. A 1200-character
+    story about a Goldman Sachs job interview names exactly one, so fan-out gives it full
+    credit as GS discussion."""
+    return hits <= ASIDE_MAX_HITS and len(text or "") >= ASIDE_MIN_LEN
+
+
+def alias_hits(text: str, alias: str) -> tuple[int, int]:
+    """(position of the first mention, how many times it is named) — by the same boundary
+    rules the matcher used, so callers agree with it about what counts as a mention.
+
+    Both halves answer "is this post about the ticker, or does it just contain it": where
+    the name first shows up, and whether it comes back."""
+    if not alias:
+        return -1, 0
+    a = alias.lower()
+    lower = norm_text(text or "").lower()
+    if _ASCII_ALIAS_RE.match(a):
+        rx = re.compile(r"(?<![0-9a-z])" + re.escape(a) + r"(?![0-9a-z])")
+        found = list(rx.finditer(lower))
+        return (found[0].start(), len(found)) if found else (-1, 0)
+    return lower.find(a), lower.count(a)
 
 
 class Matcher:
@@ -92,13 +194,16 @@ class Matcher:
             _compile_alias(w.lower()) for w in dict_data.get("context_words", [])
         ]
         self.collision = set(dict_data.get("collision_tickers", []))
+        self.traps = [t.lower() for t in dict_data.get("traps", [])]
         self.stocks: dict[str, dict] = {}
+        self.supersedes: dict[str, set[str]] = {}
         for s in dict_data.get("stocks", []):
             self.stocks[s["ticker"]] = {
                 "name_cn": s.get("name_cn", ""),
                 "safe": list(s.get("aliases", [])),
                 "ambiguous": list(s.get("ambiguous", [])),
             }
+            self.supersedes[s["ticker"]] = set(s.get("supersedes", []))
         for t, kws in tracked.items():
             entry = self.stocks.setdefault(t, {"name_cn": "", "safe": [], "ambiguous": []})
             # user-supplied keywords are unvetted → treated as ambiguous
@@ -125,7 +230,7 @@ class Matcher:
         raw = norm_text(text or "")
         if not raw.strip():
             return {}
-        lower = raw.lower()
+        lower = mask_traps(raw.lower(), self.traps)
         ctx = self.has_context(lower)
         out: dict[str, tuple[str, str]] = {}
 
@@ -153,6 +258,9 @@ class Matcher:
                 add(t, alias, "alias+context")
             elif targeted_ticker == t:
                 add(t, alias, "targeted_search")
+        for ticker in tuple(out):
+            for general in self.supersedes.get(ticker, set()):
+                out.pop(general, None)
         return out
 
 
@@ -207,6 +315,7 @@ def extract_mentions(conn, dict_data: dict, tracked_rows, fresh_window_ms: int,
     """
 
     count = 0
+    produced: set[tuple[str, str, str]] = set()
     for n in conn.execute(
         "SELECT note_id, title, note_desc, source_keyword, publish_time_ms FROM notes WHERE publish_time_ms >= ?",
         (cutoff,),
@@ -216,6 +325,7 @@ def extract_mentions(conn, dict_data: dict, tracked_rows, fresh_window_ms: int,
         for t, (alias, basis) in found.items():
             conn.execute(upsert, (t, "note", n["note_id"], n["note_id"], alias, basis,
                                   n["publish_time_ms"], run_id))
+            produced.add((t, "note", n["note_id"]))
             count += 1
 
     for c in conn.execute(
@@ -229,8 +339,25 @@ def extract_mentions(conn, dict_data: dict, tracked_rows, fresh_window_ms: int,
         for t, (alias, basis) in found.items():
             conn.execute(upsert, (t, "comment", c["comment_id"], c["note_id"], alias, basis,
                                   c["create_time_ms"], run_id))
+            produced.add((t, "comment", c["comment_id"]))
             count += 1
 
+    # Mentions are derived data, so this pass is the whole truth about the window: anything in
+    # the table that the dictionary no longer produces is stale and must go. Without this the
+    # upserts could only ever *add* — dropping a bad alias or adding a trap would leave every
+    # false positive it ever made sitting in the DB until the note aged out of the window.
+    stale = [
+        row for row in conn.execute(
+            "SELECT ticker, source_type, source_id FROM stock_mentions WHERE content_time_ms >= ?",
+            (cutoff,),
+        ).fetchall()
+        if (row["ticker"], row["source_type"], row["source_id"]) not in produced
+    ]
+    conn.executemany(
+        "DELETE FROM stock_mentions WHERE ticker=? AND source_type=? AND source_id=?",
+        [(r["ticker"], r["source_type"], r["source_id"]) for r in stale],
+    )
+
     conn.commit()
-    log.info("mentions: %d matches", count)
+    log.info("mentions: %d matches, %d stale removed", count, len(stale))
     return count
