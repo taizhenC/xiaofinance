@@ -12,10 +12,12 @@ from fastapi import Body, FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from . import analyze, guardrails, jobs, mentions, prices, scoreboard, scoring, session
-from .config import BASE_DIR, settings
+from . import analyze, doctor, guardrails, jobs, mentions, prices, scoreboard, scoring, session
+from .config import PACKAGE_DIR, settings
 from .db import connect
 from .util import now_ms
+
+WEBUI_DIR = PACKAGE_DIR / "webui"
 
 # the .env-sourced cookie value, before any UI override is applied
 ENV_COOKIES = settings.XHS_COOKIES
@@ -158,7 +160,13 @@ def _tracked_map(conn) -> dict[str, list[str]]:
 
 @app.get("/")
 def index():
-    return FileResponse(BASE_DIR / "static" / "index.html")
+    page = WEBUI_DIR / "index.html"
+    if not page.exists():
+        return JSONResponse(status_code=503, content={
+            "detail": "web UI not built — run `npm ci && npm run build` in frontend/ "
+                      "(or install the packaged release, which ships it prebuilt)",
+        })
+    return FileResponse(page)
 
 
 @app.get("/api/status")
@@ -498,4 +506,11 @@ def api_suggestion_action(suggestion_id: int, payload: dict = Body(...)):
         conn.close()
 
 
-app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
+@app.get("/api/doctor")
+def api_doctor():
+    # the server occupies its own port, so the port-free check is meaningless here
+    return {"checks": [c.as_dict() for c in doctor.run_checks(settings, include_port=False)]}
+
+
+if (WEBUI_DIR / "assets").is_dir():
+    app.mount("/assets", StaticFiles(directory=WEBUI_DIR / "assets"), name="assets")
