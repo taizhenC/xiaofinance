@@ -207,7 +207,137 @@ Discovery ranking shows tickers with ≥ MIN_MENTIONS_FOR_ANALYSIS (2); tracked 
 - **Cross-cycle memory / trend deltas** (promoted from deferred): per-cycle `score_snapshots` power heat-trend badges (🔥 新上榜 / ↑ 升温 / ↓ 降温, cycle-over-cycle) and per-card sparklines; each analysis also sees the previous cycle's summary (≤48h) as guarded compare-only context so it can call out sentiment shifts without being biased by them.
 - **Price reality check**: daily closes from Yahoo's free chart API (`app/prices.py`, `ENABLE_PRICE_QUOTES` toggle) → price-change badge per card and a 🔀 divergence flag when crowd lean and price move conflict.
 - **Crowd hit-rate scoreboard** (`app/scoreboard.py`): clear daily leans (|bullish−bearish| ≥ 2) scored against 1d/7d realized moves.
-- **Reply threads**: `ENABLE_SUB_COMMENTS` opt-in (off by default for account safety); replies reach the LLM prefixed with their parent snippet.
+- **Reply threads**: on by default. The inline replies XHS nests in each comment's response are free (they were being fetched and discarded); the paging loop that would chase the rest is patched out of the vendor client, so account risk is unchanged. Replies reach the LLM threaded under the comment they answer.
+
+## v1.2 signal-quality refinements (implemented — driven by first real-data cycles, 2026-07-11)
+
+Observed on the first live crawls: one 财报日历 post fanned out to 12 tickers and put every big bank on the board as "🔥 新上榜"; the same 3 mega-posts were every card's quotes; GS ranked off a `#高盛观察` hashtag; 17/98 notes duplicated their title inside the desc; 206 fresh comments were invisible to analysis (only 3 named a ticker); trend badges showed "+409%" off tiny score bases; and the day's dominant entity (SK海力士 ADR) wasn't in the dict, so its coverage bled into name-dropped neighbors. Fixes:
+
+- **Fan-out weighting**: a source mentioning k tickers contributes weight 1/k to each ticker's score — roundup/calendar posts no longer count like dedicated posts.
+- **Focus gate**: main-board ranking (and LLM spend) requires ≥1 *focused* source — a ≤3-ticker item where the alias appears in the prose, not just a `#话题#` tag block. Roundup-only/hashtag-only tickers stay on the radar strip. Mentions of every ticker are still extracted and fed to the LLM (cross-stock signals like "英伟达、谷歌入股海力士产线" stay visible) — the gate only governs heat and ranking.
+- **Roundup marker for the LLM**: items naming ≥4 tickers carry `[盘点·提及N股]` plus a prompt instruction not to read being-listed as a viewpoint.
+- **Thread comments**: `gather_items` pulls top-liked comments from mentioning notes with fanout ≤ 2 (prefixed `主帖「…」下的评论:`) — most comments never name the ticker but are reactions to it.
+- **Text hygiene**: `note_text()` drops descs' repeated title; `clean_tags()` strips `[话题]#` markup; fallback quotes prefer focused sources over globally-hot roundups.
+- **Trend badges**: percentage suppressed when the previous score base < 5 (direction-only badge).
+- **Prices**: Yahoo symbol overrides (BRK→BRK-B, SKHY→SKHYV while the ADR trades when-issued); single-session IPOs store a price without a change badge.
+- **Dict**: SKHY (SK海力士, listed Nasdaq 2026-07-10) added. Note: dict updates require a `--skip-crawl` reprocess (or the next cycle) to re-extract mentions from already-ingested notes.
+
+## v1.3 sampling (implemented — driven by the "board is all tech" observation, 2026-07-11)
+
+The board looked like a semiconductor board. It turned out only ~25% of the crawl could
+ever produce a ranking at all — the skew was mostly in how we sampled, not in what XHS
+talks about.
+
+- **The crawl was searching index terms.** 3 of the 5 keywords actually crawled (纳指,
+  纳斯达克, 标普500) are index terms, and on XHS those return 定投/ETF diaries — "定投纳指，你
+  瞎纠结什么？" — which name no company. 73 of the first 98 notes matched nothing.
+- **Keyword probe** (`python -m app.probe --keywords "..."`): crawls a few notes per
+  candidate, skips comments, reports the share of notes that name a US stock. Measured:
+  巴菲特 92%, 美股财报 67%, 中概股 62%, 美股银行 33%, 纳指 29%, 美股 11%. Rejected: 电动车 0%
+  (XHS returns scooter rentals), 减肥药 0% (diet pills), 黄金股 17% (A-share gold), 能源股
+  (A-share 新能源). **Rule: 美股-prefixed terms return US-stock content, bare Chinese sector
+  terms don't.** Probe before adding a keyword — intuition failed on 电动车 and 减肥药.
+- **Keyword rotation** (`app/keywords.py`): DISCOVERY_CORE every cycle + DISCOVERY_POOL
+  rotated KEYWORDS_PER_CYCLE at a time via a cursor in `meta`, which only advances when a
+  run actually returned notes (a failed login must not skip a sector). The crawl budget is
+  capped by account risk, so coverage grows over time rather than per-cycle.
+- **Cycle sizing**: MediaCrawler rounds any note cap below 20 up to a full XHS page
+  (`core.py`: `if CRAWLER_MAX_NOTES_COUNT < xhs_limit_count`), so MAX_NOTES_PER_KEYWORD=12
+  always fetched 20 — a 10-keyword cycle was 200 notes / ~47 min against a 30-min timeout,
+  and every cycle was being killed with its tail keywords never searched. Now 6 keywords ×
+  20 notes, 35-min timeout.
+- **Two windows**: ingest was dropping every note older than 24h *at the door*, which
+  structurally decided that slow sectors don't exist (美股医药 returned 20 notes; exactly 1
+  was from the last day, the rest spanning ten). Notes are now kept and mention-scanned
+  over CONTEXT_WINDOW_HOURS (72), while the board still scores FRESH_WINDOW_HOURS (24) so
+  "hot today" still means today. The sector strip and radar read the wider window.
+  Effect: semiconductors 57% → 32% of measured discussion, 12 sectors with real leaders.
+- **Sectors**: every dict entry carries a `sector` (13 buckets; Chinese ADRs go to 中概,
+  which is how XHS discusses them). The board stays a pure score ranking — promoting a
+  2-mention healthcare name beside a 30-mention NVDA would invent heat nobody expressed —
+  and instead `sector_breakdown` reports each sector's share of weighted score plus its
+  leader, so concentration is a number rather than an impression. Leaders carried only by
+  roundup/hashtag mentions render dimmed.
+- **Crawler navigation**: `page.goto()` waited for the full `load` event; the XHS index
+  page needs ~23s just to deliver HTML on this connection, so `load` never fired inside
+  120s and the crawler died before searching. Now waits for `domcontentloaded` — the signed
+  API calls go out over httpx and only need cookies + JS context.
+- **Operational**: only one crawler at a time. MediaCrawler holds a persistent Chromium
+  profile and Chromium allows one owner, so a running crawl makes `login_xhs.ps1` and
+  "Fetch now" fail with `exit code 1`.
+
+## v1.4 evidence quality and crawl visibility (implemented 2026-07-11)
+
+Driven by reading the rendered cards: the heat numbers were right and the *evidence* under
+them was not.
+
+- **Noise floor** (`util.substance`): an XHS image post whose desc is nothing but #话题#
+  tags reduces to its title, and titles like "Is That True？" say nothing — yet it was
+  reaching the model as input and, keyless, being printed as what the crowd thinks about
+  美光. Same for "@问一问 …" (a question put to XHS's own AI bot) and one-word reactions
+  ("有"). substance() measures what survives hashtags, @handles, emoji tags and URLs,
+  counting CJK double because 一个汉字 carries about what an English word does — without
+  that, "Is That True？" and "海力士暴涨13%，美股创新高！" look equally informative.
+  Three bars, because they are different questions: enough prose to read at all, more than
+  a bare agreement, and enough to stand alone as a quote. "我咋感觉股价到头了" clears the
+  second and not the third — a bearish datum to count, not a verdict to display.
+  **Mentions are untouched**: someone did post about the ticker, the post just carries no
+  evidence. Heat stays honest; the evidence gets filtered.
+- **Structural vs semantic noise.** The filter only removes text nothing could read. Posts
+  that mention a ticker as a *figure of speech* ("让我们一起找到下一个英伟达") or as celebrity
+  gossip (巴菲特 photo posts) still need reading comprehension to reject — that is step 1 of
+  the DeepSeek prompt (`irrelevant_item_count`), and it is exactly what the keyless cards
+  cannot do. Not a bug to fix in code.
+- **`--force`**: the analysis cache is keyed on *which* items came in, so changing how they
+  are ranked, quoted or prompted was invisible until new data arrived.
+- **Risk control is the top operational problem.** 4 of the last 6 runs died to it. XHS
+  answers a flagged account with a CAPTCHA (461, Verifytype 216) and tenacity retries each
+  walled request — run 13 fired 192 times at an endpoint that had already refused it, which
+  can only deepen the flag. Now: CRAWL_SLEEP_SEC=8 (was 3; verified real — applied after
+  every note detail and comment fetch, not per page, unlike MAX_NOTES_PER_KEYWORD which was
+  a no-op), and abort after CAPTCHA_ABORT_COUNT=10 keeping what was already fetched.
+  If crawls keep getting walled, the next levers are dropping comments from discovery runs
+  (halves the API calls; 62% of comment fetches are on notes that name no stock) or resting
+  the account.
+- **Diagnosability**: `failure_reason()` reads the log instead of reporting "exit code 1",
+  which MediaCrawler returns for rate-limiting, network failure and bugs alike.
+  `crawl_progress()` reads the JSONL rows and per-keyword log line the crawler already
+  writes, so a 60-minute crawl no longer looks identical to a hung one.
+
+## v1.5 aboutness (implemented 2026-07-11)
+
+A post can contain a ticker without being about it. Fan-out caught one half of that (a post
+naming a dozen tickers); nothing caught the other half.
+
+- **The truncation bug.** Notes were cut at 300 chars *from the start*, which assumes the
+  ticker is named up front. In 23% of note-mentions it is not — the 高盛 one sits at char
+  1176 of 1243. Those posts reached DeepSeek as 300 characters that never name the ticker
+  it was being asked to judge, and reached the keyless card as a quote that does not mention
+  the stock it is filed under (QQQ's top quote was a manifesto whose first "QQQ" is at char
+  330). `excerpt()` now windows around the first mention and keeps the opening line.
+- **Aboutness = repetition** (`mentions.is_aside`). Posts genuinely arguing about a stock
+  come back to its name (SK海力士 11×, BIDU 9×, 高盛研报 8×). Half of all note-mentions name
+  theirs exactly once in a 300+ char post: an options tutorial using QQQ as an example, a
+  story about a Goldman Sachs *job interview*, a portfolio update on META that lists GOOGL
+  in a table. Those score at ASIDE_WEIGHT=0.3, are marked `[顺带提及]` for the model, and
+  sink in the quote ranking.
+  Effect: GOOGL 6th → 14th (all six of its posts were name-drops, none about Google); NVDA
+  rises above GS; AAPL/MSFT sink — their only mentions are "苹果、微软、英伟达 are S&P
+  constituents", which is index trivia, not a view on Apple. BRK/SKHY unmoved.
+  **Deliberately kept on the board rather than gated off it** (the alternative was a hard
+  focus gate): a name everybody lists and nobody argues about is worth seeing as exactly
+  that, and mentions are never dropped — consistent with keeping cross-stock mentions for
+  relationship signal.
+- **Prompt** (`build_prompt`): the window is no longer hardcoded to "24小时"; step 1 now
+  tests *aboutness* ("有没有对 {ticker} 表达看法", not "有没有出现 {ticker}") and names the
+  real failure modes (teaching examples, 引流, 晒单, background name-drops); the model is told
+  what `[顺带提及]` and the `…` excerpt markers mean; it is told to report zero rather than
+  infer a stance from discarded items; and `notable_quotes` became `notable_quote_ids` —
+  the model picks item numbers and cannot misquote what it was shown, which also stops it
+  paying output tokens to copy Chinese back.
+- **Cost is not the constraint.** Measured on the real corpus: ~26k input + ~6k output
+  tokens per cycle across 15 tickers = **~$0.014/cycle, ~$2/month** at a 5h interval.
+  MAX_ITEMS=60 is never approached (the largest real card is 15 items). Optimise for quality.
 
 ## Deliberately deferred (v2 candidates)
 

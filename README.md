@@ -1,10 +1,10 @@
-# infinance — 小红书美股热度看板
+# infinance — 小红书投资热度看板
 
 [![CI](https://github.com/taizhenC/xiaofinance/actions/workflows/ci.yml/badge.svg)](https://github.com/taizhenC/xiaofinance/actions/workflows/ci.yml)
 
-A local personal dashboard that answers: **which US stocks are hot on Xiaohongshu right now, and what do people think of them?**
+A local personal dashboard that answers: **which US stocks and investment themes are hot on Xiaohongshu right now, and what do people think of them?**
 
-Data comes from your own XHS account via a pinned [MediaCrawler](https://github.com/NanmiCoder/MediaCrawler) checkout (QR login, no API key). A local dictionary detects stock mentions (~250 tickers with Chinese aliases, retail 黑话 like 老黄/苏妈/牙膏厂, and an ambiguity gate), repost spam is collapsed via simhash clustering, and an LLM summarizes per-stock sentiment — with every rendered quote verified verbatim against its sources. Only content from the **last 24 hours** is analyzed and shown.
+Data comes from your own XHS account via a pinned [MediaCrawler](https://github.com/NanmiCoder/MediaCrawler) checkout (QR login, no API key). A local dictionary detects stocks, indexes and diversified investments (gold, bonds, funds, crypto, FX), understands Chinese aliases and retail 黑话 — including context-gated terms such as 大黄/Yellow for gold — and extracts discussion tags such as 理财/定投/资产配置. Repost spam is collapsed via simhash clustering, and an LLM (or an agent over MCP) summarizes sentiment — with every rendered quote verified verbatim against its sources. Only content from the **last 24 hours** is analyzed and shown.
 
 **信息汇总，不是投资建议** — the product never recommends a stock, never generates buy/sell signals, and ranks only by conversation volume.
 
@@ -52,3 +52,9 @@ Architecture notes live in [roadmap/technical_architecture.md](roadmap/technical
 - **MediaCrawler is not part of this software.** `infinance setup` fetches a pinned checkout onto *your* machine, where it runs under its own non-commercial/learning license. infinance talks to it over its CLI only — it is never bundled, imported, or redistributed. Keep usage personal and volumes modest.
 - **信息汇总，不是投资建议。** Every analytical surface carries 仅供参考，不构成投资建议 and a visible data age. The hit-rate scoreboard describes *the crowd's* past leans — it is not a prediction.
 - Raw third-party content stays on your machine and is pruned after 7 days; nothing is redistributed.
+
+## Beyond US stocks, and an optional agent analyst
+
+The dictionary also covers **indexes** (纳指/纳斯达克/标普 get their own board, scored like any ticker but kept off the stock ranking so an index riding along in a post can't dilute the stock beside it) and **diversified investments** (gold, silver, bonds, funds, crypto, FX — e.g. 大黄/Yellow for gold, gated on investment context). Discussion tags such as 理财/定投/资产配置 are extracted separately from assets.
+
+`DEEPSEEK_API_KEY` is optional in a second way: instead of DeepSeek, you can point a coding agent at the corpus over MCP (`infinance/mcp_server.py`) and let it write the ratings — same evidence, same validation, same `stock_analyses` row, only the `model` column differs. See [docs/agent-analyst.md](docs/agent-analyst.md).
