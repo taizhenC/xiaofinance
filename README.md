@@ -1,5 +1,7 @@
 # infinance — 小红书美股热度看板
 
+[![CI](https://github.com/taizhenC/xiaofinance/actions/workflows/ci.yml/badge.svg)](https://github.com/taizhenC/xiaofinance/actions/workflows/ci.yml)
+
 A local personal dashboard that answers: **which US stocks are hot on Xiaohongshu right now, and what do people think of them?**
 
 Data comes from your own XHS account via a pinned [MediaCrawler](https://github.com/NanmiCoder/MediaCrawler) checkout (QR login, no API key). A local dictionary detects stock mentions (~250 tickers with Chinese aliases, retail 黑话 like 老黄/苏妈/牙膏厂, and an ambiguity gate), repost spam is collapsed via simhash clustering, and an LLM summarizes per-stock sentiment — with every rendered quote verified verbatim against its sources. Only content from the **last 24 hours** is analyzed and shown.

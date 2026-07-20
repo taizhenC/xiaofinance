@@ -1,0 +1,87 @@
+name: CI
+
+on:
+  push:
+    branches: [main, roadmap]
+  pull_request:
+
+jobs:
+  # Cross-platform claims (PL-01) are only real if tested per-commit:
+  # the same suite must pass on Windows and macOS. Includes the PL-02
+  # migration tests (frozen-v0 fixture upgraded in place).
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+      - name: Sync dependencies
+        run: uv sync
+      - name: Lint (ruff)
+        run: uv run ruff check infinance tests
+      - name: Tests
+        run: uv run pytest -q
+
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install (locked)
+        run: npm ci --prefix frontend
+      - name: Typecheck + build
+        run: npm run build --prefix frontend
+      - uses: actions/upload-artifact@v4
+        with:
+          name: webui
+          path: infinance/webui/
+          if-no-files-found: error
+
+  # The release artifact: a wheel that ships the built web UI.
+  package:
+    needs: [test, frontend]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+      - name: Build web UI
+        run: npm ci --prefix frontend && npm run build --prefix frontend
+      - name: Build wheel
+        run: uv build --wheel
+      - name: Verify wheel contains the web UI and data files
+        run: |
+          uv run --no-project python - <<'EOF'
+          import glob, sys, zipfile
+          wheel = glob.glob("dist/*.whl")[0]
+          names = zipfile.ZipFile(wheel).namelist()
+          required = [
+              "infinance/webui/index.html",
+              "infinance/data/stock_dict.json",
+              "infinance/data/env.example",
+          ]
+          missing = [r for r in required if r not in names]
+          if missing:
+              sys.exit(f"wheel is missing: {missing}")
+          print(f"{wheel}: ok ({len(names)} files)")
+          EOF
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wheel
+          path: dist/*.whl
+          if-no-files-found: error
