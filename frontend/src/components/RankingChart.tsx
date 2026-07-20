@@ -57,7 +57,7 @@ export function RankingChart({ entries }: { entries: RankingEntry[] }) {
               ? ` · $${e.quote.price} (${e.quote.change_pct > 0 ? "+" : ""}${e.quote.change_pct}%)` : "";
             return (
               `<b style="font-family:${t.mono}">${e.ticker}</b> ${e.name_cn}${px}<br>` +
-              `score ${e.score} · ${S.notesComments(e.note_count, e.comment_count)} ${raw}<br>` +
+              `${S.scoreWord} ${e.score} · ${S.notesComments(e.note_count, e.comment_count)} ${raw}<br>` +
               `${senti}${e.divergence ? `<br>${S.badgeDivergence}` : ""}<br>` +
               `<span style="color:${t.ink3}">${S.detailOpen} →</span>`
             );
