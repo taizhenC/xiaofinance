@@ -5,10 +5,11 @@ import shutil
 import time
 from pathlib import Path
 
-from . import analyze, crawler_runner, dedup, ingest, mentions, prices, scoring, slang_scan
+from . import analyze, dedup, ingest, mentions, prices, scoring, slang_scan
 from . import keywords as keywords_mod
 from .config import settings as default_settings
 from .db import connect, meta_get, meta_set
+from .providers import SearchRequest, get_provider
 from .util import now_ms
 
 log = logging.getLogger(__name__)
@@ -21,7 +22,7 @@ def _tracked_rows(conn):
     return conn.execute("SELECT ticker, custom_keywords FROM tracked_stocks ORDER BY ticker").fetchall()
 
 
-def run_fetch(conn, mode: str, dict_data: dict, settings) -> int | None:
+def run_fetch(conn, mode: str, dict_data: dict, settings, provider=None) -> int | None:
     rotation = None
     if mode == "discovery":
         keywords, rotation = keywords_mod.select_keywords(conn, settings)
@@ -31,6 +32,7 @@ def run_fetch(conn, mode: str, dict_data: dict, settings) -> int | None:
             log.info("no tracked tickers, skipping tracked run")
             return None
 
+    provider = provider or get_provider(settings)
     started = now_ms()
     cur = conn.execute(
         "INSERT INTO fetch_runs(mode, keywords, status, started_at_ms) VALUES(?,?,'running',?)",
@@ -58,33 +60,37 @@ def run_fetch(conn, mode: str, dict_data: dict, settings) -> int | None:
         log_path = run_dir / "crawler.log"
         for i, kw in enumerate(keywords):
             if i and settings.KEYWORD_GAP_MIN > 0:
-                crawler_runner.append_log_line(
+                provider.append_log_line(
                     log_path, f"pausing {settings.KEYWORD_GAP_MIN:g} min before {kw}"
                 )
                 time.sleep(settings.KEYWORD_GAP_MIN * 60)
-            result = crawler_runner.run_crawl([kw], run_dir, settings)
-            captchas += result["captchas"]
-            kw_notes = crawler_runner.keyword_counts(run_dir)[0].get(kw, 0)
-            if crawler_runner.login_looks_required(
-                result["log_path"], kw_notes, start=result["log_start"]
-            ):
+            result = provider.search(SearchRequest(
+                keywords=[kw], run_dir=run_dir,
+                max_notes_per_keyword=settings.MAX_NOTES_PER_KEYWORD,
+                max_comments_per_note=settings.MAX_COMMENTS_PER_NOTE,
+                include_sub_comments=settings.ENABLE_SUB_COMMENTS,
+                timeout_min=settings.CRAWL_TIMEOUT_MIN,
+            ))
+            captchas += result.captchas
+            kw_notes = provider.keyword_counts(run_dir)[0].get(kw, 0)
+            if provider.login_looks_required(result.log_path, kw_notes, start=result.log_start):
                 login_needed = True
                 break
             # Sampled means "don't spend budget here again next cycle": its notes are in,
             # even if the wall then ate the comments.
-            if result["exit_code"] == 0 or kw_notes > 0:
+            if result.exit_code == 0 or kw_notes > 0:
                 sampled.add(kw)
             # risk_controlled is the watcher's kill at CAPTCHA_ABORT_COUNT; the second
             # arm catches the crawler dying on its own after fewer 461s — either way the
             # wall is up, and the keywords behind it are better spent after the cooldown.
-            if result["risk_controlled"] or (result["exit_code"] != 0 and result["captchas"] > 0):
+            if result.risk_controlled or (result.exit_code != 0 and result.captchas > 0):
                 walled = True
                 break
-            if result["timed_out"]:
+            if result.timed_out:
                 failures.append(f"{kw}: timeout after {settings.CRAWL_TIMEOUT_MIN} min")
-            elif result["exit_code"] != 0:
-                failures.append(f"{kw}: " + crawler_runner.failure_reason(
-                    result["log_path"], result["exit_code"], start=result["log_start"]
+            elif result.exit_code != 0:
+                failures.append(f"{kw}: " + provider.failure_reason(
+                    result.log_path, result.exit_code, start=result.log_start
                 ))
         stats = ingest.ingest_run_dir(conn, run_dir, run_id, settings.context_window_ms)
         if login_needed:
@@ -111,7 +117,7 @@ def run_fetch(conn, mode: str, dict_data: dict, settings) -> int | None:
     detail = None
     try:
         detail = json.dumps(
-            crawler_runner.crawl_detail(run_dir, keywords, status), ensure_ascii=False
+            provider.crawl_detail(run_dir, keywords, status), ensure_ascii=False
         )
     except Exception:
         log.exception("run %d: could not build the run detail", run_id)
@@ -170,13 +176,14 @@ def cleanup(conn, settings, now: int | None = None) -> None:
 
 
 def run_cycle(mode: str = "both", skip_crawl: bool = False, settings=None,
-              force_analysis: bool = False) -> dict:
+              force_analysis: bool = False, provider=None) -> dict:
     settings = settings or default_settings
     conn = connect(settings.DB_PATH)
     try:
         dict_data = mentions.load_stock_dict()
         run_ids = []
         if not skip_crawl:
+            provider = provider or get_provider(settings)
             modes = {"both": ["discovery", "tracked"], "discovery": ["discovery"], "tracked": ["tracked"]}[mode]
             for m in modes:
                 if run_ids:
@@ -191,7 +198,7 @@ def run_cycle(mode: str = "both", skip_crawl: bool = False, settings=None,
                         break
                     if settings.KEYWORD_GAP_MIN > 0:
                         time.sleep(settings.KEYWORD_GAP_MIN * 60)
-                rid = run_fetch(conn, m, dict_data, settings)
+                rid = run_fetch(conn, m, dict_data, settings, provider)
                 if rid is not None:
                     run_ids.append(rid)
         last_run_id = run_ids[-1] if run_ids else None

@@ -1,6 +1,6 @@
-from app.config import Settings
-from app.db import meta_get
-from app.keywords import advance_rotation, select_keywords, yield_stats
+from infinance.config import Settings
+from infinance.db import meta_get
+from infinance.keywords import advance_rotation, select_keywords, yield_stats
 
 POOL = "美股医药,美股银行,能源股,黄金股,电动车,巴菲特"
 

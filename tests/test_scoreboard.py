@@ -1,11 +1,11 @@
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
-from app.scoreboard import compute_scoreboard
+from infinance.scoreboard import compute_scoreboard
 
 
 def ms(iso: str) -> int:
-    return int(datetime.fromisoformat(iso).replace(tzinfo=timezone.utc).timestamp() * 1000)
+    return int(datetime.fromisoformat(iso).replace(tzinfo=UTC).timestamp() * 1000)
 
 
 def _analysis(conn, ticker, at_ms, bull, bear, status="ok"):

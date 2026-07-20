@@ -1,7 +1,7 @@
-from app.analyze import build_prompt, gather_items
-from app.dedup import recompute_dedup
-from app.mentions import extract_mentions, load_stock_dict
-from app.util import now_ms, sha256_hex, simhash64, to_signed64
+from infinance.analyze import build_prompt, gather_items
+from infinance.dedup import recompute_dedup
+from infinance.mentions import extract_mentions, load_stock_dict
+from infinance.util import now_ms, sha256_hex, simhash64, to_signed64
 
 H = 3_600_000
 WINDOW = 24 * H

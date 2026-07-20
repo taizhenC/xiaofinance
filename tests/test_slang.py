@@ -1,4 +1,4 @@
-from app.mentions import Matcher, load_stock_dict
+from infinance.mentions import Matcher, load_stock_dict
 
 DICT = load_stock_dict()
 

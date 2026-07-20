@@ -12,7 +12,7 @@ positions in the evidence list, and that list changes as the crawl window slides
 stamps a hash and submit_rating() refuses a rating carrying a stale one, rather than silently
 attaching quotes to the wrong posts.
 
-Run:  .venv/Scripts/python.exe -m app.mcp_server        (stdio; see .mcp.json)
+Run:  .venv/Scripts/python.exe -m infinance.mcp_server        (stdio; see .mcp.json)
 """
 from mcp.server.fastmcp import FastMCP
 

@@ -12,10 +12,11 @@ import json
 import logging
 from pathlib import Path
 
-from . import crawler_runner, dedup, ingest, mentions
+from . import dedup, ingest, mentions
 from . import keywords as keywords_mod
 from .config import settings as default_settings
 from .db import connect
+from .providers import SearchRequest, get_provider
 from .util import now_ms
 
 log = logging.getLogger(__name__)
@@ -41,18 +42,27 @@ def probe_keywords(keywords: list[str], notes_per_keyword: int = 5, settings=Non
         conn.commit()
         run_dir = Path(settings.RAW_DIR) / f"run_{run_id:06d}"
 
-        result = crawler_runner.run_crawl(keywords, run_dir, probe_settings, get_comments=False)
+        provider = get_provider(probe_settings)
+        result = provider.search(SearchRequest(
+            keywords=keywords, run_dir=run_dir,
+            max_notes_per_keyword=probe_settings.MAX_NOTES_PER_KEYWORD,
+            max_comments_per_note=probe_settings.MAX_COMMENTS_PER_NOTE,
+            include_sub_comments=False,
+            timeout_min=probe_settings.CRAWL_TIMEOUT_MIN,
+            get_comments=False,
+        ))
         stats = ingest.ingest_run_dir(conn, run_dir, run_id, settings.context_window_ms)
 
         status = "success"
         error = None
-        if crawler_runner.login_looks_required(result["log_path"], stats["notes_fresh"]):
+        if provider.login_looks_required(result.log_path, stats["notes_fresh"],
+                                         start=result.log_start):
             status, error = "failed", "login_required"
-        elif result["timed_out"]:
+        elif result.timed_out:
             status, error = "partial", f"timeout after {probe_settings.CRAWL_TIMEOUT_MIN} min"
-        elif result["exit_code"] != 0:
+        elif result.exit_code != 0:
             status = "partial" if stats["notes_fresh"] > 0 else "failed"
-            error = f"crawler exit code {result['exit_code']}"
+            error = f"crawler exit code {result.exit_code}"
 
         dedup.recompute_dedup(conn, settings.context_window_ms)
         mentions.extract_mentions(

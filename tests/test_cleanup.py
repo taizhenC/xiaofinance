@@ -1,6 +1,5 @@
-from app.pipeline import RETAIN_CONTENT_DAYS, cleanup
-from app.util import now_ms
-
+from infinance.pipeline import RETAIN_CONTENT_DAYS, cleanup
+from infinance.util import now_ms
 
 DAY = 86_400_000
 

@@ -1,5 +1,9 @@
-from app.crawler_runner import (
-    _CaptchaWatcher, append_log_line, crawl_detail, crawl_progress, failure_reason,
+from infinance.providers.mediacrawler import (
+    _CaptchaWatcher,
+    append_log_line,
+    crawl_detail,
+    crawl_progress,
+    failure_reason,
 )
 
 CAPTCHA = (

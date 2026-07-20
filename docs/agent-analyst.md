@@ -20,7 +20,7 @@ from the project directory and approve the server when prompted. Check it with `
 ```toml
 [mcp_servers.xiaofinance]
 command = "C:\\Coding\\Test\\xiaofinance\\.venv\\Scripts\\python.exe"
-args = ["-m", "app.mcp_server"]
+args = ["-m", "infinance.mcp_server"]
 cwd = "C:\\Coding\\Test\\xiaofinance"
 env = { PYTHONIOENCODING = "utf-8", PYTHONUTF8 = "1" }
 ```

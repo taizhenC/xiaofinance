@@ -1,9 +1,8 @@
 import json
 from types import SimpleNamespace
 
-from app import analyze
-from app.config import settings as default_settings
-
+from infinance import analyze
+from infinance.config import settings as default_settings
 
 ITEMS = [{
     "type": "note",

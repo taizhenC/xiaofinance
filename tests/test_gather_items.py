@@ -1,5 +1,5 @@
-from app.analyze import gather_items
-from app.util import now_ms, simhash64, to_signed64
+from infinance.analyze import gather_items
+from infinance.util import now_ms, simhash64, to_signed64
 
 H = 3_600_000
 WINDOW = 24 * H

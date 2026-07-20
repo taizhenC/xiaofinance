@@ -1,4 +1,4 @@
-from app.mentions import Matcher, load_stock_dict, mask_traps
+from infinance.mentions import Matcher, load_stock_dict, mask_traps
 
 DICT = load_stock_dict()
 
@@ -100,8 +100,8 @@ def test_a_dictionary_fix_can_unmake_a_mention_it_used_to_make(conn):
     bad alias or adding a trap left every false positive it had ever produced sitting in the DB
     until the note aged out of the window. This is what made the 高通/提高通过率 phantom
     survive its own fix."""
-    from app.mentions import extract_mentions
-    from app.util import now_ms, simhash64, to_signed64
+    from infinance.mentions import extract_mentions
+    from infinance.util import now_ms, simhash64, to_signed64
 
     now = now_ms()
     window = 24 * 3_600_000

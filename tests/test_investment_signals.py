@@ -1,4 +1,4 @@
-from app.mentions import (
+from infinance.mentions import (
     Matcher,
     extract_mentions,
     extract_topic_tags,
@@ -6,8 +6,8 @@ from app.mentions import (
     load_stock_dict,
     topic_breakdown,
 )
-from app.scoring import compute_stats, index_board, ranking_and_radar
-from app.util import now_ms
+from infinance.scoring import compute_stats, index_board, ranking_and_radar
+from infinance.util import now_ms
 
 H = 3_600_000
 WINDOW = 24 * H

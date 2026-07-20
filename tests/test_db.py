@@ -1,6 +1,6 @@
 import sqlite3
 
-from app.db import connect
+from infinance.db import connect
 
 
 def test_an_old_database_gains_the_detail_column_on_connect(tmp_path):

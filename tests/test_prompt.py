@@ -1,4 +1,4 @@
-from app.analyze import build_prompt
+from infinance.analyze import build_prompt
 
 ITEMS = [{"type": "note", "id": "n1", "text": "英伟达财报炸裂，继续持有",
           "likes": 5, "ts": 0, "url": None, "cluster_size": 1}]

@@ -1,7 +1,7 @@
-from app.dedup import recompute_dedup
-from app.mentions import extract_mentions, is_aside, load_stock_dict
-from app.scoring import compute_stats, is_rankable
-from app.util import now_ms, simhash64, to_signed64
+from infinance.dedup import recompute_dedup
+from infinance.mentions import extract_mentions, is_aside, load_stock_dict
+from infinance.scoring import compute_stats, is_rankable
+from infinance.util import now_ms, simhash64, to_signed64
 
 H = 3_600_000
 WINDOW = 24 * H

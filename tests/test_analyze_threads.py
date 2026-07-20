@@ -1,8 +1,8 @@
-from app.analyze import gather_items
-from app.dedup import recompute_dedup
-from app.mentions import extract_mentions, load_stock_dict
-from app.scoring import compute_stats
-from app.util import now_ms, simhash64, to_signed64
+from infinance.analyze import gather_items
+from infinance.dedup import recompute_dedup
+from infinance.mentions import extract_mentions, load_stock_dict
+from infinance.scoring import compute_stats
+from infinance.util import now_ms, simhash64, to_signed64
 
 H = 3_600_000
 WINDOW = 24 * H

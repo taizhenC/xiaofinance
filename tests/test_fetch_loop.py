@@ -5,10 +5,20 @@ and the cursor skipped them anyway."""
 
 import json
 
-from app import keywords as keywords_mod
-from app import pipeline
-from app.config import Settings
-from app.util import now_ms
+from infinance import keywords as keywords_mod
+from infinance import pipeline
+from infinance.config import Settings
+from infinance.providers import RunResult
+from infinance.providers.mediacrawler import (
+    MediaCrawlerProvider as _MCP,
+)
+from infinance.providers.mediacrawler import (
+    append_log_line,
+    crawl_detail,
+    failure_reason,
+    keyword_counts,
+)
+from infinance.util import now_ms
 
 
 def make_settings(tmp_path, **kw):
@@ -61,11 +71,44 @@ class FakeCrawler:
         }
 
 
+class FakeProvider:
+    """Interface wrapper around FakeCrawler: search() is scripted, while the
+    artifact readers are the real ones — they parse what the fake wrote."""
+
+    def __init__(self, fake: "FakeCrawler", settings):
+        self.fake = fake
+        self.settings = settings
+
+    def search(self, req) -> RunResult:
+        out = self.fake(req.keywords, req.run_dir, self.settings,
+                        get_comments=req.get_comments)
+        return RunResult(
+            exit_code=out["exit_code"], timed_out=out["timed_out"], cancelled=False,
+            log_path=out["log_path"], risk_controlled=out["risk_controlled"],
+            captchas=out["captchas"], log_start=out["log_start"],
+        )
+
+    def keyword_counts(self, run_dir):
+        return keyword_counts(run_dir)
+
+    def crawl_detail(self, run_dir, keywords, status):
+        return crawl_detail(run_dir, keywords, status)
+
+    def failure_reason(self, log_path, exit_code, start=0):
+        return failure_reason(log_path, exit_code, start)
+
+    def append_log_line(self, log_path, message):
+        append_log_line(log_path, message)
+
+    def login_looks_required(self, log_path, notes_fresh, start=0):
+        return _MCP.login_looks_required(self, log_path, notes_fresh, start)
+
+
 def run(conn, tmp_path, monkeypatch, script, **settings_kw):
     s = make_settings(tmp_path, **settings_kw)
     fake = FakeCrawler(script)
-    monkeypatch.setattr(pipeline.crawler_runner, "run_crawl", fake)
-    run_id = pipeline.run_fetch(conn, "discovery", {"stocks": []}, s)
+    run_id = pipeline.run_fetch(conn, "discovery", {"stocks": []}, s,
+                                provider=FakeProvider(fake, s))
     row = conn.execute("SELECT * FROM fetch_runs WHERE id=?", (run_id,)).fetchone()
     return fake, row, s
 

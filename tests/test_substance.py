@@ -1,5 +1,5 @@
-from app.analyze import pick_quotes
-from app.util import is_bot_prompt, substance
+from infinance.analyze import pick_quotes
+from infinance.util import is_bot_prompt, substance
 
 
 def test_hashtag_only_note_has_no_substance():

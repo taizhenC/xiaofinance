@@ -1,8 +1,8 @@
-from app.config import Settings
-from app.dedup import recompute_dedup
-from app.mentions import extract_mentions, load_stock_dict
-from app.scoring import compute_stats, radar_entries, ranking_and_radar, sector_breakdown
-from app.util import now_ms, simhash64, to_signed64
+from infinance.config import Settings
+from infinance.dedup import recompute_dedup
+from infinance.mentions import extract_mentions, load_stock_dict
+from infinance.scoring import compute_stats, radar_entries, ranking_and_radar, sector_breakdown
+from infinance.util import now_ms, simhash64, to_signed64
 
 H = 3_600_000
 BOARD = 24 * H

@@ -1,13 +1,13 @@
-from app.dedup import recompute_dedup
-from app.mentions import extract_mentions, index_tickers, load_stock_dict, non_stock_tickers
-from app.scoring import (
+from infinance.dedup import recompute_dedup
+from infinance.mentions import extract_mentions, index_tickers, load_stock_dict, non_stock_tickers
+from infinance.scoring import (
     compute_stats,
     fanout,
     index_board,
     ranking_and_radar,
     sector_breakdown,
 )
-from app.util import now_ms, simhash64, to_signed64
+from infinance.util import now_ms, simhash64, to_signed64
 
 H = 3_600_000
 WINDOW = 24 * H

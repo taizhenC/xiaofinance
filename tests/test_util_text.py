@@ -1,4 +1,4 @@
-from app.util import clean_tags, note_text, strip_hashtags
+from infinance.util import clean_tags, note_text, strip_hashtags
 
 
 def test_note_text_drops_repeated_title():

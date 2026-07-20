@@ -1,5 +1,5 @@
-from app.mentions import Matcher, build_tracked_keywords, extract_mentions, load_stock_dict
-from app.util import now_ms
+from infinance.mentions import Matcher, build_tracked_keywords, extract_mentions, load_stock_dict
+from infinance.util import now_ms
 
 H = 3_600_000
 

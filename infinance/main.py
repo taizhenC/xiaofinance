@@ -11,9 +11,10 @@ from fastapi import Body, FastAPI, HTTPException, Query
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from . import analyze, crawler_runner, mentions, pipeline, prices, scoreboard, scoring
+from . import analyze, mentions, pipeline, prices, scoreboard, scoring
 from .config import BASE_DIR, settings
 from .db import connect
+from .providers import get_provider
 from .util import now_ms
 
 log = logging.getLogger(__name__)
@@ -114,7 +115,7 @@ def _with_progress(row) -> dict:
     r = dict(row)
     r.pop("detail", None)  # multi-KB blob; served by /api/runs/{id}/detail on demand
     if r.get("status") == "running" and r.get("raw_dir"):
-        r["progress"] = crawler_runner.crawl_progress(
+        r["progress"] = get_provider(settings).crawl_progress(
             Path(r["raw_dir"]), [k for k in (r.get("keywords") or "").split(",") if k],
             settings.MAX_NOTES_PER_KEYWORD,
         )
@@ -459,7 +460,7 @@ def api_run_detail(run_id: int):
         kws = [k for k in (r.get("keywords") or "").split(",") if k]
         detail = None
         if r.get("raw_dir") and Path(r["raw_dir"]).exists():
-            detail = crawler_runner.crawl_detail(Path(r["raw_dir"]), kws, r["status"])
+            detail = get_provider(settings).crawl_detail(Path(r["raw_dir"]), kws, r["status"])
         elif r.get("detail"):
             detail = json.loads(r["detail"])
         return {

@@ -1,4 +1,4 @@
-from app.util import hamming64, normalize_ts, parse_cn_count, simhash64
+from infinance.util import hamming64, normalize_ts, parse_cn_count, simhash64
 
 
 def test_parse_cn_count():

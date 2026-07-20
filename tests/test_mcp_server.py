@@ -2,11 +2,11 @@ import json
 
 import pytest
 
-from app import mcp_server as M
-from app.db import connect as db_connect
-from app.dedup import recompute_dedup
-from app.mentions import extract_mentions, load_stock_dict
-from app.util import now_ms, sha256_hex, simhash64, to_signed64
+from infinance import mcp_server as M
+from infinance.db import connect as db_connect
+from infinance.dedup import recompute_dedup
+from infinance.mentions import extract_mentions, load_stock_dict
+from infinance.util import now_ms, sha256_hex, simhash64, to_signed64
 
 H = 3_600_000
 DICT = load_stock_dict()
@@ -90,8 +90,8 @@ def test_a_rating_built_on_stale_evidence_is_refused(corpus):
 
 
 def test_pending_ratings_does_not_count_a_keyless_fallback_as_rated(corpus, monkeypatch):
-    from app.analyze import analyze_ticker
-    from app.config import settings
+    from infinance.analyze import analyze_ticker
+    from infinance.config import settings
 
     monkeypatch.setattr(settings, "DEEPSEEK_API_KEY", "")
     analyze_ticker(corpus, "SKHY", settings)  # no API key -> writes a no_api_key row
@@ -122,7 +122,7 @@ def test_the_two_hashes_answer_different_questions():
 
     evidence_hash asks "does item [3] still mean what it meant?" — and it does not, the moment
     the list reorders. Using input_hash for that was the bug this test exists to prevent."""
-    from app.analyze import evidence_hash, input_hash
+    from infinance.analyze import evidence_hash, input_hash
 
     a = [{"type": "note", "id": "A"}, {"type": "note", "id": "B"}, {"type": "note", "id": "C"}]
     reshuffled = [a[2], a[0], a[1]]  # C went viral; same three posts, new ranking
@@ -158,8 +158,8 @@ def test_a_crawl_does_not_bury_the_agents_rating_under_a_keyless_fallback(corpus
     the keyless branch of analyze_ticker fires and writes a no_api_key row — quotes, no
     judgement — which becomes the newest row and therefore the card. The agent's rating would
     silently vanish within hours of being written, every time."""
-    from app.analyze import analyze_ticker
-    from app.config import settings
+    from infinance.analyze import analyze_ticker
+    from infinance.config import settings
 
     monkeypatch.setattr(settings, "DEEPSEEK_API_KEY", "")
 
@@ -195,8 +195,8 @@ def test_a_crawl_does_not_bury_the_agents_rating_under_a_keyless_fallback(corpus
 
 def test_a_ticker_nobody_has_rated_still_gets_its_fallback_quotes(corpus, monkeypatch):
     """The fallback is not dead code — it is what a keyless card shows when no judgement exists."""
-    from app.analyze import analyze_ticker
-    from app.config import settings
+    from infinance.analyze import analyze_ticker
+    from infinance.config import settings
 
     monkeypatch.setattr(settings, "DEEPSEEK_API_KEY", "")
     assert analyze_ticker(corpus, "SKHY", settings) == "no_api_key"

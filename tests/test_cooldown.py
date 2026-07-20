@@ -1,7 +1,7 @@
 from types import SimpleNamespace
 
-from app.db import connect
-from app.pipeline import risk_cooldown_until
+from infinance.db import connect
+from infinance.pipeline import risk_cooldown_until
 
 NOW = 1_783_887_669_377
 WALL = "stopped after 12 CAPTCHAs — XHS is rate-limiting the account"

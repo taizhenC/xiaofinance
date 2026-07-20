@@ -7,7 +7,7 @@ baseline session (1d) and the first close >= 7 calendar days later (7d).
 Calls too recent to have an outcome stay pending and don't count."""
 
 import json
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from .util import now_ms
 
@@ -17,7 +17,7 @@ MAX_CALLS_SHOWN = 50
 
 
 def _utc_date(ms: int) -> str:
-    return datetime.fromtimestamp(ms / 1000, tz=timezone.utc).date().isoformat()
+    return datetime.fromtimestamp(ms / 1000, tz=UTC).date().isoformat()
 
 
 def _collect_calls(conn, since_ms: int) -> list[dict]:

@@ -1,8 +1,8 @@
 import json
 
-from app.config import settings
-from app.mentions import load_stock_dict
-from app.scoring import sector_breakdown
+from infinance.config import settings
+from infinance.mentions import load_stock_dict
+from infinance.scoring import sector_breakdown
 
 
 def test_sector_breakdown_shares_and_leaders():

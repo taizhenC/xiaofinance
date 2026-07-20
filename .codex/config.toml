@@ -2,7 +2,7 @@
 command = ".venv/Scripts/python.exe"
 args = [
     "-m",
-    "app.mcp_server",
+    "infinance.mcp_server",
 ]
 
 [mcp_servers.xiaofinance.env]

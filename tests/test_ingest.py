@@ -1,7 +1,7 @@
 import json
 
-from app.ingest import ingest_run_dir
-from app.util import norm_for_hash, now_ms, simhash64, to_signed64
+from infinance.ingest import ingest_run_dir
+from infinance.util import norm_for_hash, now_ms, simhash64, to_signed64
 
 H = 3_600_000
 DAY = 24 * H
