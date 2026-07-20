@@ -7,3 +7,7 @@ __pycache__/
 *.pyc
 .venv/
 .pytest_cache/
+
+# git worktrees live here; they are separate checkouts, not content
+.claude/worktrees/
+.codex-remote-attachments

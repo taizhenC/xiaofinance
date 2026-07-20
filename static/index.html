@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>infinance — XHS 美股热度</title>
+<title>infinance — XHS 投资热度</title>
 <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
@@ -14,7 +14,10 @@
     <span class="badge badge-window" id="windowBadge">window: last 24h</span>
   </div>
   <div class="topbar-status">
-    <span id="lastFetch" class="muted">last fetch: —</span>
+    <div class="fetch-status">
+      <span id="lastFetch" class="muted">last fetch: —</span>
+      <div id="crawlBar" class="crawl-bar" hidden></div>
+    </div>
     <span id="nextRun" class="muted"></span>
     <button id="fetchBtn" class="btn btn-primary">
       <span class="spinner" id="fetchSpinner" hidden></span>
@@ -31,9 +34,33 @@
 </div>
 
 <main>
+  <section class="panel" id="indexPanel" hidden>
+    <div class="panel-head">
+      <h2>大盘 / 指数 <span class="muted small">指数与ETF · 单独计分，不参与个股榜</span></h2>
+      <span id="indexNote" class="muted small"></span>
+    </div>
+    <div id="indexStrip" class="index-row"></div>
+  </section>
+
+  <section class="panel investment-panel" id="investmentPanel" hidden>
+    <div class="panel-head">
+      <h2>多元投资 <span class="muted small">黄金 · 债券 · 基金 · 加密资产 · 外汇</span></h2>
+      <span id="investmentNote" class="muted small"></span>
+    </div>
+    <div id="investmentStrip" class="index-row"></div>
+  </section>
+
+  <section class="panel" id="topicPanel" hidden>
+    <div class="panel-head">
+      <h2>投资主题 <span class="muted small">从正文与话题标签提取 · 理财仅作标签，不单独宽搜</span></h2>
+      <span id="topicNote" class="muted small"></span>
+    </div>
+    <div id="topicStrip" class="topic-row"></div>
+  </section>
+
   <section class="panel">
     <div class="panel-head">
-      <h2>热度排行 <span class="muted small">popularity score, 24h</span></h2>
+      <h2>个股热度排行 <span class="muted small">popularity score, 24h</span></h2>
       <span class="legend-inline">
         <i class="dot" style="background:#26a877"></i>偏多
         <i class="dot" style="background:#e05252"></i>偏空
@@ -44,8 +71,17 @@
     <div id="rankingEmpty" class="empty" hidden>还没有数据 — 点右上角 Fetch now 抓一轮（首次需要先扫码登录）。</div>
   </section>
 
+  <section class="panel" id="sectorPanel" hidden>
+    <div class="panel-head">
+      <h2>板块构成 <span class="muted small">板块占比与领跑个股 · <span id="sectorWindow">近 72h</span></span></h2>
+      <span id="sectorConcentration" class="muted small"></span>
+    </div>
+    <div id="sectorBar" class="sector-bar"></div>
+    <div id="sectorLeaders" class="chip-row"></div>
+  </section>
+
   <section class="panel" id="radarPanel" hidden>
-    <div class="panel-head"><h2>On the radar <span class="muted small">提及数低于分析门槛的票</span></h2></div>
+    <div class="panel-head"><h2>On the radar <span class="muted small">未上榜但被提及 · <span id="radarWindow">近 72h</span></span></h2></div>
     <div id="radarStrip" class="chip-row"></div>
   </section>
 
@@ -72,7 +108,7 @@
   </details>
 
   <details class="panel collapsible">
-    <summary>抓取记录</summary>
+    <summary>抓取记录 <span class="muted small">点击行展开：每个关键词抓到多少、死在哪里、报了什么错</span></summary>
     <div class="table-wrap"><table id="runsTable">
       <thead><tr><th>#</th><th>mode</th><th>status</th><th>fresh</th><th>时长</th><th>开始时间</th><th>error</th></tr></thead>
       <tbody></tbody>
@@ -81,7 +117,7 @@
 </main>
 
 <footer class="muted small">
-  数据来自你自己的小红书账号，仅显示最近24小时内容 · 本工具仅供个人学习研究
+  数据来自你自己的小红书账号，仅显示最近24小时内容 · 舆论信号不构成投资建议 · 本工具仅供个人学习研究
 </footer>
 
 <script src="/static/vendor/echarts.min.js"></script>

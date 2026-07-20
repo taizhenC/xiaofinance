@@ -33,14 +33,67 @@ async function api(path, opts) {
 }
 
 /* ---------- status + polling ---------- */
+const PHASE_CN = {
+  search: "搜索帖子", note_details: "抓帖子详情", comments: "抓评论",
+  login: "等待登录", starting: "启动中", paused: "关键词间歇（防风控）",
+};
+
+// The crawl throttles itself to one request per 8s on purpose (account risk), so raw
+// counts move slowly and a keyword's note count freezes entirely while its comments
+// fetch. Estimate within-keyword progress as 35% notes + 65% comment coverage, and show
+// a heartbeat off the log file so "slow by design" stays distinguishable from "hung".
+function crawlFraction(p) {
+  const total = p.keyword_total || 1;
+  const kIdx = p.keyword_index || 0;
+  if (!kIdx) return 0;
+  const cur = (p.per_keyword || [])[kIdx - 1];
+  const notes = cur ? cur.notes : 0;
+  const noteFrac = Math.min(1, notes / (p.target_per_keyword || 20));
+  const cmtFrac = notes ? Math.min(1, (p.kw_comment_notes_done || 0) / notes) : 0;
+  return Math.min(1, (kIdx - 1 + 0.35 * noteFrac + 0.65 * cmtFrac) / total);
+}
+function renderCrawlProgress(s, p) {
+  const kIdx = p.keyword_index || 0;
+  const pct = Math.round(crawlFraction(p) * 100);
+  const mins = s.last_run.started_at_ms ? Math.round((s.now_ms - s.last_run.started_at_ms) / 60000) : null;
+  const kw = p.keyword ? ` · ${kIdx || "?"}/${p.keyword_total}「${esc(p.keyword)}」` : "";
+  const phase = PHASE_CN[p.phase] ? ` · ${PHASE_CN[p.phase]}` : "";
+  const idle = p.last_activity_ms != null ? Math.max(0, s.now_ms - p.last_activity_ms) : null;
+  // silence during the between-keyword pause is by design, not a hang
+  const heart = idle == null || p.phase === "paused" ? ""
+    : idle > 90000 ? ` · <b class="warn">无活动 ${Math.round(idle / 60000)}分钟</b>`
+    : ` · <span class="pulse-dot"></span>${idle < 8000 ? "刚刚" : Math.round(idle / 1000) + "秒前"}`;
+  const risk = p.captchas ? ` · <b class="warn">⚠ 风控验证码×${p.captchas}</b>` : "";
+  $("#lastFetch").innerHTML =
+    `抓取中 ${pct}%${mins != null ? `（已${mins}分）` : ""} · ${p.notes}帖/${p.comments}评${kw}${phase}${heart}${risk}`;
+
+  const bar = $("#crawlBar");
+  bar.hidden = false;
+  bar.innerHTML = (p.per_keyword || []).map((k, i) => {
+    const n = i + 1;
+    const fill = kIdx && n < kIdx ? 100
+      : n === kIdx ? Math.round((0.35 * Math.min(1, k.notes / (p.target_per_keyword || 20))
+        + 0.65 * (k.notes ? Math.min(1, (p.kw_comment_notes_done || 0) / k.notes) : 0)) * 100)
+      : 0;
+    return `<span class="crawl-seg${n === kIdx ? " active" : ""}" title="${esc(k.keyword)}: ${k.notes}帖/${k.comments}评"><i style="width:${fill}%"></i></span>`;
+  }).join("");
+}
+
 async function loadStatus() {
   const { data: s } = await api("/api/status");
   $("#windowBadge").textContent = `window: last ${s.window_hours}h`;
-  $("#lastFetch").textContent = s.last_run
-    ? `last fetch: ${localTime(s.last_run.finished_at_ms || s.last_run.started_at_ms)} (${s.last_run.status})`
-    : "last fetch: never";
-  $("#nextRun").textContent =
-    s.scheduler.enabled && s.scheduler.next_run_at_ms
+  const p = s.running && s.last_run ? s.last_run.progress : null;
+  if (p) {
+    renderCrawlProgress(s, p);
+  } else {
+    $("#crawlBar").hidden = true;
+    $("#lastFetch").textContent = s.last_run
+      ? `last fetch: ${localTime(s.last_run.finished_at_ms || s.last_run.started_at_ms)} (${s.last_run.status})`
+      : "last fetch: never";
+  }
+  $("#nextRun").textContent = s.scheduler.cooldown_until_ms
+    ? `auto-runs paused until ${localTime(s.scheduler.cooldown_until_ms)} — CAPTCHA cooldown (Fetch now still works)`
+    : s.scheduler.enabled && s.scheduler.next_run_at_ms
       ? `next auto-run: ${localTime(s.scheduler.next_run_at_ms)}`
       : "";
   $("#loginBanner").hidden = !s.login_required;
@@ -49,6 +102,7 @@ async function loadStatus() {
   $("#fetchSpinner").hidden = !s.running;
   $("#fetchBtnLabel").textContent = s.running ? "抓取中…" : "Fetch now";
 
+  if (s.running) loadRuns().catch(console.error);
   if (wasRunning && !s.running) refreshData(); // cycle just finished
   wasRunning = s.running;
   schedulePoll(s.running ? 3000 : 30000);
@@ -64,8 +118,8 @@ function schedulePoll(ms) {
 function trendLabel(tr) {
   if (!tr) return "";
   if (tr.dir === "new") return "🔥 新上榜";
-  if (tr.dir === "up") return `↑ 升温 +${tr.delta_pct}%`;
-  if (tr.dir === "down") return `↓ 降温 ${tr.delta_pct}%`;
+  if (tr.dir === "up") return tr.delta_pct == null ? "↑ 升温" : `↑ 升温 +${tr.delta_pct}%`;
+  if (tr.dir === "down") return tr.delta_pct == null ? "↓ 降温" : `↓ 降温 ${tr.delta_pct}%`;
   return "";
 }
 function trendBadge(tr) {
@@ -78,7 +132,8 @@ function trendBadge(tr) {
 
 /* ---------- price reality check (Stooq daily closes) ---------- */
 function quoteText(q) {
-  if (!q || q.change_pct == null) return "";
+  if (!q || q.price == null) return "";
+  if (q.change_pct == null) return `$${q.price}`;
   const sign = q.change_pct > 0 ? "+" : "";
   return `$${q.price} (${sign}${q.change_pct}%)`;
 }
@@ -87,7 +142,8 @@ function quoteBadge(e) {
   if (!q || q.change_pct == null) return "";
   const col = q.change_pct > 0 ? BULL : q.change_pct < 0 ? BEAR : NEUT;
   const sign = q.change_pct > 0 ? "+" : "";
-  return `<span class="badge" title="最近交易日收盘 vs 前一交易日（${esc(q.market_date)}，Yahoo 免费数据，非实时）">股价 $${q.price} <b style="color:${col}">${sign}${q.change_pct}%</b></span>`;
+  const label = e.asset_class === "stock" ? "股价" : "行情";
+  return `<span class="badge" title="最近交易日收盘 vs 前一交易日（${esc(q.market_date)}，Yahoo 免费数据，非实时）">${label} $${q.price} <b style="color:${col}">${sign}${q.change_pct}%</b></span>`;
 }
 function divergenceBadge(e) {
   if (!e.divergence) return "";
@@ -128,6 +184,7 @@ function renderRanking(entries) {
   const rows = [...withData].sort((a, b) => a.score - b.score); // bottom-up for horizontal bars
   rankingChart.setOption({
     backgroundColor: "transparent",
+    animation: !window.matchMedia("(prefers-reduced-motion: reduce)").matches,
     grid: { left: 8, right: 30, top: 6, bottom: 22, containLabel: true },
     xAxis: {
       type: "value",
@@ -183,6 +240,9 @@ function sentiLegend(sc) {
 function cardHtml(e, d) {
   const a = d.analysis;
   const meta = [];
+  const assetLabel = ASSET_LABELS[e.asset_class] || "个股";
+  meta.push(`<span class="badge badge-asset asset-${esc(e.asset_class || "stock")}">${assetLabel}</span>`);
+  (d.topics || []).forEach((tag) => meta.push(`<span class="badge">#${esc(tag)}</span>`));
   const tb = trendBadge(e.trend);
   if (tb) meta.push(tb);
   const qb = quoteBadge(e);
@@ -253,6 +313,7 @@ function renderDonut(ticker, sc) {
   const net = sc.bullish - sc.bearish;
   chart.setOption({
     backgroundColor: "transparent",
+    animation: !window.matchMedia("(prefers-reduced-motion: reduce)").matches,
     series: [{
       type: "pie",
       radius: ["62%", "85%"],
@@ -289,9 +350,114 @@ async function buildCards(entries) {
   });
 }
 
+/* ---------- sectors ---------- */
+const SECTOR_COLORS = {
+  半导体: "#4c8dff", 科技: "#3fb0ac", 中概: "#e0574f", 金融: "#c9a227",
+  医药: "#8a63d2", 消费: "#e08a3c", 汽车: "#5aa9e6", 能源电力: "#2f9e6e",
+  工业军工: "#7d8590", 加密: "#d9a441", 旅游航空: "#b06fbd", 题材: "#9c6b4f",
+  ETF指数: "#5d6673", 其他: "#495057",
+};
+const ASSET_LABELS = {
+  stock: "个股", index: "指数 / ETF", commodity: "贵金属",
+  bond: "固定收益", fund: "基金", crypto: "加密资产", forex: "外汇",
+};
+const sectorColor = (s) => SECTOR_COLORS[s] || "#495057";
+
+function renderSectors(sectors, windows) {
+  const shown = (sectors || []).filter((s) => s.share > 0);
+  $("#sectorPanel").hidden = shown.length === 0;
+  if (!shown.length) return;
+
+  const hours = windows?.context_hours ?? 72;
+  $("#sectorWindow").textContent = `近 ${hours}h`;
+
+  // One sector owning most of the board isn't a bug to hide — it's the headline, and the
+  // number is here so it can't be mistaken for broad-based interest.
+  const top = shown[0];
+  $("#sectorConcentration").textContent =
+    top.share >= 50 ? `${top.sector} 占 ${top.share}% — 讨论高度集中` : `${shown.length} 个板块有讨论`;
+
+  $("#sectorBar").innerHTML = shown.map((s) =>
+    `<span class="sector-seg" style="width:${s.share}%;background:${sectorColor(s.sector)}"
+           title="${esc(s.sector)} ${s.share}% · ${s.tickers}只 · ${s.mentions}次提及"></span>`
+  ).join("");
+
+  $("#sectorLeaders").innerHTML = shown.map((s) => {
+    const l = s.leader;
+    if (!l) return "";
+    const faint = l.focused_mentions < 1 ? ' style="opacity:.55"' : "";
+    const why = l.focused_mentions < 1 ? " title=\"只在盘点/标签里被提到，没有专门讨论\"" : "";
+    return `<span class="chip"${faint}${why}>
+      <i class="dot" style="background:${sectorColor(s.sector)}"></i>${esc(s.sector)}
+      <span class="muted small">${s.share}%</span>
+      <span class="tk">${l.ticker}</span> ${esc(l.name_cn || "")}
+      <span class="muted small">·${l.mentions}</span>
+    </span>`;
+  }).join("");
+}
+
+/* ---------- 大盘 / indexes ---------- */
+// Index talk is most of what XHS says about US markets — 纳指 and 标普 outrun every company
+// name in the corpus. On the stock board it would bury the stocks; hidden, it was the
+// largest thing the dashboard could not see. So: its own strip, its own scale.
+function renderAssetStrip(entries, panelSelector, stripSelector, noteSelector) {
+  const rows = entries || [];
+  $(panelSelector).hidden = rows.length === 0;
+  if (!rows.length) return;
+
+  const commentShare = rows.reduce((n, e) => n + (e.comment_count || 0), 0);
+  $(noteSelector).textContent = commentShare
+    ? `${rows.length} 项 · 其中 ${commentShare} 次来自评论区`
+    : `${rows.length} 项`;
+
+  $(stripSelector).innerHTML = rows.map((e) => {
+    const sc = e.sentiment_counts;
+    const senti = sc
+      ? `<span class="senti"><b style="color:${BULL}">${sc.bullish || 0}</b>/<b style="color:${BEAR}">${sc.bearish || 0}</b>/<b style="color:${NEUT}">${sc.neutral || 0}</b></span>`
+      : "";
+    return `<div class="index-cell">
+      <div class="index-top">
+        <span class="tk">${e.ticker}</span>
+        <span class="muted small">${esc(e.name_cn || "")}</span>
+        ${trendBadge(e.trend)}
+      </div>
+      <div class="index-score">${e.score}</div>
+      <div class="index-meta">
+        <span class="muted small" title="${e.note_count} 帖 · ${e.comment_count} 评">${e.mentions} 次提及</span>
+        ${quoteBadge(e)}
+        ${senti}
+      </div>
+    </div>`;
+  }).join("");
+}
+
+function renderIndexes(indexes) {
+  renderAssetStrip(indexes, "#indexPanel", "#indexStrip", "#indexNote");
+}
+
+function renderInvestments(investments) {
+  renderAssetStrip(
+    investments, "#investmentPanel", "#investmentStrip", "#investmentNote"
+  );
+}
+
+function renderTopics(topics, windows) {
+  const rows = topics || [];
+  $("#topicPanel").hidden = rows.length === 0;
+  if (!rows.length) return;
+  $("#topicNote").textContent = `近 ${windows?.board_hours ?? 24}h · ${rows.length} 个主题`;
+  $("#topicStrip").innerHTML = rows.map((topic) =>
+    `<span class="topic-chip" title="相关帖子累计 ${topic.likes} 赞">
+      <span>#${esc(topic.tag)}</span><b>${topic.mentions}</b>
+    </span>`
+  ).join("");
+}
+
 /* ---------- radar / tracked / suggestions / runs ---------- */
-function renderRadar(radar) {
+function renderRadar(radar, windows) {
   $("#radarPanel").hidden = radar.length === 0;
+  const rw = $("#radarWindow");
+  if (rw) rw.textContent = `近 ${windows?.context_hours ?? 72}h`;
   $("#radarStrip").innerHTML = radar.map((r) =>
     `<span class="chip" title="${esc(r.top_quote || "")}">
        ${r.trend?.dir === "new" ? "🔥 " : ""}<span class="tk">${r.ticker}</span> ${esc(r.name_cn)} ·${r.mentions}
@@ -346,18 +512,94 @@ async function loadScoreboard() {
     `<div class="table-wrap"><table><thead><tr><th>日期</th><th>ticker</th><th>舆论</th><th>次日</th><th>7日</th></tr></thead><tbody>${rows}</tbody></table></div>`;
 }
 
+function progressNote(p) {
+  const bits = [];
+  if (p.keyword) bits.push(`关键词 ${p.keyword_index || "?"}/${p.keyword_total}「${esc(p.keyword)}」`);
+  if (PHASE_CN[p.phase]) bits.push(PHASE_CN[p.phase]);
+  // A crawl that is being CAPTCHA'd still returns rows, just slower and slower — say so
+  // while it happens instead of only in the post-mortem error column.
+  if (p.captchas) bits.push(`<b class="warn">⚠ 风控验证码 ×${p.captchas}</b>`);
+  if (p.last_error) bits.push(`<span class="muted" title="${esc(p.last_error)}">${esc(p.last_error.slice(0, 60))}…</span>`);
+  return bits.join(" · ");
+}
+
+/* Run rows expand on click into the run's anatomy: which keyword each count came from,
+   where a dead run died, and the crawler's own last words. */
+const openRuns = new Set();
+const runDetailCache = new Map();
+
+const KW_STATE = {
+  done: ["✓", ""], current: ["▶", ""],
+  died_here: ["✖", " — 死在这里"], not_reached: ["·", " 未开始"],
+};
+function runDetailHtml(d) {
+  if (!d?.detail) return '<span class="muted small">原始文件已清理，没有留下更多细节。</span>';
+  const det = d.detail;
+  const kws = det.keywords.map((k) => {
+    const [icon, suffix] = KW_STATE[k.state] || ["·", ""];
+    const counts = k.state === "not_reached" ? "" : ` ${k.notes}帖/${k.comments}评`;
+    return `<span class="kw-chip kw-${k.state}" title="${k.started_at ? `开始于 ${esc(k.started_at)}` : "未开始"}">${icon} ${esc(k.keyword)}${counts}${suffix}</span>`;
+  }).join("");
+  const cap = det.captchas ? `<div class="warn small">⚠ 风控验证码 ×${det.captchas}</div>` : "";
+  const excs = (det.exceptions || []).map((e) => `<div class="exc-line">${esc(e)}</div>`).join("");
+  const errs = (det.errors || []).map((e) => `<div class="exc-line muted">${esc(e)}</div>`).join("");
+  const tail = det.log_tail
+    ? `<details class="log-tail"><summary class="muted small">crawler.log 末尾</summary><pre>${esc(det.log_tail)}</pre></details>`
+    : "";
+  return `<div class="run-detail"><div class="chip-row">${kws}</div>${cap}${excs || errs ? `<div class="exc-block">${excs}${errs}</div>` : ""}${tail}</div>`;
+}
+
+function insertRunDetailRow(tr, id, html) {
+  const row = document.createElement("tr");
+  row.id = `run-detail-${id}`;
+  row.className = "run-detail-row";
+  row.innerHTML = `<td colspan="7">${html}</td>`;
+  tr.after(row);
+}
+function fillRunDetail(id, refresh) {
+  if (runDetailCache.has(id) && !refresh) return;
+  api(`/api/runs/${id}/detail`).then(({ data }) => {
+    const html = runDetailHtml(data);
+    runDetailCache.set(id, html);
+    const cell = document.querySelector(`#run-detail-${id} td`);
+    if (cell) cell.innerHTML = html;
+  }).catch(console.error);
+}
+function toggleRunDetail(id, tr) {
+  if (openRuns.has(id)) {
+    openRuns.delete(id);
+    document.getElementById(`run-detail-${id}`)?.remove();
+    return;
+  }
+  openRuns.add(id);
+  insertRunDetailRow(tr, id, runDetailCache.get(id) || '<span class="muted small">加载中…</span>');
+  fillRunDetail(id, true);
+}
+
 async function loadRuns() {
   const { data } = await api("/api/runs?limit=20");
   $("#runsTable tbody").innerHTML = data.map((r) => {
-    const dur = r.finished_at_ms ? `${Math.round((r.finished_at_ms - r.started_at_ms) / 60000)}min` : "—";
-    return `<tr>
+    const p = r.progress;
+    const mins = Math.round(((r.finished_at_ms || Date.now()) - r.started_at_ms) / 60000);
+    const dur = r.finished_at_ms || r.status === "running" ? `${mins}min` : "—";
+    const fresh = p ? `${p.notes}帖/${p.comments}评` : `${r.notes_fresh}帖/${r.comments_fresh}评`;
+    const last = p ? progressNote(p) : esc(r.error || "");
+    return `<tr class="run-row" data-run="${r.id}" title="点击展开细节">
       <td>${r.id}</td><td>${r.mode}</td>
       <td class="st-${r.status}">${r.status}</td>
-      <td>${r.notes_fresh}帖/${r.comments_fresh}评</td>
+      <td>${fresh}</td>
       <td>${dur}</td><td>${localTime(r.started_at_ms)}</td>
-      <td class="err" title="${esc(r.error || "")}">${esc(r.error || "")}</td>
+      <td class="err${p ? " live" : ""}" title="${esc(r.error || "")}">${last}</td>
     </tr>`;
   }).join("");
+  // the poll rebuilds the tbody; put open detail rows back, refreshing live ones
+  for (const id of [...openRuns]) {
+    const tr = document.querySelector(`tr.run-row[data-run="${id}"]`);
+    if (!tr) { openRuns.delete(id); continue; }
+    insertRunDetailRow(tr, id, runDetailCache.get(id) || "");
+    const run = data.find((r) => r.id === id);
+    fillRunDetail(id, run?.status === "running");
+  }
 }
 
 /* ---------- actions ---------- */
@@ -373,6 +615,9 @@ document.addEventListener("click", async (ev) => {
     const id = t.dataset.accept || t.dataset.reject;
     await api(`/api/alias_suggestions/${id}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: t.dataset.accept ? "accept" : "reject" }) });
     loadSuggestions();
+  } else {
+    const rr = t.closest?.("tr.run-row");
+    if (rr) toggleRunDetail(Number(rr.dataset.run), rr);
   }
 });
 $("#trackForm").addEventListener("submit", async (ev) => {
@@ -391,9 +636,15 @@ $("#fetchBtn").addEventListener("click", async () => {
 /* ---------- boot ---------- */
 async function refreshData() {
   const { data } = await api("/api/ranking");
+  renderIndexes(data.indexes);
+  renderInvestments(data.investments);
+  renderTopics(data.topics, data.windows);
   renderRanking(data.ranking);
-  renderRadar(data.radar);
-  await buildCards(data.ranking);
+  renderSectors(data.sectors, data.windows);
+  renderRadar(data.radar, data.windows);
+  await buildCards([
+    ...data.ranking, ...(data.investments || []), ...(data.indexes || []),
+  ]);
   loadTracked(); loadSuggestions(); loadRuns(); loadScoreboard();
 }
 window.addEventListener("resize", () => rankingChart?.resize());
