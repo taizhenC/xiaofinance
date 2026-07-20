@@ -1,12 +1,15 @@
 .env
 /data/
 /vendor/
-static/vendor/
-static/node_modules/
 __pycache__/
 *.pyc
 .venv/
 .pytest_cache/
+# built web UI (vite output; CI builds it into the wheel)
+/infinance/webui/
+# frontend toolchain
+/frontend/node_modules/
+/dist/
 
 # git worktrees live here; they are separate checkouts, not content
 .claude/worktrees/
