@@ -55,7 +55,8 @@ export const S = {
 
   // panels
   rankingTitle: "热度排行",
-  rankingSubtitle: "popularity score · 24h",
+  rankingSubtitle: "热度分 · 24小时",
+  scoreWord: "热度分",
   legendBull: "偏多",
   legendBear: "偏空",
   legendNeutral: "中性/无分析",

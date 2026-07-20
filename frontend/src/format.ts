@@ -24,10 +24,10 @@ export function shortTime(ms: number | null | undefined): string {
 
 export function duration(ms: number): string {
   const s = Math.max(0, Math.round(ms / 1000));
-  if (s < 60) return `${s}s`;
+  if (s < 60) return `${s}秒`;
   const m = Math.floor(s / 60);
-  if (m < 60) return `${m}min${s % 60 ? ` ${s % 60}s` : ""}`;
-  return `${Math.floor(m / 60)}h ${m % 60}min`;
+  if (m < 60) return `${m}分${s % 60 ? `${s % 60}秒` : ""}`;
+  return `${Math.floor(m / 60)}小时${m % 60}分`;
 }
 
 export function countdown(untilMs: number, nowMs: number): string {

@@ -2,6 +2,9 @@
 name = "infinance"
 version = "0.1.0"
 description = "XHS (Xiaohongshu) US-stock sentiment dashboard — local, personal, your own account"
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
 requires-python = ">=3.11"
 dependencies = [
     "fastapi>=0.115",
@@ -24,6 +27,9 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["infinance"]
+# webui is gitignored (vite build output) but must ship in the wheel;
+# `artifacts` re-includes VCS-ignored files.
+artifacts = ["infinance/webui/**"]
 
 [dependency-groups]
 dev = [
