@@ -16,6 +16,7 @@ from .util import (
     QUOTE_MIN_SUBSTANCE,
     clean_tags,
     is_bot_prompt,
+    norm_for_hash,
     note_text,
     now_ms,
     sha256_hex,
@@ -265,6 +266,32 @@ def input_hash(items: list[dict]) -> str:
     read?". A re-crawl that only bumps like counts reshuffles the list without changing a word
     of it, and re-paying DeepSeek to read the same posts in a different order would be waste."""
     return sha256_hex("|".join(sorted(f"{i['type']}:{i['id']}" for i in items)))
+
+
+def verify_quotes(quotes: list[str], items: list[dict]) -> tuple[list[str], int]:
+    """Keep only quotes that are verbatim substrings of some input item
+    (compared after norm_for_hash: NFKC, lowercased latin, punctuation and
+    whitespace stripped — so the model may reflow spacing/punctuation but not
+    change a single content character). Quotes are the product's proof layer;
+    an LLM paraphrase presented as a quote is a fabrication.
+
+    Returns (verified_quotes, dropped_count)."""
+    haystacks = [norm_for_hash(i["text"]) for i in items]
+    kept: list[str] = []
+    dropped = 0
+    for q in quotes:
+        needle = norm_for_hash(q or "")
+        # a quote that normalizes to nothing (pure emoji/punctuation) proves nothing
+        if needle and any(needle in h for h in haystacks):
+            kept.append(q)
+        else:
+            dropped += 1
+    return kept, dropped
+
+
+def fallback_quotes(items: list[dict]) -> list[str]:
+    """Real top-liked texts, comments preferred — same shape the keyless path uses."""
+    return [i["text"] for i in items if i["type"] == "comment"][:3] or [i["text"] for i in items[:3]]
 
 
 def evidence_hash(items: list[dict]) -> str:
@@ -734,7 +761,9 @@ def analyze_all(conn, settings, dict_data: dict, stats: dict[str, dict],
                 tracked: set[str], min_mentions: int, max_stocks: int,
                 run_id: int | None = None, now: int | None = None,
                 force: bool = False, max_indexes: int = 3,
-                max_investments: int = 5) -> dict[str, str]:
+                max_investments: int = 5,
+                progress=None, cancel_event=None) -> dict[str, str]:
+    report = progress or (lambda stage=None, **kw: None)
     names = {s["ticker"]: s.get("name_cn", "") for s in dict_data.get("stocks", [])}
     classes = asset_classes(dict_data)
     indexes = index_tickers(dict_data)
@@ -762,6 +791,11 @@ def analyze_all(conn, settings, dict_data: dict, stats: dict[str, dict],
             candidates.append(t)
 
     results = {}
+    total = len(candidates)
+
+    def cancelled() -> bool:
+        return cancel_event is not None and cancel_event.is_set()
+
     if settings.DEEPSEEK_API_KEY:
         now = now or now_ms()
         contexts = [{
@@ -774,6 +808,10 @@ def analyze_all(conn, settings, dict_data: dict, stats: dict[str, dict],
         groups = shared_evidence_groups(contexts)
         log.info("DeepSeek analysis groups: %s", [[c["ticker"] for c in group] for group in groups])
         for group in groups:
+            if cancelled():
+                log.info("analyze_all cancelled after %d/%d tickers", len(results), total)
+                break
+            report(done=len(results), total=total, ticker=group[0]["ticker"])
             if len(group) == 1:
                 context = group[0]
                 results[context["ticker"]] = analyze_ticker(
@@ -782,14 +820,20 @@ def analyze_all(conn, settings, dict_data: dict, stats: dict[str, dict],
                 )
             else:
                 results.update(analyze_tickers_batch(conn, group, settings, run_id, now, force))
+            report(done=len(results), total=total)
             time.sleep(0.5)
     else:
         for ticker in candidates:
+            if cancelled():
+                log.info("analyze_all cancelled after %d/%d tickers", len(results), total)
+                break
+            report(done=len(results), total=total, ticker=ticker)
             results[ticker] = analyze_ticker(
                 conn, ticker, settings, names.get(ticker, ""),
                 stats.get(ticker, {}).get("score", 0.0), run_id, now, force,
                 classes.get(ticker, "stock"),
             )
+            report(done=len(results), total=total)
     log.info("analyze_all: %s", results)
     return results
 

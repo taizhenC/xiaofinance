@@ -218,6 +218,8 @@ def test_v0_db_migrates_in_place_with_backup_and_data_intact(tmp_path):
     # data survived
     run = conn.execute("SELECT * FROM fetch_runs").fetchone()
     assert run["status"] == "success" and run["notes_fresh"] == 8
+    # columns added by later migrations exist with their defaults
+    assert run["requests_est"] == 0
     assert conn.execute("SELECT title FROM notes WHERE note_id='n1'").fetchone()[0] == "NVDA新高"
     assert conn.execute("SELECT value FROM meta WHERE key='cycle_count'").fetchone()[0] == "7"
     assert conn.execute("SELECT summary FROM stock_analyses").fetchone()[0] == "NVDA: bullish crowd"

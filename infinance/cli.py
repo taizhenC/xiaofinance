@@ -152,9 +152,21 @@ def cmd_run(args) -> int:
     import uvicorn
 
     from .config import settings
+    from .main import check_bind_security, is_local_bind
 
     host = args.host or settings.HOST
     port = args.port or settings.PORT
+    try:
+        check_bind_security(host, settings.AUTH_TOKEN)
+    except RuntimeError as e:
+        print(f"{BAD} {e}")
+        return 1
+    if not is_local_bind(host):
+        # settings.HOST drives the in-app security gate; keep it consistent
+        # with the actual bind when --host was passed on the command line
+        settings.HOST = host
+        print(f"{BAD} WARNING: dashboard exposed on {host} — mutating endpoints require "
+              "the AUTH_TOKEN bearer header; anyone on the network can read the data.")
     print(f"infinance dashboard → http://{'127.0.0.1' if host == '0.0.0.0' else host}:{port}")
     # one worker, always: fetch mutual-exclusion and the scheduler are in-process
     uvicorn.run("infinance.main:app", host=host, port=port, workers=1, log_level="info")
