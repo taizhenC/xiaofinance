@@ -17,7 +17,7 @@ export function CardMeta({ e, d }: { e: RankingEntry; d: StockDetail | null }) {
       <span class="badge">
         {S.notesComments(e.note_count, e.comment_count)}
         {e.note_count_raw > e.note_count ? (
-          <span title="含转发重复"> (raw {e.note_count_raw}/{e.comment_count_raw})</span>
+          <span title="含转发重复"> {S.rawCounts(e.note_count_raw, e.comment_count_raw)}</span>
         ) : null}
       </span>
       {e.latest_item_age_ms != null ? (
