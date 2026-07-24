@@ -3,7 +3,7 @@
  * Every error string states what happened AND the next action. */
 
 export const S = {
-  appName: "infinance",
+  appName: "xiaofinance",
   tagline: "小红书美股热度看板",
 
   // top bar / status
@@ -164,10 +164,10 @@ export const S = {
   cookieCleared: "已清除，恢复扫码登录。",
 
   // wizard (UX-01)
-  wizardTitle: "开始使用 infinance",
+  wizardTitle: "开始使用 xiaofinance",
   wizardSteps: ["须知", "环境检查", "登录小红书", "首次抓取"],
   wizardWelcome:
-    "infinance 在你自己的电脑上运行：用你自己的小红书账号抓取最近 24 小时的美股讨论，汇总人群观点。",
+    "xiaofinance 在你自己的电脑上运行：用你自己的小红书账号抓取最近 24 小时的美股讨论，汇总人群观点。",
   wizardAckTitle: "开始前请知悉",
   wizardAckPoints: [
     "本工具只汇总信息，不提供投资建议 — 不荐股、不给买卖信号，排序只反映讨论热度。",
