@@ -44,21 +44,8 @@ def _tail_crawl_output(run_dir: Path, report, stop: threading.Event) -> None:
         )
 
 
-def _pause(seconds: float, cancel_event) -> bool:
-    """Wait between keywords, but wake the moment a cancel lands. True if cancelled.
-
-    A bare time.sleep here made cancellation useless for a whole KEYWORD_GAP_MIN (12
-    min by default): the UI sat on "cancelling" while the crawl kept holding the
-    browser — which is exactly the moment the user wants it back in order to log in.
-    """
-    if cancel_event is None:
-        time.sleep(seconds)
-        return False
-    return cancel_event.wait(seconds)
-
-
 def run_fetch(conn, mode: str, dict_data: dict, settings, provider=None,
-              progress=None, cancel_event=None) -> int | None:
+              progress=None) -> int | None:
     rotation = None
     if mode == "discovery":
         keywords, rotation = keywords_mod.select_keywords(conn, settings)
@@ -108,9 +95,7 @@ def run_fetch(conn, mode: str, dict_data: dict, settings, provider=None,
                 provider.append_log_line(
                     log_path, f"pausing {settings.KEYWORD_GAP_MIN:g} min before {kw}"
                 )
-                if _pause(settings.KEYWORD_GAP_MIN * 60, cancel_event):
-                    cancelled = True
-                    break
+                time.sleep(settings.KEYWORD_GAP_MIN * 60)
             result = provider.search(SearchRequest(
                 keywords=[kw], run_dir=run_dir,
                 max_notes_per_keyword=settings.MAX_NOTES_PER_KEYWORD,
@@ -267,12 +252,9 @@ def run_cycle(mode: str = "both", skip_crawl: bool = False, settings=None,
                     if "CAPTCHA" in prev_error or prev_error in ("login_required", "cancelled"):
                         log.warning("skipping %s run: previous run ended with %r", m, prev_error)
                         break
-                    if settings.KEYWORD_GAP_MIN > 0 and _pause(
-                        settings.KEYWORD_GAP_MIN * 60, cancel_event
-                    ):
-                        break
-                rid = run_fetch(conn, m, dict_data, settings, provider, progress=report,
-                                cancel_event=cancel_event)
+                    if settings.KEYWORD_GAP_MIN > 0:
+                        time.sleep(settings.KEYWORD_GAP_MIN * 60)
+                rid = run_fetch(conn, m, dict_data, settings, provider, progress=report)
                 if rid is not None:
                     run_ids.append(rid)
         last_run_id = run_ids[-1] if run_ids else None

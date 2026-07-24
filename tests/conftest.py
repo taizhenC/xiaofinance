@@ -53,12 +53,7 @@ def make_vendor(tmp_path):
             "                crawl_interval=crawl_interval,\n"
             "                callback=xhs_store.batch_update_xhs_note_comments,\n"
             "                max_count=config.CRAWLER_MAX_COMMENTS_COUNT_SINGLENOTES,\n"
-            "            )\n"
-            '            utils.logger.error(f"[XiaoHongShuCrawler] CDP mode launch failed, '
-            'falling back to standard mode: {e}")\n'
-            "            # Fall back to standard mode\n"
-            "            chromium = playwright.chromium\n"
-            "            return await self.launch_browser(chromium, playwright_proxy, user_agent, headless)\n",
+            "            )\n",
             encoding="utf-8",
         )
         (core / "client.py").write_text(

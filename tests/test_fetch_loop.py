@@ -182,27 +182,3 @@ def test_the_gap_between_keywords_is_written_into_the_shared_log(conn, tmp_path,
     }, KEYWORD_GAP_MIN=0.0001)
     text = (tmp_path / "raw" / f"run_{row['id']:06d}" / "crawler.log").read_text(encoding="utf-8")
     assert text.count("xiaofinance INFO - pausing") == 2  # between keywords, not after the last
-
-
-def test_a_cancel_during_the_keyword_gap_does_not_wait_the_gap_out(conn, tmp_path, monkeypatch):
-    """The gap is 12 min by default. A bare sleep there meant a cancel sat unheard that
-    long while the crawl kept holding the browser — exactly when the user wants it back
-    to log in. The pause has to wake on the event, not on the clock."""
-    import threading
-    import time
-
-    cancel = threading.Event()
-    fake = FakeCrawler({"池一": {"notes": 3}, "池二": {"notes": 3}, "核心": {"notes": 3}})
-    # long enough that waiting it out would blow the test's runtime many times over
-    s = make_settings(tmp_path, KEYWORD_GAP_MIN=5)
-    threading.Timer(0.2, cancel.set).start()
-
-    started = time.monotonic()
-    run_id = pipeline.run_fetch(conn, "discovery", {"stocks": []}, s,
-                                provider=FakeProvider(fake, s), cancel_event=cancel)
-    elapsed = time.monotonic() - started
-
-    assert elapsed < 30, f"cancel waited out the gap ({elapsed:.1f}s)"
-    assert fake.calls == ["池一"]  # stopped in the gap, before keyword 2 launched Chrome
-    row = conn.execute("SELECT * FROM fetch_runs WHERE id=?", (run_id,)).fetchone()
-    assert row["error"] == "cancelled"
