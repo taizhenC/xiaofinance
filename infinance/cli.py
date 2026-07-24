@@ -316,8 +316,19 @@ def main(argv: list[str] | None = None) -> int:
         "setup": cmd_setup, "login": cmd_login, "run": cmd_run,
         "cycle": cmd_cycle, "smoke": cmd_smoke, "doctor": cmd_doctor,
     }
+    from .browser_lock import BrowserBusy
+
     try:
         return handlers[args.command](args)
+    except BrowserBusy as e:
+        # login/smoke/cycle all funnel into provider.search(), so answer this once here
+        # rather than teaching each command the same lesson — and never with a traceback
+        print(f"{BAD} {e}.")
+        print("    Chrome can only be driven by one process at a time, so this would have")
+        print("    waited on a browser that never appears. Stop the other one first — for a")
+        print("    crawl, hit 取消 on the dashboard (or POST /api/fetch/cancel); for a login,")
+        print("    finish the scan or let it time out — then try again.")
+        return 1
     except KeyboardInterrupt:
         print("\ninterrupted")
         return 130

@@ -88,6 +88,74 @@ def test_successful_run_is_valid(client, tmp_path):
     assert s["state"] == "valid"
 
 
+QR_FAILED = (
+    "[XiaoHongShuClient.pong] Login state result: False\n"
+    "[XiaoHongShuLogin.login_by_qrcode] Login xiaohongshu failed by qrcode login method ...\n"
+)
+
+
+def add_running_run(tmp_path, log_text, name="run_live"):
+    conn = connect(settings.DB_PATH)
+    raw_dir = tmp_path / name
+    raw_dir.mkdir(parents=True, exist_ok=True)
+    (raw_dir / "crawler.log").write_text(log_text, encoding="utf-8")
+    conn.execute(
+        "INSERT INTO fetch_runs(mode, status, started_at_ms, raw_dir)"
+        " VALUES('discovery','running',?,?)",
+        (3000, str(raw_dir)),
+    )
+    conn.commit()
+    conn.close()
+
+
+def test_a_live_run_failing_to_log_in_beats_the_last_good_run(client, tmp_path):
+    """The reported bug: run N-1 succeeded, so the panel showed a green 会话有效 while
+    the crawl in front of it could not authenticate and was fetching nothing."""
+    add_run(tmp_path, status="success", notes_fresh=42, log_text="update_xhs_note ok\n")
+    assert client.get("/api/session").json()["state"] == "valid"
+
+    add_running_run(tmp_path, QR_FAILED)
+    s = client.get("/api/session").json()
+    assert s["state"] == "expired"
+    assert s["diagnosis"] == "expired"
+
+
+def test_a_live_run_failing_to_log_in_beats_a_verified_login(client, tmp_path):
+    """login_verified_at_ms is sticky until a newer run *finishes*. A login verified
+    before the current run started plainly is not holding if that run cannot log in."""
+    conn = connect(settings.DB_PATH)
+    from infinance.db import meta_set
+
+    meta_set(conn, session.LOGIN_VERIFIED_KEY, str(int(time.time() * 1000)))
+    conn.commit()
+    conn.close()
+    assert client.get("/api/session").json()["state"] == "valid"
+
+    add_running_run(tmp_path, QR_FAILED)
+    assert client.get("/api/session").json()["state"] == "expired"
+
+
+def test_a_healthy_live_run_never_downgrades_the_panel(client, tmp_path):
+    """The live check may turn a green amber, never the reverse — a normal crawl logs
+    'Login state result: False' on its way into a QR login that then succeeds."""
+    add_run(tmp_path, status="success", notes_fresh=42, log_text="update_xhs_note ok\n")
+    add_running_run(
+        tmp_path,
+        "[XiaoHongShuClient.pong] Login state result: False\n"
+        "[XiaoHongShuLogin.login_by_qrcode] Login successful then wait for 5 seconds ...\n"
+        "search Xiaohongshu keyword: 美股, page: 1\n",
+    )
+    assert client.get("/api/session").json()["state"] == "valid"
+
+
+def test_a_live_run_hitting_the_permission_wall_is_diagnosed(client, tmp_path):
+    add_run(tmp_path, status="success", notes_fresh=42, log_text="update_xhs_note ok\n")
+    add_running_run(tmp_path, "您当前登录的账号没有权限访问该内容\n")
+    s = client.get("/api/session").json()
+    assert s["state"] == "unauthorized"
+    assert s["diagnosis"] == "backend_mismatch"
+
+
 def test_cookie_endpoint_validates_and_never_echoes(client):
     r = client.post("/api/session/cookies", json={"cookies": "garbage"})
     assert r.status_code == 422

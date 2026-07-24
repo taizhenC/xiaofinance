@@ -79,6 +79,25 @@ def _last_finished_run(conn):
     ).fetchone()
 
 
+def _running_run(conn):
+    """The in-flight run, if any. It is the freshest evidence about the session there
+    is — and leaving it out of health() is what let the panel show a green 会话有效
+    off the *previous* run while the crawl in front of it was failing to log in."""
+    return conn.execute(
+        "SELECT * FROM fetch_runs WHERE status = 'running' ORDER BY id DESC LIMIT 1"
+    ).fetchone()
+
+
+def _unauthorized_diagnosis(settings, cookie: str) -> str:
+    if not settings.XHS_INTERNATIONAL and not cookie:
+        # most common cause for overseas users: rednote.com account against
+        # the mainland backend
+        return "backend_mismatch"
+    if not cookie:
+        return "try_cookie"
+    return "account_gated"
+
+
 def _read_run_log(run) -> str:
     if not run or not run["raw_dir"]:
         return ""
@@ -108,14 +127,7 @@ def health(conn, settings) -> dict:
     if last is not None:
         if log_state == SessionState.UNAUTHORIZED:
             state = "unauthorized"
-            if not settings.XHS_INTERNATIONAL and not cookie:
-                # most common cause for overseas users: rednote.com account
-                # against the mainland backend
-                diagnosis = "backend_mismatch"
-            elif not cookie:
-                diagnosis = "try_cookie"
-            else:
-                diagnosis = "account_gated"
+            diagnosis = _unauthorized_diagnosis(settings, cookie)
         elif last["error"] == "login_required" or log_state == SessionState.EXPIRED:
             state = "expired"
             diagnosis = "expired"
@@ -125,6 +137,19 @@ def health(conn, settings) -> dict:
     last_end = (last["finished_at_ms"] or last["started_at_ms"]) if last is not None else 0
     if verified_at and verified_at >= last_end:
         state, diagnosis = "valid", "none"
+
+    # The run happening right now outranks everything above it: a finished run's verdict
+    # is history, and a login verified before this run started clearly is not holding.
+    # Only a definitive failure downgrades — a healthy crawl says nothing here, so this
+    # can turn a green amber but never the reverse.
+    running = _running_run(conn)
+    if running is not None:
+        live_state = provider.classify_log(_read_run_log(running))
+        if live_state == SessionState.UNAUTHORIZED:
+            state = "unauthorized"
+            diagnosis = _unauthorized_diagnosis(settings, cookie)
+        elif live_state == SessionState.EXPIRED:
+            state, diagnosis = "expired", "expired"
 
     return {
         "state": state,
