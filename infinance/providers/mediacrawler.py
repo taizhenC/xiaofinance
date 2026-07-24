@@ -37,6 +37,13 @@ VENDOR_PIN = "3bde9e2015f912f2e19ee63b615a0f48b9a90315"
 PATCHES = [
     ("config/xhs_config.py", "SORT_TYPE", '"time_descending"'),
     ("config/base_config.py", "ENABLE_CDP_MODE", "True"),
+    # Vendor default is True: MediaCrawler then *attaches* to a Chrome the user is
+    # expected to have already started with --remote-debugging-port=9222 and, finding
+    # none, blocks the full BROWSER_LAUNCH_TIMEOUT (60s) polling a dead port before it
+    # errors out — the "login window takes forever to appear" symptom. We drive the
+    # browser ourselves, so it must launch its own Chrome on the isolated
+    # cdp_xhs_user_data_dir profile instead of waiting to connect to one.
+    ("config/base_config.py", "CDP_CONNECT_EXISTING", "False"),
 ]
 
 # Line patches for things that aren't config variables. Same contract as PATCHES:

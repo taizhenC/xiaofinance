@@ -43,6 +43,8 @@ def test_patch_config_applies_base_patches(make_vendor):
     patch_config(mc, settings())
     base = (mc / "config" / "base_config.py").read_text(encoding="utf-8")
     assert "ENABLE_CDP_MODE = True" in base
+    # must launch our own Chrome, not wait 60s to attach to a --remote-debugging-port=9222 one
+    assert "CDP_CONNECT_EXISTING = False" in base
     assert "CDP_HEADLESS = True" in base
     assert 'SORT_TYPE = "time_descending"' in (mc / "config" / "xhs_config.py").read_text(encoding="utf-8")
     assert "set_default_timeout(120_000)" in (mc / "media_platform" / "xhs" / "core.py").read_text(encoding="utf-8")
