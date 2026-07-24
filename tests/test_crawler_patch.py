@@ -64,6 +64,19 @@ def test_request_rate_comes_from_settings(make_vendor):
     assert "CRAWLER_MAX_SLEEP_SEC = 12" in (mc / "config" / "base_config.py").read_text(encoding="utf-8")
 
 
+def test_cdp_failure_never_falls_back_to_a_second_browser(make_vendor):
+    """Upstream answers a CDP failure by launching Playwright's own Chromium — a second
+    window on a profile with no XHS session, which then opens a QR nobody is waiting for."""
+    mc = make_vendor()
+    patch_config(mc, settings())
+    core = (mc / "media_platform" / "xhs" / "core.py").read_text(encoding="utf-8")
+    assert "never open a second browser as a fallback" in core
+    assert "falling back to standard mode" not in core
+    # only the fallback goes; the standard-mode branch behind `if not ENABLE_CDP_MODE`
+    # is untouched upstream code that this patch has no business rewriting
+    assert "return await self.launch_browser(chromium, playwright_proxy" not in core
+
+
 def test_index_navigation_waits_only_for_domcontentloaded(make_vendor):
     mc = make_vendor()
     patch_config(mc, settings())
