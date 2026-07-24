@@ -175,7 +175,17 @@ CODE_PATCHES = [
 LOGIN_HINTS = ["扫码", "二维码", "请扫码", "未登录", "登录已过期", "login expired", "login failed"]
 # The platform can expire a session mid-crawl, so a run that fetched notes and *then*
 # died still needs a re-login. These say so outright — trust them over the note count.
-EXPIRED_MARKERS = ["登录已过期", "login expired"]
+EXPIRED_MARKERS = [
+    "登录已过期", "login expired",
+    # MediaCrawler's own verdicts when the QR flow gives up. Without these it could
+    # announce "Login xiaohongshu failed by qrcode login method" and classify_log would
+    # still answer UNKNOWN — so a crawl that could not authenticate at all left the
+    # session panel showing the previous run's green.
+    "Login xiaohongshu failed by qrcode login method",
+    "have not found qrcode",
+]
+# Deliberately not a marker: "Login state result: False" is logged on the way *into* a
+# QR login, so it is also present in every run that then logs in successfully.
 # The mainland-vs-RedNote backend mismatch (and platform-gated accounts) answer every
 # search with this even though the login itself succeeded.
 UNAUTHORIZED_MARKERS = ["没有权限访问"]
