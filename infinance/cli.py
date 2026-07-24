@@ -116,7 +116,6 @@ def cmd_setup(args) -> int:
 
 
 def cmd_login(args) -> int:
-    from .browser_lock import BrowserBusy
     from .providers import SessionState, get_provider
 
     provider = get_provider()
@@ -127,15 +126,7 @@ def cmd_login(args) -> int:
         return 1
     print("A browser window will open with a QR code — scan it with the XHS app.")
     print(f"(waiting up to {args.timeout} minutes; the session is cached afterwards)")
-    try:
-        outcome = provider.login(timeout_min=args.timeout)
-    except BrowserBusy as e:
-        print(f"{BAD} {e}.")
-        print("    Chrome can only be driven by one of them at a time, so this login would")
-        print("    have waited a minute for a browser that never appears. Stop the other one")
-        print("    first — for a crawl, hit 取消 on the dashboard (or POST /api/fetch/cancel)")
-        print("    — then run `infinance login` again.")
-        return 1
+    outcome = provider.login(timeout_min=args.timeout)
     if outcome.ok:
         print(f"{OK} login verified — {outcome.detail}. You can start the dashboard: infinance run")
         return 0

@@ -23,7 +23,6 @@ from pathlib import Path
 
 import psutil
 
-from ..browser_lock import browser_lock
 from .base import LoginOutcome, RunResult, SearchRequest, SessionState
 
 log = logging.getLogger(__name__)
@@ -153,22 +152,6 @@ CODE_PATCHES = [
         "            for leftover_page in self.browser_context.pages:\n"
         "                if leftover_page is not self.context_page:\n"
         "                    await leftover_page.close()",
-    ),
-    # On a CDP failure upstream silently launches Playwright's *own* Chromium instead.
-    # That is a second browser window on a second profile, which by definition has no
-    # cached XHS session — so it opened a QR nobody was waiting for (a headless crawl
-    # sat on one for ten minutes, then moved on having fetched nothing). We drive the
-    # user's Chrome deliberately; if that cannot start we want to say so, not quietly
-    # swap in a different browser. Re-raise and let the caller report it.
-    (
-        "media_platform/xhs/core.py",
-        '            utils.logger.error(f"[XiaoHongShuCrawler] CDP mode launch failed, '
-        'falling back to standard mode: {e}")\n'
-        "            # Fall back to standard mode\n"
-        "            chromium = playwright.chromium\n"
-        "            return await self.launch_browser(chromium, playwright_proxy, user_agent, headless)\n",
-        '            utils.logger.error(f"[XiaoHongShuCrawler] CDP mode launch failed: {e}")\n'
-        "            raise  # xiaofinance: never open a second browser as a fallback\n",
     ),
 ]
 
@@ -697,14 +680,6 @@ class MediaCrawlerProvider:
         psutil.wait_procs(procs, timeout=30)
 
     def search(self, req: SearchRequest) -> RunResult:
-        # Every Chrome launch — crawl and login alike — funnels through here, so this is
-        # where the one profile gets claimed. Two at once means Chrome's singleton hands
-        # the second off to the first and exits, leaving the loser to wait out
-        # BROWSER_LAUNCH_TIMEOUT for a debug port that never opens. Fail fast instead.
-        with browser_lock(self.settings, "login" if req.visible_browser else "crawl"):
-            return self._search_locked(req)
-
-    def _search_locked(self, req: SearchRequest) -> RunResult:
         patch_config(self.mc_dir, self.settings,
                      browser_headless=None if not req.visible_browser else False)
         req.run_dir.mkdir(parents=True, exist_ok=True)
